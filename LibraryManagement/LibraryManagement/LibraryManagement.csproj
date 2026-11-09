@@ -19,6 +19,9 @@
       <Compile Update="Forms\Books\BookCreateForm.cs">
         <SubType>Form</SubType>
       </Compile>
+      <Compile Update="Forms\HomePage\HomePage.cs">
+        <SubType>Form</SubType>
+      </Compile>
     </ItemGroup>
 
     <ItemGroup>

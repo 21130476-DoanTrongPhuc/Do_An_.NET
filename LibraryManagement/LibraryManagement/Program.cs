@@ -48,6 +48,8 @@ internal static class Program
 
         // 5. Mở Form
         Application.Run(new BookCreateForm(bookService));
+        // Trang chủ
+        Application.Run(new LibraryManagement.Forms.HomePage.HomePage());
 
     }
 }
