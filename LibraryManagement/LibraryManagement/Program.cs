@@ -1,5 +1,5 @@
 using LibraryManagement.Data;
-using LibraryManagement.Forms.Books;
+using LibraryManagement.Forms.LibrarianFormMain;
 using LibraryManagement.Repositories;
 using LibraryManagement.Services;
 using Microsoft.EntityFrameworkCore;
@@ -47,7 +47,7 @@ internal static class Program
         var bookService = new BookService(bookRepository);
 
         // 5. Mở Form
-        Application.Run(new BookCreateForm(bookService));
-
+        // Application.Run(new BookCreateForm(bookService));
+        Application.Run(new LibrarianMainForm());
     }
 }
