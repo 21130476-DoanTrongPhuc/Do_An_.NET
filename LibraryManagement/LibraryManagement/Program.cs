@@ -13,41 +13,25 @@ internal static class Program
     {
         ApplicationConfiguration.Initialize();
 
-        // 1. Tạo đường dẫn database
-        string appData = Environment.GetFolderPath(
-            Environment.SpecialFolder.LocalApplicationData
-        );
-
-        string dbDirectory = Path.Combine(
-            appData,
-            "LibraryManagement"
-        );
-
-        Directory.CreateDirectory(dbDirectory);
-
-        string dbPath = Path.Combine(
-            dbDirectory,
-            "library.db"
-        );
-
-        // 2. Cấu hình SQLite
-        var options = new DbContextOptionsBuilder<LibraryDbContext>()
-            .UseSqlite($"Data Source={dbPath}")
-            .Options;
-
-        // 3. Khởi tạo database
-        using (var db = new LibraryDbContext(options))
+        try
         {
-            db.Database.EnsureCreated();
+            // Khởi tạo database
+            DatabaseInitializer.Initialize();
+            
+            // Mở màn hình đăng nhập
+            // Application.Run(new LoginForm());
         }
-
-        // 4. Khởi tạo các đối tượng
-        var bookRepository = new BookRepository(options);
-
-        var bookService = new BookService(bookRepository);
-
-        // 5. Mở Form
-        // Application.Run(new BookCreateForm(bookService));
-        Application.Run(new LibrarianMainForm());
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                $"Không thể khởi tạo ứng dụng!\n\n" +
+                $"Message: {ex.Message}\n\n" +
+                $"Type: {ex.GetType().Name}\n\n" +
+                $"StackTrace:\n{ex.StackTrace}",
+                "Application Error",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error
+            );
+        }
     }
 }

@@ -31,7 +31,14 @@
       </Compile>
     </ItemGroup>
 
+	<ItemGroup>
+		<None Update="Data/Migrations/**/*.sql">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
+	</ItemGroup>
+
     <ItemGroup>
+      <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.14" />
       <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.14" />
     </ItemGroup>
 
