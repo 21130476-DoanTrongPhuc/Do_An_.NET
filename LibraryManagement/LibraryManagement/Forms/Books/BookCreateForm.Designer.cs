@@ -109,11 +109,11 @@ partial class BookCreateForm
         // 
         nudQuantity.Location = new System.Drawing.Point(44, 319);
         nudQuantity.Name = "nudQuantity";
-        nudQuantity.Size = new System.Drawing.Size(251, 27);
-        nudQuantity.TabIndex = 8;
-        nudQuantity.Minimum = 1;
-        nudQuantity.Value = 1;
-        // 
+        // nudQuantity.Size = new System.Drawing.Size(251, 27);
+        // nudQuantity.TabIndex = 8;
+        // nudQuantity.Minimum = 1;
+        // nudQuantity.Value = 1;
+        // // 
         // btnSave
         // 
         btnSave.Location = new System.Drawing.Point(44, 370);
