@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Windows.Forms;
+using LibraryManagement.Forms.LibrarianFormMain;
 
 namespace LibraryManagement.Forms;
 
@@ -40,38 +41,22 @@ public partial class LoginForm : Form
 
         if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
         {
-            MessageBox.Show("Vui lòng nhập đầy đủ thông tin!", "Thông báo", 
+            MessageBox.Show("Vui lòng nhập đầy đủ thông tin!", "Thông báo",
                 MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
 
         if (rdoLibrarian.Checked)
         {
-            MessageBox.Show($"Đăng nhập Thủ thư thành công: {username}", "Thông báo");
+            // Demo: mở giao diện chính của thủ thư
+            var mainForm = new LibrarianMainForm();
+            mainForm.FormClosed += (s, args) => Close(); // đóng form chính thì thoát app
+            mainForm.Show();
+            Hide();
         }
         else
         {
             MessageBox.Show($"Đăng nhập Độc giả thành công: {username}", "Thông báo");
         }
-    }
-
-    private void lblRoleTitle_Click(object sender, EventArgs e)
-    {
-        throw new System.NotImplementedException();
-    }
-
-    private void cardPanel_Paint(object sender, PaintEventArgs e)
-    {
-        throw new System.NotImplementedException();
-    }
-
-    private void lblTitle_Click(object sender, EventArgs e)
-    {
-        throw new System.NotImplementedException();
-    }
-
-    private void lblUsernameTitle_Click(object sender, EventArgs e) 
-    {
-        throw new System.NotImplementedException();
     }
 }

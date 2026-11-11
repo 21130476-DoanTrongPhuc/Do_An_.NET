@@ -70,7 +70,6 @@ partial class LoginForm
         cardPanel.Name = "cardPanel";
         cardPanel.Size = new System.Drawing.Size(503, 500);
         cardPanel.TabIndex = 0;
-        cardPanel.Paint += cardPanel_Paint;
        
         lblLogo.AutoSize = true;
         lblLogo.Font = new System.Drawing.Font("Segoe UI", 12F, System.Drawing.FontStyle.Bold);
@@ -106,7 +105,6 @@ partial class LoginForm
         lblRoleTitle.Size = new System.Drawing.Size(126, 25);
         lblRoleTitle.TabIndex = 3;
         lblRoleTitle.Text = "Loại tài khoản:";
-        lblRoleTitle.Click += lblRoleTitle_Click;
        
         rdoReader.AutoSize = true;
         rdoReader.ForeColor = System.Drawing.Color.White;
@@ -133,7 +131,6 @@ partial class LoginForm
         lblUsernameTitle.Size = new System.Drawing.Size(191, 25);
         lblUsernameTitle.TabIndex = 6;
         lblUsernameTitle.Text = "Mã độc giả hoặc email";
-        lblUsernameTitle.Click += lblUsernameTitle_Click;
         
         txtUsername.BackColor = System.Drawing.Color.FromArgb(((int)((byte)32)), ((int)((byte)38)), ((int)((byte)46)));
         txtUsername.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
