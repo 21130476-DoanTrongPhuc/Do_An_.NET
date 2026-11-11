@@ -34,8 +34,8 @@ public class BookService : IBookService
             throw new Exception("Số lượng sách phải lớn hơn 0!");
 
         // 2. Kiểm tra ISBN đã tồn tại
-        if (_bookRepository.ExistsByISBN(isbn.Trim()))
-            throw new Exception("ISBN đã tồn tại!");
+        // if (_bookRepository.ExistsByISBN(isbn.Trim()))
+        //     throw new Exception("ISBN đã tồn tại!");
 
         // 3. Tạo đối tượng Book
         var book = new Book
@@ -46,6 +46,6 @@ public class BookService : IBookService
         };
 
         // 4. Lưu sách vào database
-        _bookRepository.Add(book);
+        // _bookRepository.Add(book);
     }
 }
