@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Windows.Forms;
-using LibraryManagement.Forms.LibrarianFormMain;
+using static LibraryManagement.Forms.LibrarianFormMain;
 
 namespace LibraryManagement.Forms;
 
@@ -46,17 +46,43 @@ public partial class LoginForm : Form
             return;
         }
 
+        // Demo: luôn đăng nhập thành công. Sau này thay bằng kiểm tra CSDL.
+        bool ok = true;
+        if (!ok)
+        {
+            MessageBox.Show("Sai tài khoản hoặc mật khẩu.", "Thông báo",
+                MessageBoxButtons.OK, MessageBoxIcon.Error);
+            return;
+        }
+
         if (rdoLibrarian.Checked)
         {
-            // Demo: mở giao diện chính của thủ thư
-            var mainForm = new LibrarianMainForm();
-            mainForm.FormClosed += (s, args) => Close(); // đóng form chính thì thoát app
-            mainForm.Show();
-            Hide();
+            // Thủ thư -> giao diện quản lý
+            var f = new LibraryManagement.Forms.LibrarianFormMain();
+            f.FormClosed += (_, _) => AfterClose(f.IsLogout);
+            this.Hide();
+            f.Show();
         }
         else
         {
-            MessageBox.Show($"Đăng nhập Độc giả thành công: {username}", "Thông báo");
+            // Người mượn sách -> giao diện độc giả
+            var f = new LibraryManagement.Forms.HomePage();
+            f.FormClosed += (_, _) => AfterClose(f.IsLogout);
+            this.Hide();
+            f.Show();
+        }
+    }
+
+    private void AfterClose(bool logout)
+    {
+        if (logout)
+        {
+            txtPassword.Clear();
+            this.Show(); // quay lại trang đăng nhập
+        }
+        else
+        {
+            this.Close(); // bấm X thì thoát hẳn app
         }
     }
 }
