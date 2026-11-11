@@ -29,6 +29,9 @@
       <Compile Update="Forms\Books\BookCopies\BookCopyControl.cs">
         <SubType>UserControl</SubType>
       </Compile>
+      <Compile Update="Forms\LoginForm\LoginForm.cs">
+        <SubType>Form</SubType>
+      </Compile>
     </ItemGroup>
 
 	<ItemGroup>

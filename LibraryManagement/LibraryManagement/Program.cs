@@ -1,8 +1,6 @@
 using LibraryManagement.Data;
-using LibraryManagement.Forms.LibrarianFormMain;
-using LibraryManagement.Repositories;
-using LibraryManagement.Services;
-using Microsoft.EntityFrameworkCore;
+using LibraryManagement.Forms;
+using Microsoft.Data.Sqlite;
 
 namespace LibraryManagement;
 
@@ -15,23 +13,28 @@ internal static class Program
 
         try
         {
-            // Khởi tạo database
+#if DEBUG
+            // CHỈ DÙNG KHI DEV: xóa DB cũ để migration luôn chạy lại từ đầu
+            string dbPath = DatabaseConnection.GetDatabasePath();
+            SqliteConnection.ClearAllPools();
+            if (File.Exists(dbPath))
+            {
+                File.Delete(dbPath);
+            }
+#endif
             DatabaseInitializer.Initialize();
-            
-            // Mở màn hình đăng nhập
-            // Application.Run(new LoginForm());
+            Application.Run(new LoginForm());
         }
         catch (Exception ex)
         {
             MessageBox.Show(
                 $"Không thể khởi tạo ứng dụng!\n\n" +
+                $"DB: {DatabaseConnection.GetDatabasePath()}\n\n" +
                 $"Message: {ex.Message}\n\n" +
-                $"Type: {ex.GetType().Name}\n\n" +
                 $"StackTrace:\n{ex.StackTrace}",
                 "Application Error",
                 MessageBoxButtons.OK,
-                MessageBoxIcon.Error
-            );
+                MessageBoxIcon.Error);
         }
     }
 }
