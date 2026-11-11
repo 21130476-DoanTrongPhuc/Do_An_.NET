@@ -1,6 +1,8 @@
 using LibraryManagement.Data;
 using LibraryManagement.Forms;
 using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace LibraryManagement;
 
@@ -23,6 +25,20 @@ internal static class Program
             }
 #endif
             DatabaseInitializer.Initialize();
+            
+            var services = new ServiceCollection();
+
+            services.AddDbContextFactory<LibraryDbContext>(
+                options =>
+                    options.UseSqlite(
+                        DatabaseConnection.CreateConnection()
+                    )
+            );
+
+            // Các đăng ký Repository và Service sẽ thêm ở đây.
+
+            var serviceProvider = services.BuildServiceProvider();
+            
             Application.Run(new LoginForm());
         }
         catch (Exception ex)

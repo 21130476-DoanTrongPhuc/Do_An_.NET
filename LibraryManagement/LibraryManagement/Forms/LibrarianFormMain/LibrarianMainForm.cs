@@ -170,7 +170,8 @@ namespace LibraryManagement.Forms.LibrarianFormMain
                 case "book-copies":
                     // ⚠️ Nếu BookCopyControl chưa tồn tại, tạm dùng placeholder
                     // để Designer/Form vẫn chạy được. Khi có control rồi, mở comment.
-                    // return new BookCopyControl();
+                    return new BookCopyControl();
+                    
                     return CreatePlaceholder(
                         "Sách vật lý / bản sao",
                         "Quản lý thông tin sách vật lý, tình trạng và vị trí."

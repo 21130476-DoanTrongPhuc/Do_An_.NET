@@ -43,8 +43,6 @@ public class BookService : IBookService
             ISBN = isbn.Trim(),
             Title = title.Trim(),
             Author = author.Trim(),
-            Quantity = quantity,
-            AvailableQuantity = quantity
         };
 
         // 4. Lưu sách vào database
