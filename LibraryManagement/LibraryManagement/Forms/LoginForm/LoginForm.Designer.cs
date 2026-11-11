@@ -2,21 +2,21 @@
 using System.Drawing;
 using System.Windows.Forms;
 
-namespace LibraryManagement.Forms.LoginForm;
+namespace LibraryManagement.Forms;
 
 partial class LoginForm
 {
     private IContainer components = null;
 
     private System.Windows.Forms.Panel cardPanel;
-    private Label lblLogo;
+    private System.Windows.Forms.Label lblLogo;
     private Label lblSubtitle;
-    private Label lblTitle;
+    private System.Windows.Forms.Label lblTitle;
     private System.Windows.Forms.Label lblRoleTitle;
-    private RadioButton rdoReader;
+    private System.Windows.Forms.RadioButton rdoReader;
     private System.Windows.Forms.RadioButton rdoLibrarian;
-    private Label lblUsernameTitle;
-    private System.Windows.Forms.TextBox txtUsername;
+    private System.Windows.Forms.Label lblUsernameTitle;
+    private TextBox txtUsername;
     private Label lblPasswordTitle;
     private TextBox txtPassword;
     private CheckBox chkRemember;
@@ -31,6 +31,11 @@ partial class LoginForm
         }
         base.Dispose(disposing);
     }
+
+    /// <summary>
+    /// Required method for Designer support - do not modify
+    /// the contents of this method with the code editor.
+    /// </summary>
     private void InitializeComponent()
     {
         cardPanel = new System.Windows.Forms.Panel();
@@ -49,8 +54,10 @@ partial class LoginForm
         btnLogin = new System.Windows.Forms.Button();
         cardPanel.SuspendLayout();
         SuspendLayout();
-        
-        cardPanel.BackColor = System.Drawing.Color.FromArgb(((int)((byte)22)), ((int)((byte)27)), ((int)((byte)34)));
+        // 
+        // cardPanel
+        // 
+        cardPanel.BackColor = System.Drawing.Color.Black;
         cardPanel.Controls.Add(lblLogo);
         cardPanel.Controls.Add(lblTitle);
         cardPanel.Controls.Add(lblSubtitle);
@@ -64,16 +71,17 @@ partial class LoginForm
         cardPanel.Controls.Add(chkRemember);
         cardPanel.Controls.Add(lblForgotPass);
         cardPanel.Controls.Add(btnLogin);
-        cardPanel.Location = new System.Drawing.Point(115, 39);
+        cardPanel.Location = new System.Drawing.Point(170, 50);
         cardPanel.Name = "cardPanel";
-        cardPanel.Size = new System.Drawing.Size(484, 507);
+        cardPanel.Size = new System.Drawing.Size(503, 500);
         cardPanel.TabIndex = 0;
+        cardPanel.Paint += cardPanel_Paint;
         // 
         // lblLogo
         // 
         lblLogo.AutoSize = true;
         lblLogo.Font = new System.Drawing.Font("Segoe UI", 12F, System.Drawing.FontStyle.Bold);
-        lblLogo.ForeColor = System.Drawing.Color.FromArgb(((int)((byte)255)), ((int)((byte)168)), ((int)((byte)0)));
+        lblLogo.ForeColor = System.Drawing.Color.Honeydew;
         lblLogo.Location = new System.Drawing.Point(30, 25);
         lblLogo.Name = "lblLogo";
         lblLogo.Size = new System.Drawing.Size(123, 32);
@@ -85,11 +93,11 @@ partial class LoginForm
         lblTitle.AutoSize = true;
         lblTitle.Font = new System.Drawing.Font("Segoe UI", 18F, System.Drawing.FontStyle.Bold);
         lblTitle.ForeColor = System.Drawing.Color.White;
-        lblTitle.Location = new System.Drawing.Point(30, 65);
+        lblTitle.Location = new System.Drawing.Point(122, 77);
         lblTitle.Name = "lblTitle";
-        lblTitle.Size = new System.Drawing.Size(368, 48);
+        lblTitle.Size = new System.Drawing.Size(205, 48);
         lblTitle.TabIndex = 1;
-        lblTitle.Text = "Đăng nhập hệ thống";
+        lblTitle.Text = "Đăng nhập";
         // 
         // lblSubtitle
         // 
@@ -106,17 +114,18 @@ partial class LoginForm
         // 
         lblRoleTitle.AutoSize = true;
         lblRoleTitle.ForeColor = System.Drawing.Color.FromArgb(((int)((byte)180)), ((int)((byte)190)), ((int)((byte)200)));
-        lblRoleTitle.Location = new System.Drawing.Point(8, 147);
+        lblRoleTitle.Location = new System.Drawing.Point(14, 136);
         lblRoleTitle.Name = "lblRoleTitle";
         lblRoleTitle.Size = new System.Drawing.Size(126, 25);
         lblRoleTitle.TabIndex = 3;
         lblRoleTitle.Text = "Loại tài khoản:";
+        lblRoleTitle.Click += lblRoleTitle_Click;
         // 
         // rdoReader
         // 
         rdoReader.AutoSize = true;
         rdoReader.ForeColor = System.Drawing.Color.White;
-        rdoReader.Location = new System.Drawing.Point(140, 143);
+        rdoReader.Location = new System.Drawing.Point(146, 134);
         rdoReader.Name = "rdoReader";
         rdoReader.Size = new System.Drawing.Size(180, 29);
         rdoReader.TabIndex = 4;
@@ -127,7 +136,7 @@ partial class LoginForm
         // 
         rdoLibrarian.AutoSize = true;
         rdoLibrarian.ForeColor = System.Drawing.Color.White;
-        rdoLibrarian.Location = new System.Drawing.Point(346, 143);
+        rdoLibrarian.Location = new System.Drawing.Point(332, 134);
         rdoLibrarian.Name = "rdoLibrarian";
         rdoLibrarian.Size = new System.Drawing.Size(98, 29);
         rdoLibrarian.TabIndex = 5;
@@ -138,11 +147,12 @@ partial class LoginForm
         // 
         lblUsernameTitle.AutoSize = true;
         lblUsernameTitle.ForeColor = System.Drawing.Color.FromArgb(((int)((byte)180)), ((int)((byte)190)), ((int)((byte)200)));
-        lblUsernameTitle.Location = new System.Drawing.Point(30, 190);
+        lblUsernameTitle.Location = new System.Drawing.Point(30, 175);
         lblUsernameTitle.Name = "lblUsernameTitle";
         lblUsernameTitle.Size = new System.Drawing.Size(191, 25);
         lblUsernameTitle.TabIndex = 6;
         lblUsernameTitle.Text = "Mã độc giả hoặc email";
+        lblUsernameTitle.Click += lblUsernameTitle_Click;
         // 
         // txtUsername
         // 
@@ -150,7 +160,7 @@ partial class LoginForm
         txtUsername.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
         txtUsername.Font = new System.Drawing.Font("Segoe UI", 10F);
         txtUsername.ForeColor = System.Drawing.Color.White;
-        txtUsername.Location = new System.Drawing.Point(30, 218);
+        txtUsername.Location = new System.Drawing.Point(30, 215);
         txtUsername.Name = "txtUsername";
         txtUsername.Size = new System.Drawing.Size(400, 34);
         txtUsername.TabIndex = 7;
@@ -191,7 +201,7 @@ partial class LoginForm
         // 
         lblForgotPass.AutoSize = true;
         lblForgotPass.LinkColor = System.Drawing.Color.FromArgb(((int)((byte)255)), ((int)((byte)168)), ((int)((byte)0)));
-        lblForgotPass.Location = new System.Drawing.Point(288, 344);
+        lblForgotPass.Location = new System.Drawing.Point(298, 344);
         lblForgotPass.Name = "lblForgotPass";
         lblForgotPass.Size = new System.Drawing.Size(142, 25);
         lblForgotPass.TabIndex = 11;
@@ -216,9 +226,10 @@ partial class LoginForm
         // 
         // LoginForm
         // 
-        BackColor = System.Drawing.Color.FromArgb(((int)((byte)18)), ((int)((byte)20)), ((int)((byte)24)));
+        BackColor = System.Drawing.Color.Black;
         ClientSize = new System.Drawing.Size(800, 600);
         Controls.Add(cardPanel);
+        ForeColor = System.Drawing.SystemColors.Control;
         StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
         Text = "LIBRA - Đăng nhập hệ thống";
         Load += LoginForm_Load;

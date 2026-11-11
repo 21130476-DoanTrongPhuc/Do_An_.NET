@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Windows.Forms;
 
-namespace LibraryManagement.Forms.LoginForm;
+namespace LibraryManagement.Forms;
 
 public partial class LoginForm : Form
 {
@@ -53,5 +53,25 @@ public partial class LoginForm : Form
         {
             MessageBox.Show($"Đăng nhập Độc giả thành công: {username}", "Thông báo");
         }
+    }
+
+    private void lblRoleTitle_Click(object sender, EventArgs e)
+    {
+        throw new System.NotImplementedException();
+    }
+
+    private void cardPanel_Paint(object sender, PaintEventArgs e)
+    {
+        throw new System.NotImplementedException();
+    }
+
+    private void lblTitle_Click(object sender, EventArgs e)
+    {
+        throw new System.NotImplementedException();
+    }
+
+    private void lblUsernameTitle_Click(object sender, EventArgs e)
+    {
+        throw new System.NotImplementedException();
     }
 }
