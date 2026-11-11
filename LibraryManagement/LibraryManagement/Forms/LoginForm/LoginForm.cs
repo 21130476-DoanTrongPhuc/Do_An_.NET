@@ -70,7 +70,7 @@ public partial class LoginForm : Form
         throw new System.NotImplementedException();
     }
 
-    private void lblUsernameTitle_Click(object sender, EventArgs e)
+    private void lblUsernameTitle_Click(object sender, EventArgs e) 
     {
         throw new System.NotImplementedException();
     }
