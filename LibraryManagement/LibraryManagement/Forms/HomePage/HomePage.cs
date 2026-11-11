@@ -1,390 +1,396 @@
-﻿using System;
-using System.Drawing;
-using System.Windows.Forms;
-using LibraryManagement.Models;
-using LibraryManagement.Services;
+﻿using System.Drawing.Drawing2D;
 
-namespace LibraryManagement.Forms.HomePage
+namespace LibraryManagement.Forms
 {
     public partial class HomePage : Form
     {
-        private Service _service;
+        // ====== Màu sắc theo thiết kế Figma ======
+        private static readonly Color Primary = Color.FromArgb(19, 98, 160);
+        private static readonly Color BorderGray = Color.FromArgb(217, 222, 229);
+        private static readonly Color TextGray = Color.FromArgb(110, 117, 128);
+        private static readonly Color Orange = Color.FromArgb(230, 145, 20);
+        private static readonly Color Green = Color.FromArgb(34, 160, 90);
+        private static readonly Color Red = Color.FromArgb(200, 50, 50);
+        private const string IconFont = "Segoe MDL2 Assets"; // có sẵn trên Windows 10/11
+        public bool IsLogout { get; private set; }
 
-        // Các khối chính
-        private Panel pnlBanner;
-        private Label lblFullName;
-        private Label lblCardInfo;
-        
-        private Label lblNum1, lblNum2, lblNum3, lblNum4;
-        private Panel pnlStat1, pnlStat2, pnlStat3, pnlStat4;
-
-        private Panel pnlBorrowSection;
-        private Panel pnlNotificationSection;
-        private Panel pnlRecommendSection;
+        // Glyph (Segoe MDL2 Assets)
+        private const string GHome = "\uE80F",
+            GSearch = "\uE721",
+            GBook = "\uE82D",
+            GHeart = "\uEB51",
+            GHeartFill = "\uEB52",
+            GClock = "\uE121",
+            GUser = "\uE77B",
+            GBell = "\uEA8F",
+            GCheck = "\uE73E",
+            GInfo = "\uE946",
+            GHistory = "\uE81C";
 
         public HomePage()
         {
             InitializeComponent();
-            _service = new Service();
-            SetupCustomUI();
-            LoadDataToUI();
+            BuildMenu();
+            BuildToolbar();
+            StyleStatic();
+            BuildStatusBar();
+            LoadData();
+
+            // responsive: chia đều thẻ khi đổi kích thước
+            flowBorrow.Resize += (_, _) => LayoutCards(flowBorrow, 2, flowBorrow.Height - 8);
+            flowSuggest.Resize += (_, _) => LayoutCards(flowSuggest, 5, 82);
+            flowNotice.Resize += (_, _) =>
+            {
+                foreach (Control c in flowNotice.Controls) c.Width = flowNotice.ClientSize.Width - 8;
+            };
         }
 
-        private void SetupCustomUI()
+        // ============================================================
+        //  DỮ LIỆU - thay phần này bằng BookService / Repository của bạn
+        // ============================================================
+        private void LoadData()
         {
-            // Thiết lập cửa sổ ban đầu và hỗ trợ co giãn
-            this.Size = new Size(1180, 820);
-            this.MinimumSize = new Size(1000, 700);
-            this.AutoScroll = true;
-            this.BackColor = Color.FromArgb(245, 247, 250);
-            this.Text = "Cổng thông tin độc giả - Trang chủ";
+            // TODO: var summary = _service.GetHomeSummary(readerId);  (Models/HomeSummary.cs)
+            string readerName = "Nguyễn Minh Anh", readerCode = "DG001", expire = "12/08/2025";
 
-            // 1. Banner Độc giả (Neo giãn rộng theo chiều ngang)
-            pnlBanner = new Panel()
+            lblName.Text = readerName;
+            lblCode.Text = $"Mã độc giả: {readerCode} · Thẻ còn hạn đến {expire}";
+            lblUserName.Text = readerName;
+            lblUserCode.Text = $"Độc giả · {readerCode}";
+            lblStatusReader.Text = $"Độc giả: {readerCode}";
+
+            // Thẻ thống kê
+            tblStats.Controls.Clear();
+            AddStat(0, GBook, "02", "Sách đang mượn");
+            AddStat(1, GClock, "04 ngày", "Đến hạn gần nhất");
+            AddStat(2, GHeart, "06", "Sách yêu thích");
+            AddStat(3, GCheck, "24", "Sách đã đọc");
+
+            // Sách đang mượn (Models/BorrowRecord.cs)
+            flowBorrow.Controls.Clear();
+            var borrowed = new[]
             {
-                Location = new Point(20, 20),
-                Size = new Size(1120, 90),
-                BackColor = Color.FromArgb(15, 64, 120),
-                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
+                (Title: "Nhà giả kim", Author: "Paulo Coelho", Code: "BK001", Due: "29/03/2024", Days: 4,
+                    Color: Primary),
+                (Title: "Tư duy nhanh và chậm", Author: "Daniel Kahneman", Code: "BK006", Due: "02/04/2024", Days: 8,
+                    Color: Color.FromArgb(110, 80, 150)),
             };
-
-            lblFullName = new Label()
+            foreach (var b in borrowed)
             {
-                Font = new Font("Segoe UI", 16, FontStyle.Bold),
-                ForeColor = Color.White,
-                Location = new Point(20, 15),
-                AutoSize = true
-            };
+                bool soon = b.Days <= 5;
+                flowBorrow.Controls.Add(CreateBookCard(b.Title, $"{b.Author} · {b.Code}", $"Hạn trả: {b.Due}",
+                    b.Color, $"Còn {b.Days} ngày", soon ? Orange : Green, null));
+            }
 
-            lblCardInfo = new Label()
+            LayoutCards(flowBorrow, 2, flowBorrow.Height - 8);
+
+            // Thông báo (Models/Notification.cs)
+            flowNotice.Controls.Clear();
+            AddNotice(GBell, Primary, "Nhắc hạn trả sách", "\"Nhà giả kim\" sẽ đến hạn sau 4 ngày.");
+            AddNotice(GCheck, Green, "Sách đặt trước đã sẵn sàng", "Vui lòng nhận trước ngày 28/03.");
+            AddNotice(GInfo, Primary, "Cập nhật giờ mở cửa", "Thứ Hai - Thứ Bảy: 07:30 - 20:00.");
+
+            // Gợi ý (Models/Book.cs)
+            flowSuggest.Controls.Clear();
+            var suggest = new[]
             {
-                Font = new Font("Segoe UI", 9.5f, FontStyle.Regular),
-                ForeColor = Color.FromArgb(210, 225, 240),
-                Location = new Point(20, 52),
-                AutoSize = true
+                (T: "Đắc nhân tâm", A: "Dale Carnegie", Ok: true, C: Primary),
+                (T: "Tuổi trẻ đáng giá bao nhiêu", A: "Rosie Nguyễn", Ok: true, C: Color.FromArgb(110, 80, 150)),
+                (T: "Lược sử thời gian", A: "Stephen Hawking", Ok: false, C: Color.FromArgb(40, 140, 110)),
+                (T: "Mắt biếc", A: "Nguyễn Nhật Ánh", Ok: true, C: Color.FromArgb(165, 90, 60)),
+                (T: "Tư duy nhanh và chậm", A: "Daniel Kahneman", Ok: true, C: Primary),
             };
-
-            pnlBanner.Controls.Add(lblFullName);
-            pnlBanner.Controls.Add(lblCardInfo);
-            this.Controls.Add(pnlBanner);
-
-            // 2. Thống kê 4 Card (Chia đều tỷ lệ tự động co giãn ngang)
-            int startX = 20;
-            int startY = 125;
-            int totalWidth = 1120;
-            int spacing = 15;
-            int cardWidth = (totalWidth - (spacing * 3)) / 4; // Tự động tính toán độ rộng chuẩn
-            int cardHeight = 70;
-
-            pnlStat1 = CreateStatCard(startX, startY, cardWidth, cardHeight, out lblNum1, "Sách đang mượn", AnchorStyles.Top | AnchorStyles.Left);
-            pnlStat2 = CreateStatCard(startX + (cardWidth + spacing), startY, cardWidth, cardHeight, out lblNum2, "Đến hạn gần nhất", AnchorStyles.Top | AnchorStyles.Left);
-            pnlStat3 = CreateStatCard(startX + (cardWidth + spacing) * 2, startY, cardWidth, cardHeight, out lblNum3, "Sách yêu thích", AnchorStyles.Top | AnchorStyles.Left);
-            pnlStat4 = CreateStatCard(startX + (cardWidth + spacing) * 3, startY, cardWidth, cardHeight, out lblNum4, "Sách đã đọc", AnchorStyles.Top | AnchorStyles.Left);
-
-            // Tùy chỉnh anchor co giãn cho 2 ô bên phải để không bị lệch khi phóng to màn hình
-            pnlStat3.Anchor = AnchorStyles.Top | AnchorStyles.Left;
-            pnlStat4.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right; // Ô cuối tự co dãn theo lề phải
-
-            this.Controls.Add(pnlStat1);
-            this.Controls.Add(pnlStat2);
-            this.Controls.Add(pnlStat3);
-            this.Controls.Add(pnlStat4);
-
-            // 3. Sách đang mượn & Thông báo
-            CreateBorrowSection(20, 210);
-            CreateNotificationSection(755, 210);
-
-            // 4. Gợi ý dành cho bạn
-            CreateRecommendSection(20, 470);
+            foreach (var s in suggest)
+                flowSuggest.Controls.Add(CreateBookCard(s.T, s.A, null, s.C,
+                    s.Ok ? "Còn sách" : "Đã hết", s.Ok ? Green : Red, s.T));
+            LayoutCards(flowSuggest, 5, 82);
         }
 
-        private Panel CreateStatCard(int x, int y, int width, int height, out Label lblNumRef, string title, AnchorStyles anchor)
+        // ============================================================
+        //  MENU + TOOLBAR
+        // ============================================================
+        private void BuildMenu()
         {
-            Panel pnl = new Panel()
-            {
-                Location = new Point(x, y),
-                Size = new Size(width, height),
-                BackColor = Color.White,
-                Anchor = anchor
-            };
-
-            lblNumRef = new Label()
-            {
-                Text = "00",
-                Font = new Font("Segoe UI", 14, FontStyle.Bold),
-                ForeColor = Color.FromArgb(15, 64, 120),
-                Location = new Point(15, 10),
-                AutoSize = true
-            };
-
-            Label lblTitle = new Label()
-            {
-                Text = title,
-                Font = new Font("Segoe UI", 8.5f, FontStyle.Regular),
-                ForeColor = Color.Gray,
-                Location = new Point(15, 40),
-                AutoSize = true
-            };
-
-            pnl.Controls.Add(lblNumRef);
-            pnl.Controls.Add(lblTitle);
-            return pnl;
+            menuStrip.Items.Clear();
+            foreach (var t in new[] { "Hệ thống", "Tra cứu", "Mượn sách", "Tài khoản", "Trợ giúp" })
+                menuStrip.Items.Add(new ToolStripMenuItem(t));
         }
 
-        private void CreateBorrowSection(int x, int y)
+        private void BuildToolbar()
         {
-            pnlBorrowSection = new Panel()
-            {
-                Location = new Point(x, y),
-                Size = new Size(720, 240),
-                BackColor = Color.Transparent,
-                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
-            };
-
-            Label lblSectionTitle = new Label()
-            {
-                Text = "Sách đang mượn",
-                Font = new Font("Segoe UI", 10.5f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(40, 40, 40),
-                Location = new Point(0, 0),
-                AutoSize = true
-            };
-            pnlBorrowSection.Controls.Add(lblSectionTitle);
-
-            // 2 Thẻ sách mượn chia đều diện tích
-            Panel card1 = CreateBookBorrowCard(0, 30, 350, 160, "Nhà giả kim", "Paulo Coelho · BK001", "Hạn trả: 29/03/2024", "• Còn 4 ngày", Color.FromArgb(240, 160, 75));
-            Panel card2 = CreateBookBorrowCard(370, 30, 350, 160, "Tư duy nhanh và chậm", "Daniel Kahneman · BK006", "Hạn trả: 02/04/2024", "• Còn 8 ngày", Color.FromArgb(80, 180, 120));
-
-            card2.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-
-            pnlBorrowSection.Controls.Add(card1);
-            pnlBorrowSection.Controls.Add(card2);
-
-            LinkLabel lblViewAll = new LinkLabel()
-            {
-                Text = "Xem tất cả sách đang mượn →",
-                Font = new Font("Segoe UI", 9f, FontStyle.Regular),
-                LinkColor = Color.FromArgb(15, 64, 120),
-                Location = new Point(0, 205),
-                AutoSize = true
-            };
-            pnlBorrowSection.Controls.Add(lblViewAll);
-
-            this.Controls.Add(pnlBorrowSection);
+            toolStrip.Items.Clear();
+            toolStrip.Padding = new Padding(8, 2, 0, 0);
+            AddTool("Trang chủ", GHome, 0, true, null);
+            AddTool("Tra cứu sách", GSearch, 0, false, null);
+            AddTool("Sách đang mượn", GBook, 2, false, null);
+            AddTool("Sách yêu thích", GHeart, 0, false, null);
+            AddTool("Lịch sử mượn", GHistory, 0, false, null);
+            AddTool("Thông tin tài khoản", GUser, 0, false, null);
         }
 
-        private Panel CreateBookBorrowCard(int x, int y, int w, int h, string name, string author, string date, string tag, Color tagColor)
+        private void AddTool(string text, string glyph, int badge, bool active, EventHandler? onClick)
         {
-            Panel card = new Panel()
+            var btn = new ToolStripButton(text)
             {
-                Location = new Point(x, y),
-                Size = new Size(w, h),
-                BackColor = Color.White
+                Image = GlyphImage(glyph, 20, Primary, badge),
+                DisplayStyle = ToolStripItemDisplayStyle.ImageAndText,
+                TextImageRelation = TextImageRelation.ImageAboveText,
+                Font = new Font("Segoe UI", 7.5F),
+                Margin = new Padding(2, 2, 2, 2),
+                Padding = new Padding(6, 0, 6, 0),
+                BackColor = active ? Color.FromArgb(220, 235, 248) : Color.White,
             };
+            if (onClick != null) btn.Click += onClick;
+            toolStrip.Items.Add(btn);
+        }
 
-            Panel imgBox = new Panel()
+        private void StyleStatic()
+        {
+            // avatar tròn "MA"
+            picAvatar.Paint += (s, e) =>
             {
-                Location = new Point(15, 15),
-                Size = new Size(50, 65),
-                BackColor = Color.FromArgb(30, 100, 160)
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                using var br = new SolidBrush(Primary);
+                e.Graphics.FillEllipse(br, 0, 0, picAvatar.Width - 1, picAvatar.Height - 1);
+                TextRenderer.DrawText(e.Graphics, Initials(lblUserName.Text),
+                    new Font("Segoe UI", 9.5F, FontStyle.Bold),
+                    new Rectangle(0, 0, picAvatar.Width, picAvatar.Height), Color.White,
+                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
             };
-
-            Label lblName = new Label()
+            lblBreadcrumb.Paint += (s, e) => { };
+            // icon kính lúp trong ô tìm kiếm
+            pnlSearch.Paint += (s, e) =>
+                TextRenderer.DrawText(e.Graphics, GSearch, new Font(IconFont, 12F),
+                    new Point(10, 12), TextGray);
+            lnkAllBorrow.LinkClicked += (_, _) =>
             {
-                Text = name,
-                Font = new Font("Segoe UI", 10f, FontStyle.Bold),
-                Location = new Point(75, 15),
-                AutoSize = true
+                /* TODO: mở danh sách sách đang mượn */
             };
+        }
 
-            Label lblAuthor = new Label()
+        // ============================================================
+        //  CÁC HÀM DỰNG THẺ
+        // ============================================================
+        private void AddStat(int col, string glyph, string value, string caption)
+        {
+            var card = new Panel
+                { Dock = DockStyle.Fill, BackColor = Color.White, Margin = new Padding(0, 0, col == 3 ? 0 : 12, 0) };
+            card.Paint += (s, e) =>
+                e.Graphics.DrawRectangle(new Pen(BorderGray), 0, 0, card.Width - 1, card.Height - 1);
+
+            card.Controls.Add(new Label
             {
-                Text = author,
-                Font = new Font("Segoe UI", 8.5f, FontStyle.Regular),
-                ForeColor = Color.Gray,
-                Location = new Point(75, 38),
-                AutoSize = true
-            };
-
-            Label lblDate = new Label()
+                Text = glyph, Font = new Font(IconFont, 16F), ForeColor = Primary, AutoSize = true,
+                Location = new Point(14, 20)
+            });
+            card.Controls.Add(new Label
             {
-                Text = date,
-                Font = new Font("Segoe UI", 8.5f, FontStyle.Regular),
-                ForeColor = Color.DimGray,
-                Location = new Point(75, 58),
-                AutoSize = true
-            };
-
-            Label lblTag = new Label()
+                Text = value, Font = new Font("Segoe UI", 15F, FontStyle.Bold), AutoSize = true,
+                Location = new Point(48, 8)
+            });
+            card.Controls.Add(new Label
             {
-                Text = tag,
-                Font = new Font("Segoe UI", 8f, FontStyle.Bold),
-                ForeColor = tagColor,
-                Location = new Point(75, 120),
-                AutoSize = true
+                Text = caption, Font = new Font("Segoe UI", 8F), ForeColor = TextGray, AutoSize = true,
+                Location = new Point(50, 40)
+            });
+            tblStats.Controls.Add(card, col, 0);
+        }
+
+        private Panel CreateBookCard(string title, string subtitle, string? extra, Color cover,
+            string status, Color statusColor, string? favoriteKey)
+        {
+            var card = new Panel
+                { Height = 74, Width = 300, BackColor = Color.White, Margin = new Padding(0, 0, 8, 8) };
+            card.Paint += (s, e) =>
+                e.Graphics.DrawRectangle(new Pen(BorderGray), 0, 0, card.Width - 1, card.Height - 1);
+
+            // bìa sách
+            var coverPnl = new Label
+            {
+                Text = GBook, Font = new Font(IconFont, 18F), ForeColor = Color.White, BackColor = cover,
+                TextAlign = ContentAlignment.MiddleCenter, Size = new Size(44, 56), Location = new Point(8, 9)
             };
+            card.Controls.Add(coverPnl);
 
-            card.Controls.Add(imgBox);
-            card.Controls.Add(lblName);
-            card.Controls.Add(lblAuthor);
-            card.Controls.Add(lblDate);
-            card.Controls.Add(lblTag);
+            card.Controls.Add(new Label
+            {
+                Text = title, Font = new Font("Segoe UI", 9F, FontStyle.Bold), AutoSize = true,
+                Location = new Point(60, 8)
+            });
+            card.Controls.Add(new Label
+            {
+                Text = subtitle, Font = new Font("Segoe UI", 7.5F), ForeColor = TextGray, AutoSize = true,
+                Location = new Point(60, 27)
+            });
+            if (extra != null)
+                card.Controls.Add(new Label
+                {
+                    Text = extra, Font = new Font("Segoe UI", 7.5F), ForeColor = TextGray, AutoSize = true,
+                    Location = new Point(60, 44)
+                });
 
+            // nhãn trạng thái dạng "pill"
+            var pill = new Label
+            {
+                Text = "● " + status, Font = new Font("Segoe UI", 7.5F), ForeColor = statusColor,
+                AutoSize = true, Padding = new Padding(4, 1, 4, 1), BackColor = Color.FromArgb(25, statusColor)
+            };
+            if (favoriteKey == null) // thẻ "đang mượn": pill bên phải
+            {
+                pill.Location = new Point(card.Width - 100, 24);
+                pill.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            }
+            else // thẻ gợi ý: pill dưới + nút tim bên phải
+            {
+                pill.Location = new Point(60, 50);
+                var heart = new Button
+                {
+                    Text = GHeart, Font = new Font(IconFont, 11F), FlatStyle = FlatStyle.Flat, Size = new Size(34, 30),
+                    Location = new Point(card.Width - 42, 8), Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                    Tag = false, Cursor = Cursors.Hand
+                };
+                heart.FlatAppearance.BorderColor = BorderGray;
+                heart.Click += (_, _) =>
+                {
+                    bool fav = !(bool)heart.Tag;
+                    heart.Tag = fav;
+                    heart.Text = fav ? GHeartFill : GHeart;
+                    heart.ForeColor = fav ? Red : Color.Black;
+                    // TODO: lưu sách yêu thích (Models/FavoriteBook.cs)
+                };
+                card.Controls.Add(heart);
+            }
+
+            card.Controls.Add(pill);
+            pill.BringToFront();
             return card;
         }
 
-        private void CreateNotificationSection(int x, int y)
+        private void AddNotice(string glyph, Color color, string title, string desc)
         {
-            pnlNotificationSection = new Panel()
+            var row = new Panel
+                { Height = 50, Width = flowNotice.ClientSize.Width - 8, Margin = new Padding(4, 0, 4, 0) };
+            row.Paint += (s, e) =>
+                e.Graphics.DrawLine(new Pen(BorderGray), 0, row.Height - 1, row.Width, row.Height - 1);
+            row.Controls.Add(new Label
             {
-                Location = new Point(x, y),
-                Size = new Size(385, 240),
-                BackColor = Color.White,
-                Anchor = AnchorStyles.Top | AnchorStyles.Right // Ghim sát góc phải màn hình
-            };
-
-            Label lblTitle = new Label()
+                Text = glyph, Font = new Font(IconFont, 13F), ForeColor = color, AutoSize = true,
+                Location = new Point(6, 14)
+            });
+            row.Controls.Add(new Label
             {
-                Text = "Thông báo",
-                Font = new Font("Segoe UI", 10.5f, FontStyle.Bold),
-                Location = new Point(15, 12),
-                AutoSize = true
-            };
-            pnlNotificationSection.Controls.Add(lblTitle);
-
-            AddNotiItem(pnlNotificationSection, 45, "Nhắc hạn trả sách", "\"Nhà giả kim\" sẽ đến hạn sau 4 ngày.", Color.FromArgb(200, 60, 60));
-            AddNotiItem(pnlNotificationSection, 105, "Sách đặt trước đã sẵn sàng", "Vui lòng nhận trước ngày 28/03.", Color.FromArgb(40, 140, 80));
-            AddNotiItem(pnlNotificationSection, 165, "Cập nhật giờ mở cửa", "Thứ Hai - Thứ Bảy: 07:30 - 20:00.", Color.FromArgb(15, 64, 120));
-
-            this.Controls.Add(pnlNotificationSection);
+                Text = title, Font = new Font("Segoe UI", 8.5F, FontStyle.Bold), AutoSize = true,
+                Location = new Point(40, 6)
+            });
+            row.Controls.Add(new Label
+            {
+                Text = desc, Font = new Font("Segoe UI", 7.5F), ForeColor = TextGray, AutoSize = true,
+                Location = new Point(40, 26)
+            });
+            flowNotice.Controls.Add(row);
         }
 
-        private void AddNotiItem(Panel parent, int y, string header, string sub, Color color)
+        private static void LayoutCards(FlowLayoutPanel flow, int perRow, int height)
         {
-            Label lblHeader = new Label()
+            if (flow.Controls.Count == 0 || flow.ClientSize.Width <= 0) return;
+            int w = (flow.ClientSize.Width - flow.Padding.Left - 8 * perRow) / perRow;
+            foreach (Control c in flow.Controls)
             {
-                Text = header,
-                Font = new Font("Segoe UI", 9f, FontStyle.Bold),
-                ForeColor = color,
-                Location = new Point(15, y),
-                AutoSize = true
-            };
-
-            Label lblSub = new Label()
-            {
-                Text = sub,
-                Font = new Font("Segoe UI", 8.5f, FontStyle.Regular),
-                ForeColor = Color.Gray,
-                Location = new Point(15, y + 20),
-                AutoSize = true
-            };
-
-            parent.Controls.Add(lblHeader);
-            parent.Controls.Add(lblSub);
+                c.Width = Math.Max(w, 120);
+                c.Height = Math.Min(height, 74);
+            }
         }
 
-        private void CreateRecommendSection(int x, int y)
+        // ============================================================
+        //  TIỆN ÍCH
+        // ============================================================
+        private static Bitmap GlyphImage(string glyph, int size, Color color, int badge)
         {
-            pnlRecommendSection = new Panel()
+            var bmp = new Bitmap(size + 14, size + 6);
+            using var g = Graphics.FromImage(bmp);
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            using var f = new Font(IconFont, size, GraphicsUnit.Pixel);
+            TextRenderer.DrawText(g, glyph, f, new Rectangle(0, 0, size + 4, bmp.Height), color,
+                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
+            if (badge > 0)
             {
-                Location = new Point(x, y),
-                Size = new Size(1120, 220),
-                BackColor = Color.Transparent,
-                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
-            };
-
-            Label lblTitle = new Label()
-            {
-                Text = "Gợi ý dành cho bạn",
-                Font = new Font("Segoe UI", 10.5f, FontStyle.Bold),
-                Location = new Point(0, 0),
-                AutoSize = true
-            };
-            pnlRecommendSection.Controls.Add(lblTitle);
-
-            string[] books = { "Đắc nhân tâm", "Tuổi trẻ đáng giá bao nhiêu", "Lược sử thời gian", "Mắt biếc" };
-            string[] authors = { "Dale Carnegie", "Rosie Nguyễn", "Stephen Hawking", "Nguyễn Nhật Ánh" };
-            string[] status = { "• Còn sách", "• Còn sách", "• Đã hết", "• Còn sách" };
-            Color[] statusColors = { Color.Green, Color.Green, Color.Red, Color.Green };
-
-            int itemWidth = 265;
-            int space = 20;
-
-            for (int i = 0; i < books.Length; i++)
-            {
-                Panel card = new Panel()
-                {
-                    Location = new Point(i * (itemWidth + space), 30),
-                    Size = new Size(itemWidth, 160),
-                    BackColor = Color.White
-                };
-
-                if (i == 3)
-                {
-                    card.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-                }
-
-                Panel imgBox = new Panel()
-                {
-                    Location = new Point(15, 15),
-                    Size = new Size(45, 60),
-                    BackColor = Color.FromArgb(40, 100, 150)
-                };
-
-                Label lblName = new Label()
-                {
-                    Text = books[i],
-                    Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
-                    Location = new Point(70, 15),
-                    AutoSize = true
-                };
-
-                Label lblAuthor = new Label()
-                {
-                    Text = authors[i],
-                    Font = new Font("Segoe UI", 8.5f, FontStyle.Regular),
-                    ForeColor = Color.Gray,
-                    Location = new Point(70, 38),
-                    AutoSize = true
-                };
-
-                Label lblStatus = new Label()
-                {
-                    Text = status[i],
-                    Font = new Font("Segoe UI", 8f, FontStyle.Bold),
-                    ForeColor = statusColors[i],
-                    Location = new Point(70, 120),
-                    AutoSize = true
-                };
-
-                card.Controls.Add(imgBox);
-                card.Controls.Add(lblName);
-                card.Controls.Add(lblAuthor);
-                card.Controls.Add(lblStatus);
-
-                pnlRecommendSection.Controls.Add(card);
+                using var br = new SolidBrush(Red);
+                g.FillEllipse(br, bmp.Width - 15, 0, 15, 15);
+                TextRenderer.DrawText(g, badge.ToString(), new Font("Segoe UI", 7F, FontStyle.Bold),
+                    new Rectangle(bmp.Width - 15, 0, 15, 15), Color.White,
+                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
             }
 
-            this.Controls.Add(pnlRecommendSection);
+            return bmp;
         }
 
-        private void LoadDataToUI()
+        private static string Initials(string name)
         {
-            Readers reader = _service.GetCurrentReader("DG001");
-            if (reader != null)
-            {
-                lblFullName.Text = $"Xin chào, {reader.FullName}";
-                lblCardInfo.Text = $"Mã độc giả: {reader.ReaderId}  •  Thẻ còn hạn đến {reader.CardExpiryDate:dd/MM/yyyy}";
-            }
+            var p = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            return p.Length == 0 ? "" : (p[0][0].ToString() + p[^1][0]).ToUpper();
+        }
 
-            HomeSummary summary = _service.GetHomeSummary("DG001");
-            if (summary != null)
+        // ============================================================
+        //  SỰ KIỆN
+        // ============================================================
+        private void btnSearch_Click(object? sender, EventArgs e)
+        {
+            // TODO: mở form tra cứu sách (Forms/Books) với từ khóa txtSearch.Text
+            MessageBox.Show($"Tìm: {txtSearch.Text}", "Tra cứu");
+        }
+
+        private void txtSearch_KeyDown(object? sender, KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Enter)
             {
-                lblNum1.Text = summary.BorrowingBooksCount.ToString("D2");
-                lblNum2.Text = $"{summary.DaysToRenewal:D2} ngày";
-                lblNum3.Text = summary.FavoriteBooksCount.ToString("D2");
-                lblNum4.Text = summary.ReadBooksCount.ToString("D2");
+                e.SuppressKeyPress = true;
+                btnSearch_Click(sender, e);
             }
+        }
+
+        private void btnLogout_Click(object? sender, EventArgs e)
+        {
+            var confirm = MessageBox.Show("Bạn có chắc muốn đăng xuất?", "Đăng xuất",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+
+            if (confirm != DialogResult.Yes) return;
+
+            IsLogout = true;
+            Close();
+        }
+        private ToolStripStatusLabel lblStatusReader = null!;
+
+        private void BuildStatusBar()
+        {
+            var status = new StatusStrip
+            {
+                Dock = DockStyle.Bottom,
+                SizingGrip = true,
+                BackColor = Color.FromArgb(240, 242, 245),
+                Font = new Font("Segoe UI", 8F)
+            };
+
+            // Bên trái: trạng thái kết nối
+            var dot = new ToolStripStatusLabel("●") { ForeColor = Green, Margin = new Padding(4, 3, 0, 2) };
+            var connected = new ToolStripStatusLabel("Đã kết nối") { Margin = new Padding(0, 3, 6, 2) };
+            var hours = new ToolStripStatusLabel("Thư viện Trung tâm · Giờ mở cửa: 07:30 - 20:00");
+
+            // Đẩy phần còn lại sang phải
+            var spring = new ToolStripStatusLabel { Spring = true };
+
+            // Bên phải: độc giả và phiên bản
+            lblStatusReader = new ToolStripStatusLabel("Độc giả: DG001");
+            var version = new ToolStripStatusLabel("Phiên bản 2.4.0");
+
+            status.Items.AddRange(new ToolStripItem[]
+            {
+                dot, connected, new ToolStripSeparator(), hours,
+                spring,
+                new ToolStripSeparator(), lblStatusReader,
+                new ToolStripSeparator(), version
+            });
+
+            Controls.Add(status);
         }
     }
 }

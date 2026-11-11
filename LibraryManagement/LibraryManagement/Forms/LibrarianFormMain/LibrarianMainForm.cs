@@ -1,518 +1,417 @@
-﻿using System;
-using System.Drawing;
-using System.Drawing.Drawing2D;
-using System.Windows.Forms;
+﻿using System.Drawing.Drawing2D;
 
-namespace LibraryManagement.Forms.LibrarianFormMain
+namespace LibraryManagement.Forms
 {
-    public partial class LibrarianMainForm : Form
+    public partial class LibrarianFormMain : Form
     {
-        private int hoveredCloseTabIndex = -1;
+        // ====== Màu sắc ======
+        private static readonly Color Primary = Color.FromArgb(19, 98, 160);
+        private static readonly Color BorderGray = Color.FromArgb(205, 210, 218);
+        private static readonly Color TextGray = Color.FromArgb(110, 117, 128);
+        private static readonly Color SoftBlue = Color.FromArgb(232, 240, 250);
+        private static readonly Color Orange = Color.FromArgb(214, 140, 10);
+        private static readonly Color Green = Color.FromArgb(34, 160, 90);
+        private static readonly Color Red = Color.FromArgb(200, 40, 40);
+        private const string IconFont = "Segoe MDL2 Assets";
 
-        public LibrarianMainForm()
+        // Glyph (Segoe MDL2 Assets)
+        private const string GHome = "\uE80F", GBook = "\uE82D", GPeople = "\uE716", GAdd = "\uE710",
+            GForward = "\uE72A", GBack = "\uE72B", GRefresh = "\uE72C", GHelp = "\uE897",
+            GWarn = "\uE7BA", GCalendar = "\uE787", GLibrary = "\uE8F1";
+
+        public bool IsLogout { get; private set; }
+
+        // Control cần truy cập sau
+        private TableLayoutPanel tblStats = null!;
+        private DataGridView dgvTrans = null!;
+        private FlowLayoutPanel flowNotice = null!;
+        private Label lblDate = null!;
+        private Label lblUserName = null!;
+
+        public LibrarianFormMain()
         {
             InitializeComponent();
+            Text = "LIBRA - Quản lý thư viện";
+            BuildUi();
+            LoadData();
         }
 
-        // =====================================================
-        // 0. CHỈ CHẠY LOGIC RUNTIME KHI FORM THỰC SỰ MỞ
-        // =====================================================
-
-        protected override void OnLoad(EventArgs e)
+        // ============================================================
+        //  DỮ LIỆU - thay bằng BookService / Repository khi nối CSDL
+        // ============================================================
+        private void LoadData()
         {
-            base.OnLoad(e);
+            var d = DateTime.Now;
+            string[] days = { "Chủ Nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy" };
+            lblDate.Text = $"{days[(int)d.DayOfWeek]}, ngày {d:dd} tháng {d:MM} năm {d:yyyy}";
+            lblUserName.Text = "Quản trị viên";
 
-            // Không chạy khi đang trong Designer
-            if (DesignMode) return;
+            // Thống kê hôm nay (Models/HomeSummary.cs)
+            tblStats.Controls.Clear();
+            AddStat(0, GBook, "Tổng đầu sách", "2.486", "+32 trong tháng", false);
+            AddStat(1, GPeople, "Độc giả hoạt động", "1.248", "86 độc giả mới", false);
+            AddStat(2, GForward, "Sách đang mượn", "386", "62 lượt hôm nay", false);
+            AddStat(3, GWarn, "Phiếu quá hạn", "24", "Cần xử lý", true);
 
-            ConfigureNavigation();
-            ConfigureMenuEvents();
-            // Tab events đã đăng ký trong InitializeComponent
+            // Giao dịch gần đây (Models/BorrowRecord.cs)
+            dgvTrans.Rows.Clear();
+            dgvTrans.Rows.Add("PM-240315", "Nguyễn Minh Anh", "Nhà giả kim", "15/03/2024", "29/03/2024", "Đang mượn");
+            dgvTrans.Rows.Add("PM-240314", "Trần Hoàng Nam", "Đắc nhân tâm", "14/03/2024", "28/03/2024", "Sắp đến hạn");
+            dgvTrans.Rows.Add("PM-240311", "Lê Thu Hà", "Lược sử thời gian", "11/03/2024", "25/03/2024", "Quá hạn");
+            dgvTrans.Rows.Add("PM-240309", "Đỗ Hải Yến", "Mắt biếc", "09/03/2024", "23/03/2024", "Quá hạn");
+            dgvTrans.ClearSelection();
+
+            // Thông báo và nhắc việc (Models/Notification.cs)
+            flowNotice.Controls.Clear();
+            AddNotice(GWarn, Red, "24 phiếu đã quá hạn", "Cần liên hệ độc giả và xử lý", "Kiểm tra");
+            AddNotice(GPeople, Primary, "38 thẻ sắp hết hạn", "Trong vòng 30 ngày tới", "Xem");
+            AddNotice(GBook, Orange, "12 đầu sách sắp hết", "Số lượng khả dụng dưới 2 cuốn", "Xem");
         }
 
-        // =====================================================
-        // 1. NAVIGATION BUTTON EVENTS
-        // =====================================================
-
-        private void ConfigureNavigation()
+        // ============================================================
+        //  DỰNG GIAO DIỆN
+        // ============================================================
+        private void BuildUi()
         {
-            this.btnOverview.Click += (sender, e) =>
+            SuspendLayout();
+
+            // ---- TabControl (Fill - add đầu tiên) ----
+            var tabMain = new TabControl { Dock = DockStyle.Fill, Font = new Font("Segoe UI", 9F), Padding = new Point(14, 4) };
+            var tabOverview = new TabPage("Tổng quan") { BackColor = Color.FromArgb(240, 242, 245), Padding = new Padding(8) };
+            tabMain.TabPages.Add(tabOverview);
+            BuildOverview(tabOverview);
+            Controls.Add(tabMain);
+
+            Controls.Add(BuildStatusBar());      // Bottom
+            Controls.Add(BuildToolbar());        // Top
+            Controls.Add(BuildMenu());           // Top (trên cùng)
+
+            ResumeLayout(true);
+        }
+
+        private MenuStrip BuildMenu()
+        {
+            var menu = new MenuStrip { BackColor = Color.White, Dock = DockStyle.Top };
+            foreach (var t in new[] { "Hệ thống", "Danh mục", "Lưu thông", "Báo cáo", "Trợ giúp" })
+                menu.Items.Add(new ToolStripMenuItem(t));
+            MainMenuStrip = menu;
+            return menu;
+        }
+
+        private Panel BuildToolbar()
+        {
+            var host = new Panel { Dock = DockStyle.Top, Height = 62, BackColor = Color.FromArgb(246, 247, 249) };
+            host.Paint += (s, e) => e.Graphics.DrawLine(new Pen(BorderGray), 0, host.Height - 1, host.Width, host.Height - 1);
+
+            var ts = new ToolStrip
             {
-                this.tabMain.SelectedTab = this.tabOverview;
+                Dock = DockStyle.Fill, GripStyle = ToolStripGripStyle.Hidden, BackColor = Color.FromArgb(246, 247, 249),
+                ImageScalingSize = new Size(24, 24), Padding = new Padding(6, 4, 0, 0)
+            };
+            AddTool(ts, "Trang chủ", GHome, () => Todo("Trang chủ"));
+            ts.Items.Add(new ToolStripSeparator());
+            AddTool(ts, "Thêm đầu sách", GBook, () => Todo("Thêm đầu sách"));
+            AddTool(ts, "Bản sách", GBook, () => Todo("Bản sách"));
+            AddTool(ts, "Thêm độc giả", GPeople, () => Todo("Thêm độc giả"));
+            ts.Items.Add(new ToolStripSeparator());
+            AddTool(ts, "Lập phiếu mượn", GForward, () => Todo("Lập phiếu mượn"));
+            AddTool(ts, "Nhận trả sách", GBack, () => Todo("Nhận trả sách"));
+            AddTool(ts, "Đặt trước", GCalendar, () => Todo("Đặt trước"));
+            ts.Items.Add(new ToolStripSeparator());
+            AddTool(ts, "Làm mới", GRefresh, LoadData);
+            AddTool(ts, "Trợ giúp", GHelp, () => Todo("Trợ giúp"));
+
+            // Khu người dùng bên phải
+            var user = new Panel { Dock = DockStyle.Right, Width = 340 };
+            user.Controls.Add(new Label { Text = "Người dùng:", AutoSize = true, ForeColor = TextGray, Font = new Font("Segoe UI", 9F), Location = new Point(8, 22) });
+            lblUserName = new Label { AutoSize = true, Font = new Font("Segoe UI", 9F, FontStyle.Bold), Location = new Point(84, 22) };
+            user.Controls.Add(lblUserName);
+            var btnLogout = new Button
+            {
+                Text = "Đăng xuất", FlatStyle = FlatStyle.Flat, BackColor = Color.White, Size = new Size(92, 32),
+                Location = new Point(user.Width - 104, 14), Anchor = AnchorStyles.Top | AnchorStyles.Right
+            };
+            btnLogout.FlatAppearance.BorderColor = BorderGray;
+            btnLogout.Click += btnLogout_Click;
+            user.Controls.Add(btnLogout);
+
+            host.Controls.Add(ts);
+            host.Controls.Add(user);
+            return host;
+        }
+
+        private StatusStrip BuildStatusBar()
+        {
+            var st = new StatusStrip { Dock = DockStyle.Bottom, SizingGrip = true, BackColor = Color.FromArgb(240, 242, 245), Font = new Font("Segoe UI", 8F) };
+            st.Items.AddRange(new ToolStripItem[]
+            {
+                new ToolStripStatusLabel("●") { ForeColor = Green },
+                new ToolStripStatusLabel("Đã kết nối"),
+                new ToolStripSeparator(),
+                new ToolStripStatusLabel("Thư viện Trung tâm · Giờ mở cửa: 07:30 - 20:00"),
+                new ToolStripStatusLabel { Spring = true },
+                new ToolStripSeparator(),
+                new ToolStripStatusLabel("Thủ thư"),
+                new ToolStripSeparator(),
+                new ToolStripStatusLabel("Phiên bản 2.4.0")
+            });
+            return st;
+        }
+
+        private void BuildOverview(TabPage page)
+        {
+            // ---------- Khối dưới: giao dịch + thông báo (Fill - add đầu) ----------
+            var pnlBottom = new Panel { Dock = DockStyle.Fill, Padding = new Padding(0, 10, 0, 0) };
+
+            var grpTrans = new GroupBox { Text = "Giao dịch gần đây", Dock = DockStyle.Fill, Padding = new Padding(10, 8, 10, 10) };
+            dgvTrans = BuildGrid();
+            grpTrans.Controls.Add(dgvTrans);
+
+            var noticeHost = new Panel { Dock = DockStyle.Right, Width = 560, Padding = new Padding(12, 0, 0, 0) };
+            var grpNotice = new GroupBox { Text = "Thông báo và nhắc việc", Dock = DockStyle.Fill, Padding = new Padding(10, 8, 10, 10) };
+            flowNotice = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true };
+            flowNotice.Resize += (_, _) =>
+            {
+                foreach (Control c in flowNotice.Controls) c.Width = flowNotice.ClientSize.Width - 8;
+            };
+            grpNotice.Controls.Add(flowNotice);
+            noticeHost.Controls.Add(grpNotice);
+
+            pnlBottom.Controls.Add(grpTrans);   // Fill
+            pnlBottom.Controls.Add(noticeHost); // Right
+
+            // ---------- Khối giữa: thống kê + tác vụ nhanh ----------
+            var pnlTop = new Panel { Dock = DockStyle.Top, Height = 168, Padding = new Padding(0, 10, 0, 0) };
+
+            var grpStats = new GroupBox { Text = "Thống kê hôm nay", Dock = DockStyle.Fill, Padding = new Padding(10, 8, 10, 10) };
+            tblStats = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 1 };
+            for (int i = 0; i < 4; i++) tblStats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
+            tblStats.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            grpStats.Controls.Add(tblStats);
+
+            var quickHost = new Panel { Dock = DockStyle.Right, Width = 392, Padding = new Padding(12, 0, 0, 0) };
+            var grpQuick = new GroupBox { Text = "Tác vụ nhanh", Dock = DockStyle.Fill, Padding = new Padding(6, 8, 6, 6) };
+            var tblQuick = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 2 };
+            tblQuick.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+            tblQuick.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+            tblQuick.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
+            tblQuick.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
+            tblQuick.Controls.Add(QuickButton("Lập phiếu mượn", GForward), 0, 0);
+            tblQuick.Controls.Add(QuickButton("Nhận trả sách", GBack), 1, 0);
+            tblQuick.Controls.Add(QuickButton("Thêm đầu sách", GBook), 0, 1);
+            tblQuick.Controls.Add(QuickButton("Thêm độc giả", GPeople), 1, 1);
+            grpQuick.Controls.Add(tblQuick);
+            quickHost.Controls.Add(grpQuick);
+
+            pnlTop.Controls.Add(grpStats);  // Fill
+            pnlTop.Controls.Add(quickHost); // Right
+
+            // ---------- Khối đầu: tiêu đề ----------
+            var pnlHeader = new Panel { Dock = DockStyle.Top, Height = 62, BackColor = SoftBlue };
+            pnlHeader.Paint += (s, e) => e.Graphics.DrawRectangle(new Pen(BorderGray), 0, 0, pnlHeader.Width - 1, pnlHeader.Height - 1);
+            pnlHeader.Controls.Add(new Label
+            {
+                Text = "TỔNG QUAN HOẠT ĐỘNG THƯ VIỆN", AutoSize = true, BackColor = Color.Transparent,
+                Font = new Font("Segoe UI", 11F, FontStyle.Bold), Location = new Point(14, 8)
+            });
+            lblDate = new Label { AutoSize = true, BackColor = Color.Transparent, ForeColor = TextGray, Font = new Font("Segoe UI", 8.5F), Location = new Point(16, 36) };
+            pnlHeader.Controls.Add(lblDate);
+
+            var btnRefresh = new Button
+            {
+                Text = "  Làm mới dữ liệu", FlatStyle = FlatStyle.Flat, BackColor = Color.White, Size = new Size(150, 34),
+                Image = GlyphImage(GRefresh, 14, Color.Black), ImageAlign = ContentAlignment.MiddleLeft,
+                TextImageRelation = TextImageRelation.ImageBeforeText, Font = new Font("Segoe UI", 8.5F),
+                Anchor = AnchorStyles.Top | AnchorStyles.Right
+            };
+            btnRefresh.Location = new Point(1000, 14);
+            btnRefresh.FlatAppearance.BorderColor = BorderGray;
+            btnRefresh.Click += (_, _) => LoadData();
+            pnlHeader.Controls.Add(btnRefresh);
+            pnlHeader.Resize += (_, _) => btnRefresh.Left = pnlHeader.Width - btnRefresh.Width - 12;
+
+            // Thứ tự add: Fill -> Top (dưới) -> Top (trên cùng)
+            page.Controls.Add(pnlBottom);
+            page.Controls.Add(pnlTop);
+            page.Controls.Add(pnlHeader);
+        }
+
+        private DataGridView BuildGrid()
+        {
+            var g = new DataGridView
+            {
+                Dock = DockStyle.Fill, ReadOnly = true, AllowUserToAddRows = false, AllowUserToDeleteRows = false,
+                AllowUserToResizeRows = false, RowHeadersVisible = false, BackgroundColor = Color.White,
+                BorderStyle = BorderStyle.FixedSingle, CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal,
+                GridColor = Color.FromArgb(225, 228, 233), SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                MultiSelect = false, EnableHeadersVisualStyles = false, RowTemplate = { Height = 42 },
+                ColumnHeadersHeight = 36, ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing,
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill, Font = new Font("Segoe UI", 9F)
+            };
+            g.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(241, 243, 246);
+            g.ColumnHeadersDefaultCellStyle.ForeColor = Color.Black;
+            g.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            g.ColumnHeadersDefaultCellStyle.Padding = new Padding(6, 0, 0, 0);
+            g.ColumnHeadersDefaultCellStyle.SelectionBackColor = Color.FromArgb(241, 243, 246);
+            g.ColumnHeadersDefaultCellStyle.SelectionForeColor = Color.Black;
+            g.DefaultCellStyle.Padding = new Padding(6, 0, 0, 0);
+            g.DefaultCellStyle.SelectionBackColor = Color.FromArgb(225, 236, 248);
+            g.DefaultCellStyle.SelectionForeColor = Color.Black;
+
+            g.Columns.Add("colId", "Mã phiếu");
+            g.Columns.Add("colReader", "Độc giả");
+            g.Columns.Add("colBook", "Tên sách");
+            g.Columns.Add("colBorrow", "Ngày mượn");
+            g.Columns.Add("colDue", "Hạn trả");
+            g.Columns.Add("colStatus", "Trạng thái");
+            g.Columns["colId"]!.DefaultCellStyle.ForeColor = Primary;
+            g.Columns["colId"]!.DefaultCellStyle.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            g.Columns["colId"]!.FillWeight = 70;
+            g.Columns["colReader"]!.FillWeight = 90;
+            g.Columns["colBook"]!.FillWeight = 100;
+            g.Columns["colBorrow"]!.FillWeight = 75;
+            g.Columns["colDue"]!.FillWeight = 75;
+            g.Columns["colStatus"]!.FillWeight = 85;
+
+            g.CellPainting += DgvTrans_CellPainting;
+            return g;
+        }
+
+        // Vẽ nhãn trạng thái dạng "pill"
+        private void DgvTrans_CellPainting(object? sender, DataGridViewCellPaintingEventArgs e)
+        {
+            if (e.RowIndex < 0 || e.ColumnIndex != 5 || e.Graphics == null) return;
+
+            e.Paint(e.CellBounds, DataGridViewPaintParts.Background | DataGridViewPaintParts.Border | DataGridViewPaintParts.SelectionBackground);
+            string text = e.Value?.ToString() ?? "";
+            Color c = text switch
+            {
+                "Đang mượn" => Primary,
+                "Sắp đến hạn" => Orange,
+                "Quá hạn" => Red,
+                _ => TextGray
             };
 
-            this.btnBooks.Click += (sender, e) =>
-                SelectOrCreateTab("Quản lý đầu sách", "books");
+            var font = new Font("Segoe UI", 8.5F);
+            string label = "●  " + text;
+            var size = TextRenderer.MeasureText(label, font);
+            var rect = new Rectangle(e.CellBounds.X + 8, e.CellBounds.Y + (e.CellBounds.Height - 26) / 2, size.Width + 8, 26);
 
-            this.btnBookCopies.Click += (sender, e) =>
-                SelectOrCreateTab("Sách vật lý / bản sao", "book-copies");
-
-            this.btnBorrowers.Click += (sender, e) =>
-                SelectOrCreateTab("Quản lý độc giả", "borrowers");
-
-            this.btnBorrowReturn.Click += (sender, e) =>
-                SelectOrCreateTab("Danh sách phiếu", "loan-list");
-
-            this.btnBorrowReceipt.Click += (sender, e) =>
-                SelectOrCreateTab("Lập phiếu mượn", "borrow");
-
-            this.btnReturnReceipt.Click += (sender, e) =>
-                SelectOrCreateTab("Nhận trả sách", "return");
-
-            this.btnReports.Click += (sender, e) =>
-                SelectOrCreateTab("Báo cáo thống kê", "reports");
-
-            this.btnLogout.Click += (sender, e) => Logout();
-        }
-
-        // =====================================================
-        // 2. MENU EVENTS
-        // =====================================================
-
-        private void ConfigureMenuEvents()
-        {
-            this.menuLogout.Click += (sender, e) => Logout();
-            this.menuExit.Click += (sender, e) => ExitApplication();
-
-            this.menuBooks.Click += (sender, e) =>
-                SelectOrCreateTab("Quản lý đầu sách", "books");
-
-            this.menuBookCopies.Click += (sender, e) =>
-                SelectOrCreateTab("Sách vật lý / bản sao", "book-copies");
-
-            this.menuCategories.Click += (sender, e) =>
-                SelectOrCreateTab("Thể loại sách", "categories");
-
-            this.menuPublishers.Click += (sender, e) =>
-                SelectOrCreateTab("Nhà xuất bản", "publishers");
-
-            this.menuBorrowers.Click += (sender, e) =>
-                SelectOrCreateTab("Quản lý độc giả", "borrowers");
-
-            this.menuLibraryCards.Click += (sender, e) =>
-                SelectOrCreateTab("Thẻ thư viện", "library-cards");
-
-            this.menuLoanList.Click += (sender, e) =>
-                SelectOrCreateTab("Danh sách phiếu", "loan-list");
-
-            this.menuBorrow.Click += (sender, e) =>
-                SelectOrCreateTab("Lập phiếu mượn", "borrow");
-
-            this.menuReturn.Click += (sender, e) =>
-                SelectOrCreateTab("Nhận trả sách", "return");
-
-            this.menuReservations.Click += (sender, e) =>
-                SelectOrCreateTab("Đặt trước sách", "reservations");
-
-            this.menuOverdueBooks.Click += (sender, e) =>
-                SelectOrCreateTab("Quản lý sách quá hạn", "overdue-books");
-
-            this.menuFineReceipts.Click += (sender, e) =>
-                SelectOrCreateTab("Quản lý phiếu phạt", "fine-receipts");
-
-            this.menuFinePayment.Click += (sender, e) =>
-                SelectOrCreateTab("Thanh toán tiền phạt", "fine-payment");
-
-            this.menuInventory.Click += (sender, e) =>
-                SelectOrCreateTab("Quản lý kiểm kê", "inventory");
-
-            this.menuPolicies.Click += (sender, e) =>
-                SelectOrCreateTab("Chính sách thư viện", "policies");
-
-            this.menuLibrarianAccounts.Click += (sender, e) =>
-                SelectOrCreateTab("Tài khoản thủ thư", "librarian-accounts");
-
-            this.menuStatistics.Click += (sender, e) =>
-                SelectOrCreateTab("Báo cáo thống kê", "reports");
-
-            this.menuAbout.Click += (sender, e) => ShowAbout();
-        }
-
-        // =====================================================
-        // 3. CREATE OR SELECT TAB
-        // =====================================================
-
-        private void SelectOrCreateTab(string title, string pageKey)
-        {
-            foreach (TabPage existingPage in this.tabMain.TabPages)
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            using (var path = RoundedRect(rect, 13))
+            using (var fill = new SolidBrush(Color.FromArgb(22, c)))
+            using (var pen = new Pen(Color.FromArgb(150, c)))
             {
-                if (existingPage.Tag != null &&
-                    existingPage.Tag.ToString() == pageKey)
-                {
-                    this.tabMain.SelectedTab = existingPage;
-                    return;
-                }
+                e.Graphics.FillPath(fill, path);
+                e.Graphics.DrawPath(pen, path);
             }
-
-            TabPage newTab = new TabPage();
-            newTab.Text = title;
-            newTab.Tag = pageKey;
-            newTab.BackColor = Color.FromArgb(245, 247, 250);
-            newTab.Padding = new Padding(8);
-
-            Control content = CreatePageContent(pageKey);
-            content.Dock = DockStyle.Fill;
-            newTab.Controls.Add(content);
-
-            this.tabMain.TabPages.Add(newTab);
-            this.tabMain.SelectedTab = newTab;
-            this.tabMain.Invalidate();
+            TextRenderer.DrawText(e.Graphics, label, font, rect, c,
+                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
+            e.Handled = true;
         }
 
-        // =====================================================
-        // 4. CREATE PAGE CONTENT
-        // =====================================================
-
-        private Control CreatePageContent(string pageKey)
+        // ============================================================
+        //  CÁC HÀM DỰNG THẺ
+        // ============================================================
+        private void AddStat(int col, string glyph, string caption, string value, string sub, bool danger)
         {
-            switch (pageKey)
+            var accent = danger ? Red : Primary;
+            var card = new Panel { Dock = DockStyle.Fill, BackColor = Color.White, Margin = new Padding(0, 0, col == 3 ? 0 : 10, 0) };
+            card.Paint += (s, e) => e.Graphics.DrawRectangle(new Pen(BorderGray), 0, 0, card.Width - 1, card.Height - 1);
+
+            card.Controls.Add(new Label
             {
-                case "book-copies":
-                    // ⚠️ Nếu BookCopyControl chưa tồn tại, tạm dùng placeholder
-                    // để Designer/Form vẫn chạy được. Khi có control rồi, mở comment.
-                    // return new BookCopyControl();
-                    return CreatePlaceholder(
-                        "Sách vật lý / bản sao",
-                        "Quản lý thông tin sách vật lý, tình trạng và vị trí."
-                    );
-
-                case "books":
-                    return CreatePlaceholder("Quản lý đầu sách",
-                        "Quản lý thông tin thư mục, số lượng sách vật lý được theo dõi riêng.");
-
-                case "borrowers":
-                    return CreatePlaceholder("Quản lý độc giả",
-                        "Quản lý thông tin và hồ sơ người mượn sách.");
-
-                case "loan-list":
-                    return CreatePlaceholder("Danh sách phiếu",
-                        "Theo dõi các phiếu mượn và tình trạng lưu thông sách.");
-
-                case "borrow":
-                    return CreatePlaceholder("Lập phiếu mượn",
-                        "Tạo phiếu mượn sách cho độc giả.");
-
-                case "return":
-                    return CreatePlaceholder("Nhận trả sách",
-                        "Tiếp nhận sách được độc giả trả lại.");
-
-                case "categories":
-                    return CreatePlaceholder("Thể loại sách",
-                        "Quản lý danh mục thể loại sách.");
-
-                case "publishers":
-                    return CreatePlaceholder("Nhà xuất bản",
-                        "Quản lý thông tin nhà xuất bản.");
-
-                case "library-cards":
-                    return CreatePlaceholder("Thẻ thư viện",
-                        "Quản lý thẻ thư viện của độc giả.");
-
-                case "reservations":
-                    return CreatePlaceholder("Đặt trước sách",
-                        "Quản lý các yêu cầu đặt trước sách.");
-
-                case "overdue-books":
-                    return CreatePlaceholder("Quản lý sách quá hạn",
-                        "Theo dõi các sách đã quá hạn trả.");
-
-                case "fine-receipts":
-                    return CreatePlaceholder("Quản lý phiếu phạt",
-                        "Quản lý các phiếu phạt phát sinh.");
-
-                case "fine-payment":
-                    return CreatePlaceholder("Thanh toán tiền phạt",
-                        "Tiếp nhận và ghi nhận thanh toán tiền phạt.");
-
-                case "inventory":
-                    return CreatePlaceholder("Quản lý kiểm kê",
-                        "Theo dõi và thực hiện kiểm kê sách trong thư viện.");
-
-                case "policies":
-                    return CreatePlaceholder("Chính sách thư viện",
-                        "Quản lý các quy định và chính sách của thư viện.");
-
-                case "librarian-accounts":
-                    return CreatePlaceholder("Tài khoản thủ thư",
-                        "Quản lý tài khoản nhân viên thư viện.");
-
-                case "reports":
-                    return CreatePlaceholder("Báo cáo thống kê",
-                        "Tổng hợp và thống kê hoạt động của thư viện.");
-
-                default:
-                    return CreatePlaceholder("Chức năng",
-                        "Giao diện chức năng đang được phát triển.");
-            }
+                Text = glyph, Font = new Font(IconFont, 18F), ForeColor = accent,
+                BackColor = danger ? Color.FromArgb(253, 234, 234) : SoftBlue,
+                TextAlign = ContentAlignment.MiddleCenter, Size = new Size(50, 50), Location = new Point(10, 22)
+            });
+            card.Controls.Add(new Label { Text = caption, Font = new Font("Segoe UI", 8.5F), ForeColor = Color.FromArgb(60, 60, 60), AutoSize = true, Location = new Point(74, 14) });
+            card.Controls.Add(new Label { Text = value, Font = new Font("Segoe UI", 18F, FontStyle.Bold), AutoSize = true, Location = new Point(70, 30) });
+            card.Controls.Add(new Label { Text = sub, Font = new Font("Segoe UI", 7.5F), ForeColor = TextGray, AutoSize = true, Location = new Point(74, 70) });
+            tblStats.Controls.Add(card, col, 0);
         }
 
-        // =====================================================
-        // 5. PLACEHOLDER
-        // =====================================================
-
-        private Control CreatePlaceholder(string title, string description)
+        private Button QuickButton(string text, string glyph)
         {
-            Panel mainPanel = new Panel();
-            mainPanel.Dock = DockStyle.Fill;
-            mainPanel.BackColor = Color.FromArgb(245, 247, 250);
-
-            Label lblTitle = new Label();
-            lblTitle.Text = title;
-            lblTitle.AutoSize = true;
-            lblTitle.Font = new Font("Segoe UI", 21F, FontStyle.Bold);
-            lblTitle.ForeColor = Color.FromArgb(30, 55, 85);
-            lblTitle.Location = new Point(20, 20);
-
-            Label lblDescription = new Label();
-            lblDescription.Text = description;
-            lblDescription.AutoSize = true;
-            lblDescription.Font = new Font("Segoe UI", 10F);
-            lblDescription.ForeColor = Color.FromArgb(100, 115, 135);
-            lblDescription.Location = new Point(23, 70);
-
-            Panel contentPanel = new Panel();
-            contentPanel.BackColor = Color.White;
-            contentPanel.Location = new Point(16, 115);
-            contentPanel.Size = new Size(900, 200);
-            contentPanel.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
-
-            Label lblComingSoon = new Label();
-            lblComingSoon.Text = "Giao diện chức năng đang được phát triển...";
-            lblComingSoon.AutoSize = true;
-            lblComingSoon.Font = new Font("Segoe UI", 11F);
-            lblComingSoon.ForeColor = Color.Gray;
-            lblComingSoon.Location = new Point(25, 25);
-
-            contentPanel.Controls.Add(lblComingSoon);
-            mainPanel.Controls.Add(lblTitle);
-            mainPanel.Controls.Add(lblDescription);
-            mainPanel.Controls.Add(contentPanel);
-
-            return mainPanel;
+            var b = new Button
+            {
+                Text = "  " + text, Dock = DockStyle.Fill, Margin = new Padding(4), FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(246, 247, 249), Font = new Font("Segoe UI", 9F),
+                Image = GlyphImage(glyph, 16, Color.Black), ImageAlign = ContentAlignment.MiddleLeft,
+                TextAlign = ContentAlignment.MiddleLeft, TextImageRelation = TextImageRelation.ImageBeforeText,
+                Padding = new Padding(10, 0, 0, 0), Cursor = Cursors.Hand
+            };
+            b.FlatAppearance.BorderColor = BorderGray;
+            b.Click += (_, _) => Todo(text);
+            return b;
         }
 
-        // =====================================================
-        // 6. DRAW TAB
-        // =====================================================
-
-        private void TabMain_DrawItem(object sender, DrawItemEventArgs e)
+        private void AddNotice(string glyph, Color color, string title, string desc, string linkText)
         {
-            // Guard: không vẽ khi đang trong Designer để tránh crash
-            if (DesignMode) return;
-            if (e.Index < 0 || e.Index >= this.tabMain.TabPages.Count) return;
+            var row = new Panel { Height = 66, Width = Math.Max(flowNotice.ClientSize.Width - 8, 200), Margin = new Padding(4, 0, 4, 10), BackColor = Color.White };
+            row.Paint += (s, e) => e.Graphics.DrawRectangle(new Pen(BorderGray), 0, 0, row.Width - 1, row.Height - 1);
+            row.Controls.Add(new Label { Text = glyph, Font = new Font(IconFont, 14F), ForeColor = color, AutoSize = true, Location = new Point(12, 20) });
+            row.Controls.Add(new Label { Text = title, Font = new Font("Segoe UI", 9.5F, FontStyle.Bold), AutoSize = true, Location = new Point(52, 12) });
+            row.Controls.Add(new Label { Text = desc, Font = new Font("Segoe UI", 8F), ForeColor = TextGray, AutoSize = true, Location = new Point(54, 36) });
 
-            TabPage page = this.tabMain.TabPages[e.Index];
-            Rectangle tabRect = this.tabMain.GetTabRect(e.Index);
-
-            bool isSelected = this.tabMain.SelectedIndex == e.Index;
-            bool isOverview = page == this.tabOverview;
-
-            Graphics graphics = e.Graphics;
-            graphics.SmoothingMode = SmoothingMode.AntiAlias;
-
-            // Nền
-            Color backgroundColor = isSelected
-                ? Color.White
-                : Color.FromArgb(240, 242, 245);
-
-            using (SolidBrush backgroundBrush = new SolidBrush(backgroundColor))
-            {
-                graphics.FillRectangle(backgroundBrush, tabRect);
-            }
-
-            // Gạch chân tab đang chọn
-            if (isSelected)
-            {
-                using (Pen borderPen = new Pen(Color.FromArgb(0, 120, 215), 2))
-                {
-                    graphics.DrawLine(borderPen,
-                        tabRect.Left, tabRect.Bottom - 1,
-                        tabRect.Right, tabRect.Bottom - 1);
-                }
-            }
-
-            // Text
-            Rectangle textRect = new Rectangle(
-                tabRect.X + 12,
-                tabRect.Y,
-                tabRect.Width - (isOverview ? 20 : 48),
-                tabRect.Height);
-
-            TextRenderer.DrawText(
-                graphics,
-                page.Text,
-                new Font("Segoe UI", 9.5F),
-                textRect,
-                Color.FromArgb(35, 45, 60),
-                TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
-
-            if (isOverview) return;
-
-            // Nút đóng
-            Rectangle closeRect = GetTabCloseRectangle(tabRect);
-            bool isHovered = hoveredCloseTabIndex == e.Index;
-
-            if (isHovered)
-            {
-                using (SolidBrush hoverBrush = new SolidBrush(Color.FromArgb(255, 225, 225)))
-                {
-                    graphics.FillEllipse(hoverBrush, closeRect);
-                }
-            }
-
-            Color closeColor = isHovered
-                ? Color.FromArgb(210, 40, 40)
-                : Color.FromArgb(100, 100, 100);
-
-            float centerX = closeRect.Left + closeRect.Width / 2f;
-            float centerY = closeRect.Top + closeRect.Height / 2f;
-            float offset = 4F;
-
-            using (Pen closePen = new Pen(closeColor, 1.8F))
-            {
-                closePen.StartCap = LineCap.Round;
-                closePen.EndCap = LineCap.Round;
-
-                graphics.DrawLine(closePen,
-                    centerX - offset, centerY - offset,
-                    centerX + offset, centerY + offset);
-                graphics.DrawLine(closePen,
-                    centerX + offset, centerY - offset,
-                    centerX - offset, centerY + offset);
-            }
+            var link = new LinkLabel { Text = linkText, AutoSize = true, Font = new Font("Segoe UI", 8.5F), Anchor = AnchorStyles.Top | AnchorStyles.Right };
+            link.Location = new Point(row.Width - 70, 24);
+            link.LinkClicked += (_, _) => Todo(title);
+            row.Controls.Add(link);
+            flowNotice.Controls.Add(row);
         }
 
-        // =====================================================
-        // 7. CLOSE RECT
-        // =====================================================
-
-        private Rectangle GetTabCloseRectangle(Rectangle tabRect)
+        private void AddTool(ToolStrip ts, string text, string glyph, Action onClick)
         {
-            int size = 22;
-            return new Rectangle(
-                tabRect.Right - 32,
-                tabRect.Top + (tabRect.Height - size) / 2,
-                size,
-                size);
-        }
-
-        // =====================================================
-        // 8. MOUSE EVENTS
-        // =====================================================
-
-        private void TabMain_MouseDown(object sender, MouseEventArgs e)
-        {
-            if (DesignMode) return;
-            if (e.Button != MouseButtons.Left) return;
-
-            for (int i = 0; i < this.tabMain.TabPages.Count; i++)
+            var b = new ToolStripButton(text)
             {
-                Rectangle tabRect = this.tabMain.GetTabRect(i);
-                if (!tabRect.Contains(e.Location)) continue;
-
-                TabPage page = this.tabMain.TabPages[i];
-                if (page == this.tabOverview) return;
-
-                Rectangle closeRect = GetTabCloseRectangle(tabRect);
-                if (closeRect.Contains(e.Location))
-                {
-                    this.tabMain.TabPages.Remove(page);
-                    page.Dispose();
-                    hoveredCloseTabIndex = -1;
-                    this.tabMain.Invalidate();
-                    return;
-                }
-            }
+                Image = GlyphImage(glyph, 20, Primary),
+                DisplayStyle = ToolStripItemDisplayStyle.ImageAndText,
+                TextImageRelation = TextImageRelation.ImageAboveText,
+                Font = new Font("Segoe UI", 8F),
+                Margin = new Padding(2, 0, 2, 2)
+            };
+            b.Click += (_, _) => onClick();
+            ts.Items.Add(b);
         }
 
-        private void TabMain_MouseMove(object sender, MouseEventArgs e)
+        // ============================================================
+        //  TIỆN ÍCH
+        // ============================================================
+        private static Bitmap GlyphImage(string glyph, int size, Color color)
         {
-            if (DesignMode) return;
-
-            int newHoveredIndex = -1;
-
-            for (int i = 0; i < this.tabMain.TabPages.Count; i++)
-            {
-                TabPage page = this.tabMain.TabPages[i];
-                if (page == this.tabOverview) continue;
-
-                Rectangle closeRect = GetTabCloseRectangle(this.tabMain.GetTabRect(i));
-                if (closeRect.Contains(e.Location))
-                {
-                    newHoveredIndex = i;
-                    break;
-                }
-            }
-
-            if (hoveredCloseTabIndex != newHoveredIndex)
-            {
-                hoveredCloseTabIndex = newHoveredIndex;
-                this.tabMain.Invalidate();
-            }
+            var bmp = new Bitmap(size + 6, size + 6);
+            using var g = Graphics.FromImage(bmp);
+            using var f = new Font(IconFont, size, GraphicsUnit.Pixel);
+            TextRenderer.DrawText(g, glyph, f, new Rectangle(0, 0, bmp.Width, bmp.Height), color,
+                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
+            return bmp;
         }
 
-        private void TabMain_MouseLeave(object sender, EventArgs e)
+        private static GraphicsPath RoundedRect(Rectangle r, int radius)
         {
-            if (DesignMode) return;
-            hoveredCloseTabIndex = -1;
-            this.tabMain.Invalidate();
+            int d = radius * 2;
+            var p = new GraphicsPath();
+            p.AddArc(r.X, r.Y, d, d, 180, 90);
+            p.AddArc(r.Right - d, r.Y, d, d, 270, 90);
+            p.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90);
+            p.AddArc(r.X, r.Bottom - d, d, d, 90, 90);
+            p.CloseFigure();
+            return p;
         }
 
-        // =====================================================
-        // 9. LOGOUT
-        // =====================================================
+        // TODO: thay bằng mở form tương ứng trong Forms/Books, Forms/Readers...
+        private void Todo(string feature) =>
+            MessageBox.Show($"Chức năng \"{feature}\" chưa được nối.", "LIBRA", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
-        private void Logout()
+        private void btnLogout_Click(object? sender, EventArgs e)
         {
-            DialogResult result = MessageBox.Show(
-                "Bạn có chắc chắn muốn đăng xuất không?",
-                "Xác nhận đăng xuất",
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Question);
+            var confirm = MessageBox.Show("Bạn có chắc muốn đăng xuất?", "Đăng xuất",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            if (confirm != DialogResult.Yes) return;
 
-            if (result == DialogResult.Yes)
-            {
-                MessageBox.Show(
-                    "Bạn đã đăng xuất khỏi hệ thống.",
-                    "Thông báo",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Information);
-
-                this.Close();
-            }
-        }
-
-        // =====================================================
-        // 10. EXIT
-        // =====================================================
-
-        private void ExitApplication()
-        {
-            DialogResult result = MessageBox.Show(
-                "Bạn có chắc chắn muốn thoát chương trình không?",
-                "Xác nhận thoát",
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Question);
-
-            if (result == DialogResult.Yes)
-            {
-                this.Close();
-            }
-        }
-
-        // =====================================================
-        // 11. ABOUT
-        // =====================================================
-
-        private void ShowAbout()
-        {
-            MessageBox.Show(
-                "LIBRA - HỆ THỐNG QUẢN LÝ THƯ VIỆN\n\n" +
-                "Phiên bản: 2.4.0\n" +
-                "Ứng dụng quản lý hoạt động thư viện.",
-                "Giới thiệu phần mềm",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Information);
+            IsLogout = true;
+            Close();
         }
     }
 }

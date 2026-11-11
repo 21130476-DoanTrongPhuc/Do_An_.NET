@@ -35,6 +35,8 @@ internal static class Program
                 "Application Error",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error);
+            ApplicationConfiguration.Initialize();
+            Application.Run(new LibraryManagement.Forms.HomePage());
         }
     }
 }
