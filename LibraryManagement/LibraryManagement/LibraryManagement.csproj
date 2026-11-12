@@ -12,7 +12,6 @@
       <Folder Include="Controls\" />
       <Folder Include="Enums\" />
       <Folder Include="Forms\Books\Books\" />
-      <Folder Include="Helpers\" />
       <Folder Include="Resources\" />
       <Folder Include="Tests\" />
     </ItemGroup>
@@ -31,6 +30,9 @@
         <SubType>UserControl</SubType>
       </Compile>
       <Compile Update="Forms\LoginForm\LoginForm.cs">
+        <SubType>Form</SubType>
+      </Compile>
+      <Compile Update="Forms\RegisterForm\RegisterForm.cs">
         <SubType>Form</SubType>
       </Compile>
     </ItemGroup>

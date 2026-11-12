@@ -5,11 +5,24 @@ namespace LibraryManagement.Data;
 
 public class LibraryDbContext : DbContext
 {
+    public LibraryDbContext()
+    {
+    }
+
     public LibraryDbContext(
         DbContextOptions<LibraryDbContext> options
     ) : base(options)
     {
     }
+
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        if (!optionsBuilder.IsConfigured)
+        {
+            optionsBuilder.UseSqlite("Data Source=library.db");
+        }
+    }
+
     public DbSet<Book> Books { get; set; }
     public DbSet<Categories> BookCategories { get; set; }
     public DbSet<BookCopies> BookCopies { get; set; }
@@ -26,7 +39,6 @@ public class LibraryDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
 
-        // Cấu hình ánh xạ Entity với bảng
         modelBuilder.Entity<Book>().ToTable("Books");
         modelBuilder.Entity<Categories>().ToTable("BookCategories");
         modelBuilder.Entity<BookCopies>().ToTable("BookCopies");
