@@ -1,6 +1,6 @@
 using LibraryManagement.Data;
 using LibraryManagement.Forms;
-using Microsoft.Data.Sqlite;
+using LibraryManagement.Helpers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -9,36 +9,25 @@ namespace LibraryManagement;
 internal static class Program
 {
     [STAThread]
-    static void Main()
+    private static void Main()
     {
         ApplicationConfiguration.Initialize();
 
         try
         {
-#if DEBUG
-            // CHỈ DÙNG KHI DEV: xóa DB cũ để migration luôn chạy lại từ đầu
-            string dbPath = DatabaseConnection.GetDatabasePath();
-            SqliteConnection.ClearAllPools();
-            if (File.Exists(dbPath))
-            {
-                File.Delete(dbPath);
-            }
-#endif
+            // Chạy các file migration (001, 002, 003...) chưa được áp dụng
             DatabaseInitializer.Initialize();
-            
+
             var services = new ServiceCollection();
 
-            services.AddDbContextFactory<LibraryDbContext>(
-                options =>
-                    options.UseSqlite(
-                        DatabaseConnection.CreateConnection()
-                    )
-            );
+            // Mỗi lần dùng sẽ tạo một DbContext riêng, mỗi context tự mở connection riêng
+            services.AddDbContextFactory<LibraryDbContext>(options =>
+                options.UseSqlite(DatabaseConnection.GetConnectionString()));
 
-            // Các đăng ký Repository và Service sẽ thêm ở đây.
+            // Các đăng ký Repository và Service sẽ thêm ở đây (bước sau).
 
-            var serviceProvider = services.BuildServiceProvider();
-            
+            AppServices.Provider = services.BuildServiceProvider();
+
             Application.Run(new LoginForm());
         }
         catch (Exception ex)
@@ -51,8 +40,6 @@ internal static class Program
                 "Application Error",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error);
-            ApplicationConfiguration.Initialize();
-            Application.Run(new LibraryManagement.Forms.HomePage());
         }
     }
 }

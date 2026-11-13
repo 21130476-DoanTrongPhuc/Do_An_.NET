@@ -1,12 +1,11 @@
 ﻿using Microsoft.Data.Sqlite;
-using System.IO;
 
 namespace LibraryManagement.Data;
 
 public class DatabaseConnection
 {
-    private static string DatabaseFileName = "library.db";
-    private static string DatabaseFolder = "Database";
+    private static readonly string DatabaseFileName = "library.db";
+    private static readonly string DatabaseFolder = "Database";
 
     private static string FindSolutionDirectory()
     {
@@ -20,18 +19,18 @@ public class DatabaseConnection
             {
                 return directory.FullName;
             }
-            
-            directory = directory.Parent;
 
+            directory = directory.Parent;
         }
-        throw new DirectoryNotFoundException("Không tìm thấy thư mục chúa file LibraryManagement.sln");
+
+        throw new DirectoryNotFoundException("Không tìm thấy thư mục chứa file LibraryManagement.sln");
     }
 
     /* Xác định đường dẫn lưu database */
     public static string GetDatabasePath()
     {
         string solutionDirectory = FindSolutionDirectory();
-        
+
         string databaseDirectory = Path.Combine(solutionDirectory, DatabaseFolder);
 
         /* Tạo thư mục nếu chưa tồn tại */
@@ -41,7 +40,7 @@ public class DatabaseConnection
     }
 
     /* Xây dựng connection string cho SQLite */
-    private static string GetConnectionString()
+    public static string GetConnectionString()
     {
         var connectionStringBuilder = new SqliteConnectionStringBuilder
         {
@@ -65,10 +64,10 @@ public class DatabaseConnection
 
         return connectionStringBuilder.ToString();
     }
-    
+
     /*
-     * Tạo và mờ một kết nối mới
-     * Người gọi phải dispose connection sai khi sử dụng
+     * Tạo và mở một kết nối mới
+     * Người gọi phải dispose connection sau khi sử dụng
      */
     public static SqliteConnection CreateConnection()
     {
@@ -79,7 +78,7 @@ public class DatabaseConnection
             connection.Open();
             return connection;
         }
-        catch (Exception e)
+        catch
         {
             connection.Dispose();
             throw;
