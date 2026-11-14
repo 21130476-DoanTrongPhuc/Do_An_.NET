@@ -34,6 +34,16 @@ public partial class LoginForm : Form
         {
             using var context = new LibraryDbContext();
             context.Database.EnsureCreated();
+
+            if (!context.Librarians.Any(l => l.Username == "admin"))
+            {
+                context.Librarians.Add(new()
+                {
+                    Username = "admin",
+                    Password = "123456"
+                });
+                context.SaveChanges();
+            }
         }
         catch (Exception ex)
         {

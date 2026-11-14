@@ -9,7 +9,6 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <Folder Include="Controls\" />
       <Folder Include="Enums\" />
       <Folder Include="Forms\Books\Books\" />
       <Folder Include="Resources\" />
@@ -36,6 +35,9 @@
         <SubType>Form</SubType>
       </Compile>
       <Compile Update="Forms\ForgotPasswordForm\ForgotPasswordForm.cs">
+        <SubType>Form</SubType>
+      </Compile>
+      <Compile Update="Controls\StatisticalReportControl.cs">
         <SubType>Form</SubType>
       </Compile>
     </ItemGroup>

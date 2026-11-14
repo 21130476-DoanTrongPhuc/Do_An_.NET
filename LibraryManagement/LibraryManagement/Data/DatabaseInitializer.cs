@@ -54,6 +54,23 @@ public class DatabaseInitializer
                 ApplyMigration(connection, migration.Path, migration.FileName, migration.Version);
             }
         }
+
+        /* Tự động tạo tài khoản thủ thư mặc định */
+        EnsureDefaultLibrarian(connection);
+    }
+
+    /* Tạo tài khoản admin mặc định nếu chưa tồn tại */
+    private static void EnsureDefaultLibrarian(SqliteConnection connection)
+    {
+        using var command = connection.CreateCommand();
+
+        command.CommandText = @"
+            INSERT OR IGNORE INTO ""Librarians"" 
+                (""EmployeeCode"", ""Username"", ""PasswordHash"", ""FullName"", ""Role"", ""Status"")
+            VALUES 
+                ('NV000', 'admin', '123456', 'Quản trị viên', 'Admin', 'Active');";
+
+        command.ExecuteNonQuery();
     }
     
     /* Tao bảng lưu lịch sử migration */
@@ -143,4 +160,4 @@ public class DatabaseInitializer
             throw;
         }
     }
-}
+}   
