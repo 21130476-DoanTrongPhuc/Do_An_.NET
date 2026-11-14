@@ -1,7 +1,7 @@
 ﻿using LibraryManagement.Data;
 using LibraryManagement.Models;
 
-namespace LibraryManagement.Forms;
+namespace LibraryManagement.Forms.RegisterForm;
 
 public partial class RegisterForm : Form
 {
@@ -12,7 +12,7 @@ public partial class RegisterForm : Form
         InitializeComponent();
     }
 
-    private void btnRegister_Click(object sender, EventArgs e)
+    private void btnRegister_Click(object? sender, EventArgs e)
     {
         string fullName = txtFullName.Text.Trim();
         string email = txtEmail.Text.Trim();
@@ -30,35 +30,35 @@ public partial class RegisterForm : Form
 
         if (password != confirmPassword)
         {
-            MessageBox.Show("Mật khẩu xác nhận không khớp!", "Thông báo",
-                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show("Mật khẩu xác nhận không khớp!", "Lỗi",
+                MessageBoxButtons.OK, MessageBoxIcon.Error);
             return;
         }
 
         try
         {
             using var context = new LibraryDbContext();
-            context.Database.EnsureCreated();
 
-            if (context.Readers.Any(r => r.Email == email))
+            // Kiểm tra trùng Email hoặc Số điện thoại trong SQLite
+            bool isExisted = context.Readers.Any(r => r.Email == email || r.Phone == phone);
+            if (isExisted)
             {
-                MessageBox.Show("Email này đã được sử dụng!", "Thông báo",
+                MessageBox.Show("Email hoặc số điện thoại này đã được đăng ký!", "Thông báo",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
-            string readerCode = $"DG{DateTime.Now:yyMMddHHmmss}";
+            // Tự động sinh mã độc giả (VD: DG001, DG002...)
+            int nextNumber = context.Readers.Count() + 1;
+            string readerCode = $"DG{nextNumber:D3}";
 
             var newReader = new Readers
             {
-                ReaderId = readerCode,
                 ReaderCode = readerCode,
                 FullName = fullName,
                 Email = email,
                 Phone = phone,
                 Password = password,
-                CardExpiryDate = DateTime.Now.AddYears(1),
-                IsCardExpiryDate = DateTime.Now.AddYears(1),
                 IsLocked = false
             };
 
@@ -69,9 +69,8 @@ public partial class RegisterForm : Form
 
             MessageBox.Show($"Đăng ký thành công!\nMã độc giả của bạn là: {readerCode}", "Thông báo",
                 MessageBoxButtons.OK, MessageBoxIcon.Information);
-
-            DialogResult = DialogResult.OK;
-            Close();
+            this.DialogResult = DialogResult.OK;
+            this.Close();
         }
         catch (Exception ex)
         {
@@ -80,8 +79,8 @@ public partial class RegisterForm : Form
         }
     }
 
-    private void btnBack_Click(object sender, EventArgs e)
+    private void btnBack_Click(object? sender, EventArgs e)
     {
-        Close();
+        this.Close();
     }
 }

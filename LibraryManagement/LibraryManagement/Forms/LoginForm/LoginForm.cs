@@ -8,6 +8,22 @@ public partial class LoginForm : Form
     public LoginForm()
     {
         InitializeComponent();
+        ApplyWhiteBlackTheme();
+        lblForgotPass.LinkClicked += lblForgotPass_LinkClicked;
+    }
+
+    private void ApplyWhiteBlackTheme()
+    {
+        this.BackColor = Color.White;
+        this.ForeColor = Color.Black;
+        cardPanel.BackColor = Color.White;
+        cardPanel.ForeColor = Color.Black;
+
+        foreach (Control ctrl in cardPanel.Controls)
+        {
+            ctrl.BackColor = Color.White;
+            ctrl.ForeColor = Color.Black;
+        }
     }
 
     private void LoginForm_Load(object sender, EventArgs e)
@@ -126,13 +142,26 @@ public partial class LoginForm : Form
             return;
         }
 
-        using var registerForm = new RegisterForm();
+        using var registerForm = new RegisterForm.RegisterForm();
         if (registerForm.ShowDialog() == DialogResult.OK)
         {
             txtUsername.Text = registerForm.RegisteredEmail;
             txtPassword.Clear();
             txtPassword.Focus();
         }
+    }
+
+    private void lblForgotPass_LinkClicked(object? sender, LinkLabelLinkClickedEventArgs e)
+    {
+        if (rdoLibrarian.Checked)
+        {
+            MessageBox.Show("Thủ thư vui lòng liên hệ quản trị viên để cấp lại mật khẩu.", "Thông báo",
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
+        using var forgotForm = new ForgotPasswordForm.ForgotPasswordForm();
+        forgotForm.ShowDialog();
     }
 
     private void AfterClose(bool logout)
