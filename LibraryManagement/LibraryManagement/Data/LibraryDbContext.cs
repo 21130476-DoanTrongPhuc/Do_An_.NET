@@ -5,10 +5,9 @@ namespace LibraryManagement.Data;
 
 public class LibraryDbContext : DbContext
 {
-    public LibraryDbContext(
-        DbContextOptions<LibraryDbContext> options
-    ) : base(options)
+    public LibraryDbContext(DbContextOptions<LibraryDbContext> options) : base(options)
     {
+        
     }
     public DbSet<Book> Books { get; set; }
     public DbSet<Categories> BookCategories { get; set; }

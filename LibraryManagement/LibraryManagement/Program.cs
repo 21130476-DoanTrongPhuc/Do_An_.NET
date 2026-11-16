@@ -1,5 +1,6 @@
 using LibraryManagement.Data;
 using LibraryManagement.Forms;
+using LibraryManagement.Forms.LoginForm;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -34,12 +35,14 @@ internal static class Program
                         DatabaseConnection.CreateConnection()
                     )
             );
-
+            
             // Các đăng ký Repository và Service sẽ thêm ở đây.
-
+            // services.AddScoped<IReaderCardRepository, ReaderCardRepository>();
+            // services.AddScoped<ReaderCardService>();    
+            
             var serviceProvider = services.BuildServiceProvider();
             
-            Application.Run(new LoginForm());
+            Application.Run(new LibraryManagement.Forms.HomePage.HomePage());
         }
         catch (Exception ex)
         {
@@ -51,8 +54,8 @@ internal static class Program
                 "Application Error",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error);
-            ApplicationConfiguration.Initialize();
-            Application.Run(new LibraryManagement.Forms.HomePage());
+            // ApplicationConfiguration.Initialize();
+            // Application.Run(new LibraryManagement.Forms.HomePage.HomePage());
         }
     }
 }

@@ -290,4 +290,4 @@ CREATE TABLE IF NOT EXISTS "FinePayments" (
 
                                               CHECK ("AmountVnd" > 0),
                                               CHECK ("PaymentMethod" IN ('Cash', 'Other'))
-);
+);  

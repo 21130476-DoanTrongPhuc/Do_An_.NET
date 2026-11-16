@@ -2,7 +2,7 @@
 using System.Windows.Forms;
 using static LibraryManagement.Forms.LibrarianFormMain;
 
-namespace LibraryManagement.Forms;
+namespace LibraryManagement.Forms.LoginForm;
 
 public partial class LoginForm : Form
 {
@@ -31,6 +31,7 @@ public partial class LoginForm : Form
         {
             lblUsernameTitle.Text = "Tên đăng nhập thủ thư";
             txtUsername.Text = "admin";
+            txtPassword.Text = "123456";
         }
     }
 
@@ -38,6 +39,8 @@ public partial class LoginForm : Form
     {
         string username = txtUsername.Text.Trim();
         string password = txtPassword.Text;
+        
+        
 
         if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
         {
@@ -66,7 +69,7 @@ public partial class LoginForm : Form
         else
         {
             // Người mượn sách -> giao diện độc giả
-            var f = new LibraryManagement.Forms.HomePage();
+            var f = new LibraryManagement.Forms.HomePage.HomePage();
             f.FormClosed += (_, _) => AfterClose(f.IsLogout);
             this.Hide();
             f.Show();

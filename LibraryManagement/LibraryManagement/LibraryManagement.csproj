@@ -10,17 +10,17 @@
 
     <ItemGroup>
       <Folder Include="Controls\" />
+      <Folder Include="DTO\" />
       <Folder Include="Enums\" />
       <Folder Include="Forms\Books\Books\" />
       <Folder Include="Helpers\" />
+      <Folder Include="Repositories\Interafaces\" />
       <Folder Include="Resources\" />
+      <Folder Include="Services\Interfaces\" />
       <Folder Include="Tests\" />
     </ItemGroup>
 
     <ItemGroup>
-      <Compile Update="Forms\Books\BookCreateForm.cs">
-        <SubType>Form</SubType>
-      </Compile>
       <Compile Update="UserControl1.cs">
         <SubType>UserControl</SubType>
       </Compile>

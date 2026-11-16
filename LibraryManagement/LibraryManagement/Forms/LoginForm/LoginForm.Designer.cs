@@ -2,7 +2,7 @@
 using System.Drawing;
 using System.Windows.Forms;
 
-namespace LibraryManagement.Forms;
+namespace LibraryManagement.Forms.LoginForm;
 
 partial class LoginForm
 {
