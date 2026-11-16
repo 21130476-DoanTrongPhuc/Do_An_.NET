@@ -1,6 +1,6 @@
 ﻿using System.Drawing.Drawing2D;
 
-namespace LibraryManagement.Forms
+namespace LibraryManagement.Forms.HomePage
 {
     public partial class HomePage : Form
     {
