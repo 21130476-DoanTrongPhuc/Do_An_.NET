@@ -1,19 +1,45 @@
-﻿using System;
-using System.Windows.Forms;
-using static LibraryManagement.Forms.LibrarianFormMain;
+﻿using LibraryManagement.Data;
+using LibraryManagement.Helpers;
 
-namespace LibraryManagement.Forms.LoginForm;
+namespace LibraryManagement.Forms;
 
 public partial class LoginForm : Form
 {
     public LoginForm()
     {
         InitializeComponent();
+        ApplyWhiteBlackTheme();
+        lblForgotPass.LinkClicked += lblForgotPass_LinkClicked;
+    }
+
+    private void ApplyWhiteBlackTheme()
+    {
+        this.BackColor = Color.White;
+        this.ForeColor = Color.Black;
+        cardPanel.BackColor = Color.White;
+        cardPanel.ForeColor = Color.Black;
+
+        foreach (Control ctrl in cardPanel.Controls)
+        {
+            ctrl.BackColor = Color.White;
+            ctrl.ForeColor = Color.Black;
+        }
     }
 
     private void LoginForm_Load(object sender, EventArgs e)
     {
         rdoReader.Checked = true;
+
+        try
+        {
+            using var context = new LibraryDbContext();
+            context.Database.EnsureCreated();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Lỗi khởi tạo cơ sở dữ liệu: {ex.Message}", "Lỗi",
+                MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
     }
 
     private void rdoReader_CheckedChanged(object sender, EventArgs e)
@@ -21,7 +47,8 @@ public partial class LoginForm : Form
         if (rdoReader.Checked)
         {
             lblUsernameTitle.Text = "Mã độc giả hoặc email";
-            txtUsername.Text = "DG001";
+            txtUsername.Clear();
+            txtPassword.Clear();
         }
     }
 
@@ -30,8 +57,8 @@ public partial class LoginForm : Form
         if (rdoLibrarian.Checked)
         {
             lblUsernameTitle.Text = "Tên đăng nhập thủ thư";
-            txtUsername.Text = "admin";
-            txtPassword.Text = "123456";
+            txtUsername.Clear();
+            txtPassword.Clear();
         }
     }
 
@@ -39,8 +66,6 @@ public partial class LoginForm : Form
     {
         string username = txtUsername.Text.Trim();
         string password = txtPassword.Text;
-        
-        
 
         if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
         {
@@ -49,31 +74,94 @@ public partial class LoginForm : Form
             return;
         }
 
-        // Demo: luôn đăng nhập thành công. Sau này thay bằng kiểm tra CSDL.
-        bool ok = true;
-        if (!ok)
+        try
         {
-            MessageBox.Show("Sai tài khoản hoặc mật khẩu.", "Thông báo",
+            using var context = new LibraryDbContext();
+
+            if (rdoLibrarian.Checked)
+            {
+                var librarian = context.Librarians
+                    .FirstOrDefault(l => l.Username == username && l.Password == password);
+
+                if (librarian != null)
+                {
+                    Session.CurrentLibrarianId = librarian.Id;
+
+                    var f = new LibrarianFormMain();
+                    f.FormClosed += (_, _) => AfterClose(f.IsLogout);
+                    this.Hide();
+                    f.Show();
+                }
+                else
+                {
+                    MessageBox.Show("Sai tài khoản hoặc mật khẩu thủ thư.", "Thông báo",
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+            else
+            {
+                var reader = context.Readers
+                    .FirstOrDefault(r => (r.ReaderCode == username || r.Email == username) && r.Password == password);
+
+                if (reader != null)
+                {
+                    if (reader.IsLocked)
+                    {
+                        MessageBox.Show("Tài khoản của bạn đang bị khóa, vui lòng liên hệ thủ thư!", "Thông báo",
+                            MessageBoxButtons.OK, MessageBoxIcon.Stop);
+                        return;
+                    }
+
+                    Session.CurrentReaderId = reader.Id;
+
+                    var f = new HomePage();
+                    f.FormClosed += (_, _) => AfterClose(f.IsLogout);
+                    this.Hide();
+                    f.Show();
+                }
+                else
+                {
+                    MessageBox.Show("Sai mã độc giả/email hoặc mật khẩu.", "Thông báo",
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Lỗi kết nối cơ sở dữ liệu: {ex.Message}", "Lỗi",
                 MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    private void btnRegister_Click(object sender, EventArgs e)
+    {
+        if (rdoLibrarian.Checked)
+        {
+            MessageBox.Show("Thủ thư không được tự đăng ký tài khoản.", "Thông báo",
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
 
+        using var registerForm = new RegisterForm.RegisterForm();
+        if (registerForm.ShowDialog() == DialogResult.OK)
+        {
+            txtUsername.Text = registerForm.RegisteredEmail;
+            txtPassword.Clear();
+            txtPassword.Focus();
+        }
+    }
+
+    private void lblForgotPass_LinkClicked(object? sender, LinkLabelLinkClickedEventArgs e)
+    {
         if (rdoLibrarian.Checked)
         {
-            // Thủ thư -> giao diện quản lý
-            var f = new LibraryManagement.Forms.LibrarianFormMain();
-            f.FormClosed += (_, _) => AfterClose(f.IsLogout);
-            this.Hide();
-            f.Show();
+            MessageBox.Show("Thủ thư vui lòng liên hệ quản trị viên để cấp lại mật khẩu.", "Thông báo",
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
         }
-        else
-        {
-            // Người mượn sách -> giao diện độc giả
-            var f = new LibraryManagement.Forms.HomePage.HomePage();
-            f.FormClosed += (_, _) => AfterClose(f.IsLogout);
-            this.Hide();
-            f.Show();
-        }
+
+        using var forgotForm = new ForgotPasswordForm.ForgotPasswordForm();
+        forgotForm.ShowDialog();
     }
 
     private void AfterClose(bool logout)
@@ -81,11 +169,12 @@ public partial class LoginForm : Form
         if (logout)
         {
             txtPassword.Clear();
-            this.Show(); // quay lại trang đăng nhập
+            Session.Clear();
+            this.Show();
         }
         else
         {
-            this.Close(); // bấm X thì thoát hẳn app
+            this.Close();
         }
     }
 }
