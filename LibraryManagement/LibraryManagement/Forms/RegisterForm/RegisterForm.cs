@@ -40,7 +40,7 @@ public partial class RegisterForm : Form
             using var context = new LibraryDbContext();
 
             // Kiểm tra trùng Email hoặc Số điện thoại trong SQLite
-            bool isExisted = context.Readers.Any(r => r.Email == email || r.Phone == phone);
+            bool isExisted = context.Users.Any(r => r.Email == email || r.Phone == phone);
             if (isExisted)
             {
                 MessageBox.Show("Email hoặc số điện thoại này đã được đăng ký!", "Thông báo",
@@ -49,20 +49,20 @@ public partial class RegisterForm : Form
             }
 
             // Tự động sinh mã độc giả (VD: DG001, DG002...)
-            int nextNumber = context.Readers.Count() + 1;
+            int nextNumber = context.Users.Count() + 1;
             string readerCode = $"DG{nextNumber:D3}";
 
-            var newReader = new Readers
+            var newReader = new Users
             {
-                ReaderCode = readerCode,
+                UserCode = readerCode,
                 FullName = fullName,
                 Email = email,
                 Phone = phone,
-                Password = password,
-                IsLocked = false
+                PasswordHash = password,
+                Status = "Active"
             };
 
-            context.Readers.Add(newReader);
+            context.Users.Add(newReader);
             context.SaveChanges();
 
             RegisteredEmail = email;
