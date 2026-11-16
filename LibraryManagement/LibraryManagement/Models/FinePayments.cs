@@ -12,5 +12,5 @@ public class FinePayments
     public string? Note  { get; set; } 
     
     public Fines  Fines { get; set; } = null;
-    public Librarians Librarian { get; set; } = null;
+    public Users Users { get; set; } = null;
 }

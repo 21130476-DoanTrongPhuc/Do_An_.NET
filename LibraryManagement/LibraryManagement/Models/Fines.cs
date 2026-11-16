@@ -12,6 +12,6 @@ public class Fines
     public string? Description { get; set; }
     
     public LoanDetails LoanDetails { get; set; } = null;
-    public Librarians  Librarian { get; set; } = null;
+    public Users  Users { get; set; } = null;
     public ICollection<FinePayments>  FinePayments { get; set; } = new List<FinePayments>();
 }
