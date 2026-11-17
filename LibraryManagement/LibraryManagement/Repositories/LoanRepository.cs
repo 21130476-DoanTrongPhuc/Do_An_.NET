@@ -12,7 +12,6 @@ public class LoanRepository(IDbContextFactory<LibraryDbContext> contextFactory)
         return await context.Loans
             .AsNoTracking()
             .Include(l => l.Reader)
-            .Include(l => l.Librarian)
             .Include(l => l.LoanDetails)
             .ToListAsync();
     }
@@ -22,7 +21,6 @@ public class LoanRepository(IDbContextFactory<LibraryDbContext> contextFactory)
         await using var context = await contextFactory.CreateDbContextAsync();
         return await context.Loans
             .Include(l => l.Reader)
-            .Include(l => l.Librarian)
             .Include(l => l.LoanDetails)
             .FirstOrDefaultAsync(l => l.Id == id);
     }
