@@ -39,7 +39,6 @@ public partial class RegisterForm : Form
         {
             using var context = new LibraryDbContext();
 
-            // Kiểm tra trùng Email hoặc Số điện thoại trong SQLite
             bool isExisted = context.Users.Any(r => r.Email == email || r.Phone == phone);
             if (isExisted)
             {
@@ -48,17 +47,19 @@ public partial class RegisterForm : Form
                 return;
             }
 
-            // Tự động sinh mã độc giả (VD: DG001, DG002...)
             int nextNumber = context.Users.Count() + 1;
             string readerCode = $"DG{nextNumber:D3}";
 
             var newReader = new Users
             {
                 UserCode = readerCode,
+                Username = email,
                 FullName = fullName,
                 Email = email,
                 Phone = phone,
                 PasswordHash = password,
+                UserType = "Reader",
+                MaxActiveCopies = 3,
                 Status = "Active"
             };
 

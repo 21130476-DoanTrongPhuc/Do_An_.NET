@@ -19,7 +19,7 @@ public class LibraryDbContext : DbContext
     {
         if (!optionsBuilder.IsConfigured)
         {
-            optionsBuilder.UseSqlite("Data Source=library.db");
+            optionsBuilder.UseSqlite(DatabaseConnection.GetConnectionString());
         }
     }
 
@@ -33,26 +33,17 @@ public class LibraryDbContext : DbContext
     public DbSet<Reservations> Reservations { get; set; }
     public DbSet<Fines> Fines { get; set; }
     public DbSet<FinePayments> FinePayments { get; set; }
-    
-   protected override void OnModelCreating(ModelBuilder modelBuilder) 
-   {
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
         base.OnModelCreating(modelBuilder);
 
-        // =====================================================
-        // 1. USERS
-        // =====================================================
         modelBuilder.Entity<Users>().ToTable("Users");
         modelBuilder.Entity<Users>().HasKey(u => u.Id);
 
-        // =====================================================
-        // 2. BOOK CATEGORIES
-        // =====================================================
         modelBuilder.Entity<Categories>().ToTable("BookCategories");
         modelBuilder.Entity<Categories>().HasKey(c => c.Id);
 
-        // =====================================================
-        // 3. BOOKS
-        // =====================================================
         modelBuilder.Entity<Book>().ToTable("Books");
         modelBuilder.Entity<Book>().HasKey(b => b.Id);
 
@@ -62,9 +53,6 @@ public class LibraryDbContext : DbContext
             .HasForeignKey(b => b.IdCategory)
             .OnDelete(DeleteBehavior.Restrict);
 
-        // =====================================================
-        // 4. BOOK COPIES
-        // =====================================================
         modelBuilder.Entity<BookCopies>().ToTable("BookCopies");
         modelBuilder.Entity<BookCopies>().HasKey(c => c.Id);
 
@@ -74,9 +62,6 @@ public class LibraryDbContext : DbContext
             .HasForeignKey(c => c.IdBook)
             .OnDelete(DeleteBehavior.Restrict);
 
-        // =====================================================
-        // 5. READER CARDS
-        // =====================================================
         modelBuilder.Entity<ReaderCards>().ToTable("ReaderCards");
         modelBuilder.Entity<ReaderCards>().HasKey(c => c.Id);
 
@@ -86,9 +71,6 @@ public class LibraryDbContext : DbContext
             .HasForeignKey(c => c.IdReader)
             .OnDelete(DeleteBehavior.Restrict);
 
-        // =====================================================
-        // 6. LOANS (Đã bỏ Librarian)
-        // =====================================================
         modelBuilder.Entity<Loans>().ToTable("Loans");
         modelBuilder.Entity<Loans>().HasKey(l => l.Id);
         modelBuilder.Entity<Loans>().Property(l => l.BorrowedAt).HasColumnName("BorrowedAt");
@@ -99,9 +81,6 @@ public class LibraryDbContext : DbContext
             .HasForeignKey(l => l.IdReader)
             .OnDelete(DeleteBehavior.Restrict);
 
-        // =====================================================
-        // 7. LOAN DETAILS (Đã bỏ LibrarianReturn)
-        // =====================================================
         modelBuilder.Entity<LoanDetails>().ToTable("LoanDetails");
         modelBuilder.Entity<LoanDetails>().HasKey(d => d.Id);
 
@@ -117,9 +96,6 @@ public class LibraryDbContext : DbContext
             .HasForeignKey(d => d.IdBookCopy)
             .OnDelete(DeleteBehavior.Restrict);
 
-        // =====================================================
-        // 8. RESERVATIONS (Đã bỏ Librarian)
-        // =====================================================
         modelBuilder.Entity<Reservations>().ToTable("Reservations");
         modelBuilder.Entity<Reservations>().HasKey(r => r.Id);
 
@@ -150,9 +126,6 @@ public class LibraryDbContext : DbContext
         modelBuilder.Entity<Reservations>().Property(r => r.ExpiresAt).HasColumnName("ExpiresAt");
         modelBuilder.Entity<Reservations>().Property(r => r.Note).HasColumnName("Note");
 
-        // =====================================================
-        // 9. FINES (Đã bỏ Librarian)
-        // =====================================================
         modelBuilder.Entity<Fines>().ToTable("Fines");
         modelBuilder.Entity<Fines>().HasKey(f => f.Id);
 
@@ -162,9 +135,6 @@ public class LibraryDbContext : DbContext
             .HasForeignKey(f => f.IdLoanDetail)
             .OnDelete(DeleteBehavior.Restrict);
 
-        // =====================================================
-        // 10. FINE PAYMENTS (Đã bỏ Librarian)
-        // =====================================================
         modelBuilder.Entity<FinePayments>().ToTable("FinePayments");
         modelBuilder.Entity<FinePayments>().HasKey(p => p.Id);
 

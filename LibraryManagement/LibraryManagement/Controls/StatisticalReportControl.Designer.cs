@@ -1,131 +1,244 @@
-﻿using System.Text;
-using LibraryManagement.Data;
-using Microsoft.EntityFrameworkCore;
+﻿#nullable enable
+
+using System.ComponentModel;
 
 namespace LibraryManagement.Controls;
 
-public partial class StatisticalReportControl : UserControl
+partial class StatisticalReportControl
 {
-    public StatisticalReportControl()
+    private IContainer? components = null;
+
+    private Label lblTitle = null!;
+    private Label lblSubTitle = null!;
+    private Panel pnlFilter = null!;
+    private Label lblFrom = null!;
+    private DateTimePicker dtpFrom = null!;
+    private Label lblTo = null!;
+    private DateTimePicker dtpTo = null!;
+    private Button btnFilter = null!;
+    private Button btnExportCsv = null!;
+
+    private Panel pnlCardBooks = null!;
+    private Label lblCardBooksTitle = null!;
+    private Label lblCardBooksValue = null!;
+
+    private Panel pnlCardReaders = null!;
+    private Label lblCardReadersTitle = null!;
+    private Label lblCardReadersValue = null!;
+
+    private Panel pnlCardBorrowing = null!;
+    private Label lblCardBorrowingTitle = null!;
+    private Label lblCardBorrowingValue = null!;
+
+    private Panel pnlCardOverdue = null!;
+    private Label lblCardOverdueTitle = null!;
+    private Label lblCardOverdueValue = null!;
+
+    private Label lblTableTitle = null!;
+    private DataGridView dgvReport = null!;
+
+    protected override void Dispose(bool disposing)
     {
-        InitializeComponent();
-        dtpFrom.Value = DateTime.Today.AddMonths(-1);
-        dtpTo.Value = DateTime.Today;
+        if (disposing && (components != null))
+        {
+            components.Dispose();
+        }
+        base.Dispose(disposing);
     }
 
-    private void StatisticalReportControl_Load(object? sender, EventArgs e)
+    private void InitializeComponent()
     {
-        LoadStatistics();
+        lblTitle = new Label();
+        lblSubTitle = new Label();
+        pnlFilter = new Panel();
+        lblFrom = new Label();
+        dtpFrom = new DateTimePicker();
+        lblTo = new Label();
+        dtpTo = new DateTimePicker();
+        btnFilter = new Button();
+        btnExportCsv = new Button();
+
+        pnlCardBooks = new Panel();
+        lblCardBooksTitle = new Label();
+        lblCardBooksValue = new Label();
+
+        pnlCardReaders = new Panel();
+        lblCardReadersTitle = new Label();
+        lblCardReadersValue = new Label();
+
+        pnlCardBorrowing = new Panel();
+        lblCardBorrowingTitle = new Label();
+        lblCardBorrowingValue = new Label();
+
+        pnlCardOverdue = new Panel();
+        lblCardOverdueTitle = new Label();
+        lblCardOverdueValue = new Label();
+
+        lblTableTitle = new Label();
+        dgvReport = new DataGridView();
+
+        pnlFilter.SuspendLayout();
+        pnlCardBooks.SuspendLayout();
+        pnlCardReaders.SuspendLayout();
+        pnlCardBorrowing.SuspendLayout();
+        pnlCardOverdue.SuspendLayout();
+        ((ISupportInitialize)dgvReport).BeginInit();
+        SuspendLayout();
+
+        lblTitle.AutoSize = true;
+        lblTitle.Font = new Font("Segoe UI", 18F, FontStyle.Bold);
+        lblTitle.ForeColor = Color.Black;
+        lblTitle.Location = new Point(24, 18);
+        lblTitle.Name = "lblTitle";
+        lblTitle.Size = new Size(275, 32);
+        lblTitle.Text = "Báo cáo & Thống kê";
+
+        lblSubTitle.AutoSize = true;
+        lblSubTitle.Font = new Font("Segoe UI", 10F);
+        lblSubTitle.ForeColor = Color.DimGray;
+        lblSubTitle.Location = new Point(26, 54);
+        lblSubTitle.Name = "lblSubTitle";
+        lblSubTitle.Size = new Size(340, 19);
+        lblSubTitle.Text = "Tổng hợp tình hình mượn trả sách và hoạt động thư viện";
+
+        pnlFilter.BackColor = Color.White;
+        pnlFilter.BorderStyle = BorderStyle.FixedSingle;
+        pnlFilter.Controls.Add(lblFrom);
+        pnlFilter.Controls.Add(dtpFrom);
+        pnlFilter.Controls.Add(lblTo);
+        pnlFilter.Controls.Add(dtpTo);
+        pnlFilter.Controls.Add(btnFilter);
+        pnlFilter.Controls.Add(btnExportCsv);
+        pnlFilter.Location = new Point(24, 86);
+        pnlFilter.Name = "pnlFilter";
+        pnlFilter.Size = new Size(920, 56);
+
+        lblFrom.AutoSize = true;
+        lblFrom.Font = new Font("Segoe UI", 10F);
+        lblFrom.Location = new Point(16, 17);
+        lblFrom.Text = "Từ ngày:";
+
+        dtpFrom.Font = new Font("Segoe UI", 10F);
+        dtpFrom.Format = DateTimePickerFormat.Short;
+        dtpFrom.Location = new Point(82, 14);
+        dtpFrom.Size = new Size(140, 25);
+
+        lblTo.AutoSize = true;
+        lblTo.Font = new Font("Segoe UI", 10F);
+        lblTo.Location = new Point(242, 17);
+        lblTo.Text = "Đến ngày:";
+
+        dtpTo.Font = new Font("Segoe UI", 10F);
+        dtpTo.Format = DateTimePickerFormat.Short;
+        dtpTo.Location = new Point(316, 14);
+        dtpTo.Size = new Size(140, 25);
+
+        btnFilter.BackColor = Color.Black;
+        btnFilter.Cursor = Cursors.Hand;
+        btnFilter.FlatAppearance.BorderColor = Color.Black;
+        btnFilter.FlatStyle = FlatStyle.Flat;
+        btnFilter.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
+        btnFilter.ForeColor = Color.White;
+        btnFilter.Location = new Point(480, 11);
+        btnFilter.Size = new Size(145, 32);
+        btnFilter.Text = "Lọc thống kê";
+        btnFilter.UseVisualStyleBackColor = false;
+        btnFilter.Click += btnFilter_Click;
+
+        btnExportCsv.BackColor = Color.White;
+        btnExportCsv.Cursor = Cursors.Hand;
+        btnExportCsv.FlatAppearance.BorderColor = Color.Black;
+        btnExportCsv.FlatAppearance.MouseOverBackColor = Color.FromArgb(240, 240, 240);
+        btnExportCsv.FlatStyle = FlatStyle.Flat;
+        btnExportCsv.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
+        btnExportCsv.ForeColor = Color.Black;
+        btnExportCsv.Location = new Point(745, 11);
+        btnExportCsv.Size = new Size(155, 32);
+        btnExportCsv.Text = "Xuất file CSV ➔";
+        btnExportCsv.UseVisualStyleBackColor = false;
+        btnExportCsv.Click += btnExportCsv_Click;
+
+        SetupKpiCard(pnlCardBooks, lblCardBooksTitle, lblCardBooksValue, new Point(24, 158), "TỔNG ĐẦU SÁCH");
+        SetupKpiCard(pnlCardReaders, lblCardReadersTitle, lblCardReadersValue, new Point(259, 158), "TỔNG ĐỘC GIẢ");
+        SetupKpiCard(pnlCardBorrowing, lblCardBorrowingTitle, lblCardBorrowingValue, new Point(494, 158), "PHIẾU ĐANG MƯỢN");
+        SetupKpiCard(pnlCardOverdue, lblCardOverdueTitle, lblCardOverdueValue, new Point(729, 158), "PHIẾU QUÁ HẠN");
+
+        lblTableTitle.AutoSize = true;
+        lblTableTitle.Font = new Font("Segoe UI", 12F, FontStyle.Bold);
+        lblTableTitle.ForeColor = Color.Black;
+        lblTableTitle.Location = new Point(24, 276);
+        lblTableTitle.Text = "Chi tiết phiếu mượn trong kỳ";
+
+        dgvReport.AllowUserToAddRows = false;
+        dgvReport.AllowUserToDeleteRows = false;
+        dgvReport.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+        dgvReport.BackgroundColor = Color.White;
+        dgvReport.BorderStyle = BorderStyle.FixedSingle;
+        dgvReport.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.Single;
+        dgvReport.ColumnHeadersDefaultCellStyle.BackColor = Color.Black;
+        dgvReport.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
+        dgvReport.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 10F, FontStyle.Bold);
+        dgvReport.ColumnHeadersHeight = 38;
+        dgvReport.DefaultCellStyle.BackColor = Color.White;
+        dgvReport.DefaultCellStyle.ForeColor = Color.Black;
+        dgvReport.DefaultCellStyle.Font = new Font("Segoe UI", 10F);
+        dgvReport.DefaultCellStyle.SelectionBackColor = Color.FromArgb(230, 230, 230);
+        dgvReport.DefaultCellStyle.SelectionForeColor = Color.Black;
+        dgvReport.EnableHeadersVisualStyles = false;
+        dgvReport.GridColor = Color.LightGray;
+        dgvReport.Location = new Point(24, 308);
+        dgvReport.Name = "dgvReport";
+        dgvReport.ReadOnly = true;
+        dgvReport.RowHeadersVisible = false;
+        dgvReport.RowTemplate.Height = 34;
+        dgvReport.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+        dgvReport.Size = new Size(920, 320);
+
+        BackColor = Color.White;
+        Controls.Add(dgvReport);
+        Controls.Add(lblTableTitle);
+        Controls.Add(pnlCardOverdue);
+        Controls.Add(pnlCardBorrowing);
+        Controls.Add(pnlCardReaders);
+        Controls.Add(pnlCardBooks);
+        Controls.Add(pnlFilter);
+        Controls.Add(lblSubTitle);
+        Controls.Add(lblTitle);
+        ForeColor = Color.Black;
+        Name = "StatisticalReportControl";
+        Size = new Size(970, 650);
+        Load += StatisticalReportControl_Load;
+
+        pnlFilter.ResumeLayout(false);
+        pnlFilter.PerformLayout();
+        pnlCardBooks.ResumeLayout(false);
+        pnlCardReaders.ResumeLayout(false);
+        pnlCardBorrowing.ResumeLayout(false);
+        pnlCardOverdue.ResumeLayout(false);
+        ((ISupportInitialize)dgvReport).EndInit();
+        ResumeLayout(false);
+        PerformLayout();
     }
 
-    private void btnFilter_Click(object? sender, EventArgs e)
+    private static void SetupKpiCard(Panel card, Label title, Label value, Point location, string titleText)
     {
-        if (dtpFrom.Value.Date > dtpTo.Value.Date)
-        {
-            MessageBox.Show("Ngày bắt đầu không được lớn hơn ngày kết thúc!", "Thông báo",
-                MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            return;
-        }
+        card.BackColor = Color.White;
+        card.BorderStyle = BorderStyle.FixedSingle;
+        card.Location = location;
+        card.Size = new Size(215, 100);
+        card.Controls.Add(value);
+        card.Controls.Add(title);
 
-        LoadStatistics();
-    }
+        title.AutoSize = true;
+        title.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+        title.ForeColor = Color.DimGray;
+        title.Location = new Point(14, 14);
+        title.Text = titleText;
 
-    private void LoadStatistics()
-    {
-        try
-        {
-            DateTime fromDate = dtpFrom.Value.Date;
-            DateTime toDate = dtpTo.Value.Date.AddDays(1).AddTicks(-1);
-
-            using var context = new LibraryDbContext();
-
-            // 1. Thống kê tổng quan (KPI)
-            int totalBooks = context.Books.Count();
-            int totalReaders = context.Readers.Count();
-
-            var loansInRange = context.Loans
-                .Include(l => l.Reader)
-                .Include(l => l.LoanDetails)
-                .Where(l => l.BorrowDate >= fromDate && l.BorrowDate <= toDate)
-                .OrderByDescending(l => l.BorrowDate)
-                .ToList();
-
-            int borrowingCount = loansInRange.Count(l => l.Status != "Đã trả đủ");
-            int overdueCount = loansInRange.Count(l =>
-                l.Status == "Quá hạn" || (l.Status != "Đã trả đủ" && l.DueDate.Date < DateTime.Today));
-
-            lblCardBooksValue.Text = totalBooks.ToString("N0");
-            lblCardReadersValue.Text = totalReaders.ToString("N0");
-            lblCardBorrowingValue.Text = borrowingCount.ToString("N0");
-            lblCardOverdueValue.Text = overdueCount.ToString("N0");
-
-            // 2. Đổ dữ liệu chi tiết lên DataGridView
-            var reportRows = loansInRange.Select(l =>
-            {
-                bool isOverdue = l.Status == "Quá hạn" || (l.Status != "Đã trả đủ" && l.DueDate.Date < DateTime.Today);
-                return new
-                {
-                    MaPhieu = $"PM{l.Id:D4}",
-                    MaDocGia = l.Reader?.ReaderCode ?? "N/A",
-                    TenDocGia = l.Reader?.FullName ?? "Không xác định",
-                    SoDienThoai = l.Reader?.Phone ?? "",
-                    SoLuongSach = l.LoanDetails.Count,
-                    NgayMuon = l.BorrowDate.ToString("dd/MM/yyyy"),
-                    HanTra = l.DueDate.ToString("dd/MM/yyyy"),
-                    TrangThai = isOverdue ? "Quá hạn" : l.Status
-                };
-            }).ToList();
-
-            dgvReport.DataSource = reportRows;
-
-            if (dgvReport.Columns.Count > 0)
-            {
-                dgvReport.Columns["MaPhieu"]!.HeaderText = "Mã phiếu";
-                dgvReport.Columns["MaDocGia"]!.HeaderText = "Mã độc giả";
-                dgvReport.Columns["TenDocGia"]!.HeaderText = "Họ tên độc giả";
-                dgvReport.Columns["SoDienThoai"]!.HeaderText = "Số điện thoại";
-                dgvReport.Columns["SoLuongSach"]!.HeaderText = "Số sách";
-                dgvReport.Columns["NgayMuon"]!.HeaderText = "Ngày mượn";
-                dgvReport.Columns["HanTra"]!.HeaderText = "Hạn trả";
-                dgvReport.Columns["TrangThai"]!.HeaderText = "Trạng thái";
-            }
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"Lỗi tải dữ liệu thống kê: {ex.Message}", "Lỗi",
-                MessageBoxButtons.OK, MessageBoxIcon.Error);
-        }
-    }
-
-    private void btnExportCsv_Click(object? sender, EventArgs e)
-    {
-        if (dgvReport.Rows.Count == 0)
-        {
-            MessageBox.Show("Không có dữ liệu để xuất báo cáo!", "Thông báo",
-                MessageBoxButtons.OK, MessageBoxIcon.Information);
-            return;
-        }
-
-        using var sfd = new SaveFileDialog
-        {
-            Filter = "CSV file (*.csv)|*.csv",
-            FileName = $"BaoCaoThongKe_{DateTime.Now:yyyyMMdd_HHmm}.csv"
-        };
-
-        if (sfd.ShowDialog() != DialogResult.OK) return;
-
-        var sb = new StringBuilder();
-        var headers = dgvReport.Columns.Cast<DataGridViewColumn>().Select(c => $"\"{c.HeaderText}\"");
-        sb.AppendLine(string.Join(",", headers));
-
-        foreach (DataGridViewRow row in dgvReport.Rows)
-        {
-            var cells = row.Cells.Cast<DataGridViewCell>().Select(c => $"\"{c.Value}\"");
-            sb.AppendLine(string.Join(",", cells));
-        }
-
-        File.WriteAllText(sfd.FileName, sb.ToString(), Encoding.UTF8);
-        MessageBox.Show("Xuất file báo cáo thành công!", "Thông báo",
-            MessageBoxButtons.OK, MessageBoxIcon.Information);
+        value.AutoSize = true;
+        value.Font = new Font("Segoe UI", 22F, FontStyle.Bold);
+        value.ForeColor = Color.Black;
+        value.Location = new Point(12, 42);
+        value.Text = "0";
     }
 }
