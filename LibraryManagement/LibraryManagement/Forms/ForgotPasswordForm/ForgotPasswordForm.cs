@@ -27,7 +27,7 @@ public partial class ForgotPasswordForm : Form
         try
         {
             using var context = new LibraryDbContext();
-            var reader = context.Readers.FirstOrDefault(r => r.Phone == input || r.Email == input);
+            var reader = context.Users.FirstOrDefault(r => r.Phone == input || r.Email == input);
 
             if (reader == null)
             {
@@ -107,10 +107,10 @@ public partial class ForgotPasswordForm : Form
         try
         {
             using var context = new LibraryDbContext();
-            var reader = context.Readers.Find(_targetReaderId);
+            var reader = context.Users.Find(_targetReaderId);
             if (reader != null)
             {
-                reader.Password = newPass;
+                reader.PasswordHash = newPass;
                 context.SaveChanges();
 
                 MessageBox.Show("Đặt lại mật khẩu thành công! Bạn có thể đăng nhập bằng mật khẩu mới.", "Thông báo",

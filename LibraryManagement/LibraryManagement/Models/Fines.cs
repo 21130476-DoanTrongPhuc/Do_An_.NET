@@ -2,16 +2,15 @@
 
 public class Fines
 {
-    public int  Id { get; set; }
-    public string FineCode { get; set; } = string.Empty;
-    public int IdLoanDetails { get; set; } = 0;
-    public int IdLibrarian { get; set; } = 0;
-    public string CreatedAt { get; set; } = string.Empty;
-    public string ViolationType { get; set; } = string.Empty;
-    public int Amount { get; set; } 
-    public string? Description { get; set; }
-    
-    public LoanDetails LoanDetails { get; set; } = null;
-    public Librarians  Librarian { get; set; } = null;
-    public ICollection<FinePayments>  FinePayments { get; set; } = new List<FinePayments>();
+    public int Id { get; set; }
+    public string FineCode { get; set; }
+    public int IdLoanDetail { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public string ViolationType { get; set; }
+    public int AmountVnd { get; set; }
+    public string Description { get; set; }
+
+    // Navigation
+    public LoanDetails LoanDetail { get; set; }
+    public ICollection<FinePayments> FinePayments { get; set; }
 }

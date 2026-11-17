@@ -1,7 +1,8 @@
 ﻿using LibraryManagement.Data;
 using LibraryManagement.Helpers;
+using Microsoft.EntityFrameworkCore;
 
-namespace LibraryManagement.Forms;
+namespace LibraryManagement.Forms.LoginForm;
 
 public partial class LoginForm : Form
 {
@@ -90,9 +91,11 @@ public partial class LoginForm : Form
 
             if (rdoLibrarian.Checked)
             {
-                var librarian = context.Librarians
-                    .FirstOrDefault(l => l.Username == username && l.Password == password);
-
+                
+                // Bỏ điều kiện password để test
+                var librarian = context.Users
+                    .FirstOrDefault(l => l.Username == username && l.PasswordHash == password );
+                
                 if (librarian != null)
                 {
                     Session.CurrentLibrarianId = librarian.Id;
@@ -110,12 +113,13 @@ public partial class LoginForm : Form
             }
             else
             {
-                var reader = context.Readers
-                    .FirstOrDefault(r => (r.ReaderCode == username || r.Email == username) && r.Password == password);
+                
+                var reader = context.Users
+                    .FirstOrDefault(r => (r.UserCode == username || r.Email == username) && r.PasswordHash == password && r.UserType == "Reader");
 
                 if (reader != null)
                 {
-                    if (reader.IsLocked)
+                    if (reader.Status.Equals("Inactive"))
                     {
                         MessageBox.Show("Tài khoản của bạn đang bị khóa, vui lòng liên hệ thủ thư!", "Thông báo",
                             MessageBoxButtons.OK, MessageBoxIcon.Stop);
@@ -124,7 +128,7 @@ public partial class LoginForm : Form
 
                     Session.CurrentReaderId = reader.Id;
 
-                    var f = new HomePage();
+                    var f = new HomePage.HomePage();
                     f.FormClosed += (_, _) => AfterClose(f.IsLogout);
                     this.Hide();
                     f.Show();

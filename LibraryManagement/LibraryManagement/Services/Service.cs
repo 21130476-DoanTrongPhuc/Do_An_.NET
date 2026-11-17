@@ -4,13 +4,13 @@ namespace LibraryManagement.Services
 {
     public class Service
     {
-        public Readers GetCurrentReader(string readerId)
+        public Users GetCurrentReader(string readerId)
         {
-            return new Readers
+            return new Users
             {
-                ReaderId = readerId,
+                UserCode = readerId,
                 FullName = "Nguyễn Minh Anh",
-                CardExpiryDate = new DateTime(2025, 8, 12)
+                // CardExpiryDate = new DateTime(2025, 8, 12)
             };
         }
 

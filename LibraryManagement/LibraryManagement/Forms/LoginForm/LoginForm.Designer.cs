@@ -2,7 +2,7 @@
 
 using System.ComponentModel;
 
-namespace LibraryManagement.Forms;
+namespace LibraryManagement.Forms.LoginForm;
 
 partial class LoginForm
 {

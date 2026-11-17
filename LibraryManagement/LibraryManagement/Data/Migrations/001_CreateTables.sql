@@ -1,21 +1,73 @@
 ﻿-- =====================================================
--- LIBRARY MANAGEMENT SYSTEM
+-- LIBRARY MANAGEMENT SYSTEM (Single Librarian Version)
 -- Migration: 001_CreateCoreTables.sql
 -- Database: SQLite
--- Convention-aligned with EF Core (PascalCase)
 -- =====================================================
 
--- 1. BOOK CATEGORIES
+PRAGMA foreign_keys = ON;
+
+-- =====================================================
+-- 1. USERS
+-- Reader, Librarian (duy nhất) và Admin
+-- =====================================================
+
+CREATE TABLE IF NOT EXISTS "Users" (
+                                       "Id"                INTEGER PRIMARY KEY AUTOINCREMENT,
+                                       "UserCode"          TEXT    NOT NULL UNIQUE,
+                                       "Username"          TEXT    UNIQUE,
+                                       "PasswordHash"      TEXT,
+                                       "FullName"          TEXT    NOT NULL,
+                                       "DateOfBirth"       TEXT,
+                                       "Phone"             TEXT,
+                                       "Email"             TEXT,
+                                       "Address"           TEXT,
+                                       "UserType"          TEXT    NOT NULL,
+                                       "MaxActiveCopies"   INTEGER,
+                                       "Status"            TEXT    NOT NULL DEFAULT 'Active',
+                                       "CreatedAt"         TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                       "UpdatedAt"         TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+                                       CHECK ("UserType" IN ('Reader', 'Librarian', 'Admin')),
+                                       CHECK ("Status" IN ('Active', 'Inactive')),
+                                       CHECK (
+                                           ("UserType" = 'Reader'
+                                               AND "MaxActiveCopies" IS NOT NULL
+                                               AND "MaxActiveCopies" > 0)
+                                               OR
+                                           ("UserType" IN ('Librarian', 'Admin')
+                                               AND "MaxActiveCopies" IS NULL)
+                                           ),
+                                       CHECK (
+                                           ("Username" IS NULL AND "PasswordHash" IS NULL)
+                                               OR
+                                           ("Username" IS NOT NULL AND "PasswordHash" IS NOT NULL)
+                                           )
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS "UX_Users_Username"
+    ON "Users"("Username")
+    WHERE "Username" IS NOT NULL;
+
+-- Đảm bảo chỉ có duy nhất 1 Librarian đang Active (tùy chọn)
+CREATE UNIQUE INDEX IF NOT EXISTS "UX_Users_SingleLibrarian"
+    ON "Users"("UserType")
+    WHERE "UserType" = 'Librarian' AND "Status" = 'Active';
+
+
+-- =====================================================
+-- 2. BOOK CATEGORIES
+-- =====================================================
+
 CREATE TABLE IF NOT EXISTS "BookCategories" (
                                                 "Id"              INTEGER PRIMARY KEY AUTOINCREMENT,
-                                                "IdParent"        INTEGER NULL,
-                                                "CategoryCode"    TEXT    NOT NULL UNIQUE,
-                                                "CategoryName"    TEXT    NOT NULL,
+                                                "IdParent"        INTEGER,
+                                                "CategoryCode"    TEXT NOT NULL UNIQUE,
+                                                "CategoryName"    TEXT NOT NULL,
                                                 "MaxLoanDays"     INTEGER NOT NULL DEFAULT 14,
                                                 "MaxRenewals"     INTEGER NOT NULL DEFAULT 1,
-                                                "Status"          TEXT    NOT NULL DEFAULT 'Active',
-                                                "CreatedAt"       TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                                                "UpdatedAt"       TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                                "Status"          TEXT NOT NULL DEFAULT 'Active',
+                                                "CreatedAt"       TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                                "UpdatedAt"       TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
                                                 FOREIGN KEY ("IdParent")
                                                     REFERENCES "BookCategories"("Id")
@@ -28,41 +80,52 @@ CREATE TABLE IF NOT EXISTS "BookCategories" (
                                                 CHECK ("Status" IN ('Active', 'Inactive'))
 );
 
--- 2. BOOKS
+
+-- =====================================================
+-- 3. BOOKS
+-- =====================================================
+
 CREATE TABLE IF NOT EXISTS "Books" (
                                        "Id"              INTEGER PRIMARY KEY AUTOINCREMENT,
                                        "IdCategory"      INTEGER NOT NULL,
-                                       "BookCode"        TEXT    NOT NULL UNIQUE,
-                                       "Isbn"            TEXT    UNIQUE,
-                                       "Title"           TEXT    NOT NULL,
-                                       "Author"          TEXT    NOT NULL,
+                                       "BookCode"        TEXT NOT NULL UNIQUE,
+                                       "Isbn"            TEXT UNIQUE,
+                                       "Title"           TEXT NOT NULL,
+                                       "Author"          TEXT NOT NULL,
                                        "Publisher"       TEXT,
                                        "PublishedYear"   INTEGER,
                                        "Description"     TEXT,
-                                       "CreatedAt"       TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                                       "UpdatedAt"       TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                       "CreatedAt"       TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                       "UpdatedAt"       TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
                                        FOREIGN KEY ("IdCategory")
                                            REFERENCES "BookCategories"("Id")
                                            ON UPDATE CASCADE
                                            ON DELETE RESTRICT,
 
-                                       CHECK ("PublishedYear" IS NULL OR "PublishedYear" BETWEEN 1000 AND 9999)
+                                       CHECK (
+                                           "PublishedYear" IS NULL
+                                               OR "PublishedYear" BETWEEN 1000 AND 9999
+                                           )
 );
 
--- 3. BOOK COPIES
+
+-- =====================================================
+-- 4. BOOK COPIES
+-- =====================================================
+
 CREATE TABLE IF NOT EXISTS "BookCopies" (
                                             "Id"                  INTEGER PRIMARY KEY AUTOINCREMENT,
                                             "IdBook"              INTEGER NOT NULL,
-                                            "CopyCode"            TEXT    NOT NULL UNIQUE,
+                                            "CopyCode"            TEXT NOT NULL UNIQUE,
                                             "ShelfLocation"       TEXT,
-                                            "ReceivedAt"          TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                            "ReceivedAt"          TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                                             "PurchasePriceVnd"    INTEGER NOT NULL DEFAULT 0,
-                                            "PhysicalCondition"   TEXT    NOT NULL DEFAULT 'Good',
-                                            "CirculationStatus"   TEXT    NOT NULL DEFAULT 'Available',
+                                            "PhysicalCondition"   TEXT NOT NULL DEFAULT 'Good',
+                                            "CirculationStatus"   TEXT NOT NULL DEFAULT 'Available',
                                             "Note"                TEXT,
-                                            "CreatedAt"           TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                                            "UpdatedAt"           TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                            "CreatedAt"           TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                            "UpdatedAt"           TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
                                             FOREIGN KEY ("IdBook")
                                                 REFERENCES "Books"("Id")
@@ -71,37 +134,27 @@ CREATE TABLE IF NOT EXISTS "BookCopies" (
 
                                             CHECK ("PurchasePriceVnd" >= 0),
                                             CHECK ("PhysicalCondition" IN ('New', 'Good', 'Worn', 'Damaged')),
-                                            CHECK ("CirculationStatus" IN ('Available', 'Borrowed', 'Reserved', 'Maintenance', 'Lost'))
+                                            CHECK ("CirculationStatus" IN (
+                                                                           'Available', 'Borrowed', 'Reserved', 'Maintenance', 'Lost'
+                                                ))
 );
 
--- 5. READERS
-CREATE TABLE IF NOT EXISTS "Readers" (
-                                         "Id"                INTEGER PRIMARY KEY AUTOINCREMENT,
-                                         "MaxActiveCopies"   INTEGER NOT NULL DEFAULT 3,
-                                         "ReaderCode"        TEXT    NOT NULL UNIQUE,
-                                         "FullName"          TEXT    NOT NULL,
-                                         "DateOfBirth"       TEXT,
-                                         "Phone"             TEXT,
-                                         "Email"             TEXT,
-                                         "Address"           TEXT,
-                                         "CreatedAt"         TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                                         "UpdatedAt"         TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-                                         CHECK ("MaxActiveCopies" > 0)
-);
+-- =====================================================
+-- 5. READER CARDS
+-- =====================================================
 
--- 6. READER CARDS
 CREATE TABLE IF NOT EXISTS "ReaderCards" (
                                              "Id"          INTEGER PRIMARY KEY AUTOINCREMENT,
                                              "IdReader"    INTEGER NOT NULL,
-                                             "CardCode"    TEXT    NOT NULL UNIQUE,
-                                             "IssuedAt"    TEXT    NOT NULL,
-                                             "ExpiresAt"   TEXT    NOT NULL,
-                                             "Status"      TEXT    NOT NULL DEFAULT 'Active',
+                                             "CardCode"    TEXT NOT NULL UNIQUE,
+                                             "IssuedAt"    TEXT NOT NULL,
+                                             "ExpiresAt"   TEXT NOT NULL,
+                                             "Status"      TEXT NOT NULL DEFAULT 'Active',
                                              "Note"        TEXT,
 
                                              FOREIGN KEY ("IdReader")
-                                                 REFERENCES "Readers"("Id")
+                                                 REFERENCES "Users"("Id")
                                                  ON UPDATE CASCADE
                                                  ON DELETE RESTRICT,
 
@@ -113,55 +166,37 @@ CREATE UNIQUE INDEX IF NOT EXISTS "UX_ReaderCards_OneActive"
     ON "ReaderCards"("IdReader")
     WHERE "Status" = 'Active';
 
--- 7. LIBRARIANS
-CREATE TABLE IF NOT EXISTS "Librarians" (
-                                            "Id"              INTEGER PRIMARY KEY AUTOINCREMENT,
-                                            "EmployeeCode"    TEXT    NOT NULL UNIQUE,
-                                            "Username"        TEXT    NOT NULL UNIQUE,
-                                            "PasswordHash"    TEXT    NOT NULL,
-                                            "FullName"        TEXT    NOT NULL,
-                                            "Phone"           TEXT,
-                                            "Email"           TEXT,
-                                            "Address"         TEXT,
-                                            "Role"            TEXT    NOT NULL DEFAULT 'Librarian',
-                                            "Status"          TEXT    NOT NULL DEFAULT 'Active',
-                                            "CreatedAt"       TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                                            "UpdatedAt"       TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-                                            CHECK ("Role" IN ('Admin', 'Librarian')),
-                                            CHECK ("Status" IN ('Active', 'Inactive'))
-);
+-- =====================================================
+-- 6. LOANS (Bỏ IdLibrarian)
+-- =====================================================
 
--- 8. LOANS
 CREATE TABLE IF NOT EXISTS "Loans" (
                                        "Id"            INTEGER PRIMARY KEY AUTOINCREMENT,
-                                       "LoanCode"      TEXT    NOT NULL UNIQUE,
+                                       "LoanCode"      TEXT NOT NULL UNIQUE,
                                        "IdReader"      INTEGER NOT NULL,
-                                       "IdLibrarian"   INTEGER NOT NULL,
-                                       "BorrowedAt"    TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                       "BorrowedAt"    TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                                        "Note"          TEXT,
 
                                        FOREIGN KEY ("IdReader")
-                                           REFERENCES "Readers"("Id")
-                                           ON UPDATE CASCADE
-                                           ON DELETE RESTRICT,
-
-                                       FOREIGN KEY ("IdLibrarian")
-                                           REFERENCES "Librarians"("Id")
+                                           REFERENCES "Users"("Id")
                                            ON UPDATE CASCADE
                                            ON DELETE RESTRICT
 );
 
--- 9. LOAN DETAILS
+
+-- =====================================================
+-- 7. LOAN DETAILS (Bỏ IdLibrarianReturn)
+-- =====================================================
+
 CREATE TABLE IF NOT EXISTS "LoanDetails" (
                                              "Id"                        INTEGER PRIMARY KEY AUTOINCREMENT,
                                              "IdLoan"                    INTEGER NOT NULL,
                                              "IdBookCopy"                INTEGER NOT NULL,
-                                             "DueAt"                     TEXT    NOT NULL,
+                                             "DueAt"                     TEXT NOT NULL,
                                              "ReturnedAt"                TEXT,
-                                             "PhysicalConditionBefore"   TEXT    NOT NULL,
+                                             "PhysicalConditionBefore"   TEXT NOT NULL,
                                              "PhysicalConditionAfter"    TEXT,
-                                             "IdLibrarianReturn"         INTEGER,
                                              "RenewalCount"              INTEGER NOT NULL DEFAULT 0,
                                              "Note"                      TEXT,
 
@@ -175,40 +210,44 @@ CREATE TABLE IF NOT EXISTS "LoanDetails" (
                                                  ON UPDATE CASCADE
                                                  ON DELETE RESTRICT,
 
-                                             FOREIGN KEY ("IdLibrarianReturn")
-                                                 REFERENCES "Librarians"("Id")
-                                                 ON UPDATE CASCADE
-                                                 ON DELETE RESTRICT,
-
                                              CHECK ("RenewalCount" >= 0),
-                                             CHECK ("PhysicalConditionBefore" IN ('New', 'Good', 'Worn', 'Damaged')),
-                                             CHECK ("PhysicalConditionAfter" IS NULL
-                                                 OR "PhysicalConditionAfter" IN ('New', 'Good', 'Worn', 'Damaged'))
+                                             CHECK ("PhysicalConditionBefore" IN (
+                                                                                  'New', 'Good', 'Worn', 'Damaged'
+                                                 )),
+                                             CHECK (
+                                                 "PhysicalConditionAfter" IS NULL
+                                                     OR "PhysicalConditionAfter" IN (
+                                                                                     'New', 'Good', 'Worn', 'Damaged'
+                                                     )
+                                                 )
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS "UX_LoanDetails_ActiveCopy"
     ON "LoanDetails"("IdBookCopy")
     WHERE "ReturnedAt" IS NULL;
 
--- 10. RESERVATIONS
+
+-- =====================================================
+-- 8. RESERVATIONS (Bỏ IdLibrarian)
+-- =====================================================
+
 CREATE TABLE IF NOT EXISTS "Reservations" (
                                               "Id"                INTEGER PRIMARY KEY AUTOINCREMENT,
-                                              "ReservationCode"   TEXT    NOT NULL UNIQUE,
+                                              "ReservationCode"   TEXT NOT NULL UNIQUE,
                                               "IdReader"          INTEGER NOT NULL,
                                               "IdBook"            INTEGER NOT NULL,
                                               "IdBookCopy"        INTEGER,
-                                              "IdLibrarian"       INTEGER,
                                               "IdLoan"            INTEGER UNIQUE,
-                                              "ReservedAt"        TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                              "ReservedAt"        TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                                               "ExpiresAt"         TEXT,
                                               "AssignedAt"        TEXT,
                                               "FulfilledAt"       TEXT,
                                               "CancelledAt"       TEXT,
-                                              "Status"            TEXT    NOT NULL DEFAULT 'Pending',
+                                              "Status"            TEXT NOT NULL DEFAULT 'Pending',
                                               "Note"              TEXT,
 
                                               FOREIGN KEY ("IdReader")
-                                                  REFERENCES "Readers"("Id")
+                                                  REFERENCES "Users"("Id")
                                                   ON UPDATE CASCADE
                                                   ON DELETE RESTRICT,
 
@@ -222,17 +261,15 @@ CREATE TABLE IF NOT EXISTS "Reservations" (
                                                   ON UPDATE CASCADE
                                                   ON DELETE RESTRICT,
 
-                                              FOREIGN KEY ("IdLibrarian")
-                                                  REFERENCES "Librarians"("Id")
-                                                  ON UPDATE CASCADE
-                                                  ON DELETE RESTRICT,
-
                                               FOREIGN KEY ("IdLoan")
                                                   REFERENCES "Loans"("Id")
                                                   ON UPDATE CASCADE
                                                   ON DELETE RESTRICT,
 
-                                              CHECK ("Status" IN ('Pending', 'ReadyForPickup', 'Completed', 'Cancelled', 'Expired'))
+                                              CHECK ("Status" IN (
+                                                                  'Pending', 'ReadyForPickup', 'Completed',
+                                                                  'Cancelled', 'Expired'
+                                                  ))
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS "UX_Reservations_ActiveReaderBook"
@@ -241,16 +278,20 @@ CREATE UNIQUE INDEX IF NOT EXISTS "UX_Reservations_ActiveReaderBook"
 
 CREATE UNIQUE INDEX IF NOT EXISTS "UX_Reservations_AssignedCopy"
     ON "Reservations"("IdBookCopy")
-    WHERE "IdBookCopy" IS NOT NULL AND "Status" = 'ReadyForPickup';
+    WHERE "IdBookCopy" IS NOT NULL
+        AND "Status" = 'ReadyForPickup';
 
--- 11. FINES
+
+-- =====================================================
+-- 9. FINES (Bỏ IdLibrarian)
+-- =====================================================
+
 CREATE TABLE IF NOT EXISTS "Fines" (
                                        "Id"                INTEGER PRIMARY KEY AUTOINCREMENT,
-                                       "FineCode"          TEXT    NOT NULL UNIQUE,
+                                       "FineCode"          TEXT NOT NULL UNIQUE,
                                        "IdLoanDetail"      INTEGER NOT NULL,
-                                       "IdLibrarian"       INTEGER NOT NULL,
-                                       "CreatedAt"         TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                                       "ViolationType"     TEXT    NOT NULL,
+                                       "CreatedAt"         TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                       "ViolationType"     TEXT NOT NULL,
                                        "AmountVnd"         INTEGER NOT NULL,
                                        "Description"       TEXT,
 
@@ -259,32 +300,25 @@ CREATE TABLE IF NOT EXISTS "Fines" (
                                            ON UPDATE CASCADE
                                            ON DELETE RESTRICT,
 
-                                       FOREIGN KEY ("IdLibrarian")
-                                           REFERENCES "Librarians"("Id")
-                                           ON UPDATE CASCADE
-                                           ON DELETE RESTRICT,
-
                                        CHECK ("AmountVnd" > 0)
 );
 
--- 12. FINE PAYMENTS
+
+-- =====================================================
+-- 10. FINE PAYMENTS (Bỏ IdLibrarian)
+-- =====================================================
+
 CREATE TABLE IF NOT EXISTS "FinePayments" (
                                               "Id"                INTEGER PRIMARY KEY AUTOINCREMENT,
-                                              "PaymentCode"       TEXT    NOT NULL UNIQUE,
+                                              "PaymentCode"       TEXT NOT NULL UNIQUE,
                                               "IdFine"            INTEGER NOT NULL,
-                                              "IdLibrarian"       INTEGER NOT NULL,
-                                              "PaidAt"            TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                              "PaidAt"            TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                                               "AmountVnd"         INTEGER NOT NULL,
-                                              "PaymentMethod"     TEXT    NOT NULL DEFAULT 'Cash',
+                                              "PaymentMethod"     TEXT NOT NULL DEFAULT 'Cash',
                                               "Note"              TEXT,
 
                                               FOREIGN KEY ("IdFine")
                                                   REFERENCES "Fines"("Id")
-                                                  ON UPDATE CASCADE
-                                                  ON DELETE RESTRICT,
-
-                                              FOREIGN KEY ("IdLibrarian")
-                                                  REFERENCES "Librarians"("Id")
                                                   ON UPDATE CASCADE
                                                   ON DELETE RESTRICT,
 

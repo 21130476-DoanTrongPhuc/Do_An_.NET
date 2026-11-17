@@ -1,4 +1,4 @@
-﻿namespace LibraryManagement.Forms
+﻿namespace LibraryManagement.Forms.HomePage
 {
     partial class HomePage
     {
