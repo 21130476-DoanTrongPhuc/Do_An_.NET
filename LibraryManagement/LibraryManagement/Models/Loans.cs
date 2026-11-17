@@ -6,19 +6,12 @@ namespace LibraryManagement.Models;
 public class Loans
 {
     public int Id { get; set; }
-    
-    // Độc giả
+    public string LoanCode { get; set; }
     public int IdReader { get; set; }
-    public Users Reader { get; set; } = null!;      
+    public DateTime BorrowedAt { get; set; }
+    public string Note { get; set; }
 
-    // Thủ thư
-    public int IdLibrarian { get; set; }
-    public Users Librarian { get; set; } = null!;   
-    
-    // Thông tin khác
-    public DateTime BorrowDate { get; set; }
-    public string Status { get; set; } = string.Empty; 
-
-    // Navigation properties
-    public ICollection<LoanDetails> LoanDetails { get; set; } = new List<LoanDetails>();
+    // Navigation
+    public Users Reader { get; set; }
+    public ICollection<LoanDetails> LoanDetails { get; set; }
 }

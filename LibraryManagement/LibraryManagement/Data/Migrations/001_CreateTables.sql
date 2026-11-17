@@ -1,6 +1,5 @@
-﻿
--- =====================================================
--- LIBRARY MANAGEMENT SYSTEM
+﻿-- =====================================================
+-- LIBRARY MANAGEMENT SYSTEM (Single Librarian Version)
 -- Migration: 001_CreateCoreTables.sql
 -- Database: SQLite
 -- =====================================================
@@ -9,7 +8,7 @@ PRAGMA foreign_keys = ON;
 
 -- =====================================================
 -- 1. USERS
--- Reader, Librarian and Admin are stored together
+-- Reader, Librarian (duy nhất) và Admin
 -- =====================================================
 
 CREATE TABLE IF NOT EXISTS "Users" (
@@ -48,6 +47,11 @@ CREATE TABLE IF NOT EXISTS "Users" (
 CREATE UNIQUE INDEX IF NOT EXISTS "UX_Users_Username"
     ON "Users"("Username")
     WHERE "Username" IS NOT NULL;
+
+-- Đảm bảo chỉ có duy nhất 1 Librarian đang Active (tùy chọn)
+CREATE UNIQUE INDEX IF NOT EXISTS "UX_Users_SingleLibrarian"
+    ON "Users"("UserType")
+    WHERE "UserType" = 'Librarian' AND "Status" = 'Active';
 
 
 -- =====================================================
@@ -164,23 +168,17 @@ CREATE UNIQUE INDEX IF NOT EXISTS "UX_ReaderCards_OneActive"
 
 
 -- =====================================================
--- 6. LOANS
+-- 6. LOANS (Bỏ IdLibrarian)
 -- =====================================================
 
 CREATE TABLE IF NOT EXISTS "Loans" (
                                        "Id"            INTEGER PRIMARY KEY AUTOINCREMENT,
                                        "LoanCode"      TEXT NOT NULL UNIQUE,
                                        "IdReader"      INTEGER NOT NULL,
-                                       "IdLibrarian"   INTEGER NOT NULL,
                                        "BorrowedAt"    TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                                        "Note"          TEXT,
 
                                        FOREIGN KEY ("IdReader")
-                                           REFERENCES "Users"("Id")
-                                           ON UPDATE CASCADE
-                                           ON DELETE RESTRICT,
-
-                                       FOREIGN KEY ("IdLibrarian")
                                            REFERENCES "Users"("Id")
                                            ON UPDATE CASCADE
                                            ON DELETE RESTRICT
@@ -188,7 +186,7 @@ CREATE TABLE IF NOT EXISTS "Loans" (
 
 
 -- =====================================================
--- 7. LOAN DETAILS
+-- 7. LOAN DETAILS (Bỏ IdLibrarianReturn)
 -- =====================================================
 
 CREATE TABLE IF NOT EXISTS "LoanDetails" (
@@ -199,7 +197,6 @@ CREATE TABLE IF NOT EXISTS "LoanDetails" (
                                              "ReturnedAt"                TEXT,
                                              "PhysicalConditionBefore"   TEXT NOT NULL,
                                              "PhysicalConditionAfter"    TEXT,
-                                             "IdLibrarianReturn"         INTEGER,
                                              "RenewalCount"              INTEGER NOT NULL DEFAULT 0,
                                              "Note"                      TEXT,
 
@@ -210,11 +207,6 @@ CREATE TABLE IF NOT EXISTS "LoanDetails" (
 
                                              FOREIGN KEY ("IdBookCopy")
                                                  REFERENCES "BookCopies"("Id")
-                                                 ON UPDATE CASCADE
-                                                 ON DELETE RESTRICT,
-
-                                             FOREIGN KEY ("IdLibrarianReturn")
-                                                 REFERENCES "Users"("Id")
                                                  ON UPDATE CASCADE
                                                  ON DELETE RESTRICT,
 
@@ -236,7 +228,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS "UX_LoanDetails_ActiveCopy"
 
 
 -- =====================================================
--- 8. RESERVATIONS
+-- 8. RESERVATIONS (Bỏ IdLibrarian)
 -- =====================================================
 
 CREATE TABLE IF NOT EXISTS "Reservations" (
@@ -245,7 +237,6 @@ CREATE TABLE IF NOT EXISTS "Reservations" (
                                               "IdReader"          INTEGER NOT NULL,
                                               "IdBook"            INTEGER NOT NULL,
                                               "IdBookCopy"        INTEGER,
-                                              "IdLibrarian"       INTEGER,
                                               "IdLoan"            INTEGER UNIQUE,
                                               "ReservedAt"        TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                                               "ExpiresAt"         TEXT,
@@ -267,11 +258,6 @@ CREATE TABLE IF NOT EXISTS "Reservations" (
 
                                               FOREIGN KEY ("IdBookCopy")
                                                   REFERENCES "BookCopies"("Id")
-                                                  ON UPDATE CASCADE
-                                                  ON DELETE RESTRICT,
-
-                                              FOREIGN KEY ("IdLibrarian")
-                                                  REFERENCES "Users"("Id")
                                                   ON UPDATE CASCADE
                                                   ON DELETE RESTRICT,
 
@@ -297,14 +283,13 @@ CREATE UNIQUE INDEX IF NOT EXISTS "UX_Reservations_AssignedCopy"
 
 
 -- =====================================================
--- 9. FINES
+-- 9. FINES (Bỏ IdLibrarian)
 -- =====================================================
 
 CREATE TABLE IF NOT EXISTS "Fines" (
                                        "Id"                INTEGER PRIMARY KEY AUTOINCREMENT,
                                        "FineCode"          TEXT NOT NULL UNIQUE,
                                        "IdLoanDetail"      INTEGER NOT NULL,
-                                       "IdLibrarian"       INTEGER NOT NULL,
                                        "CreatedAt"         TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                                        "ViolationType"     TEXT NOT NULL,
                                        "AmountVnd"         INTEGER NOT NULL,
@@ -315,24 +300,18 @@ CREATE TABLE IF NOT EXISTS "Fines" (
                                            ON UPDATE CASCADE
                                            ON DELETE RESTRICT,
 
-                                       FOREIGN KEY ("IdLibrarian")
-                                           REFERENCES "Users"("Id")
-                                           ON UPDATE CASCADE
-                                           ON DELETE RESTRICT,
-
                                        CHECK ("AmountVnd" > 0)
 );
 
 
 -- =====================================================
--- 10. FINE PAYMENTS
+-- 10. FINE PAYMENTS (Bỏ IdLibrarian)
 -- =====================================================
 
 CREATE TABLE IF NOT EXISTS "FinePayments" (
                                               "Id"                INTEGER PRIMARY KEY AUTOINCREMENT,
                                               "PaymentCode"       TEXT NOT NULL UNIQUE,
                                               "IdFine"            INTEGER NOT NULL,
-                                              "IdLibrarian"       INTEGER NOT NULL,
                                               "PaidAt"            TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                                               "AmountVnd"         INTEGER NOT NULL,
                                               "PaymentMethod"     TEXT NOT NULL DEFAULT 'Cash',
@@ -340,11 +319,6 @@ CREATE TABLE IF NOT EXISTS "FinePayments" (
 
                                               FOREIGN KEY ("IdFine")
                                                   REFERENCES "Fines"("Id")
-                                                  ON UPDATE CASCADE
-                                                  ON DELETE RESTRICT,
-
-                                              FOREIGN KEY ("IdLibrarian")
-                                                  REFERENCES "Users"("Id")
                                                   ON UPDATE CASCADE
                                                   ON DELETE RESTRICT,
 

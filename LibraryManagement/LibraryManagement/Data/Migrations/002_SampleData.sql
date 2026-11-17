@@ -1,6 +1,6 @@
 ﻿-- =====================================================
 -- SAMPLE DATA for LibraryManagement (SQLite)
--- Khớp schema 001_CreateCoreTables.sql
+-- Khớp schema 001_CreateCoreTables.sql (Single Librarian Version)
 -- Chạy trên DB trống. INSERT OR IGNORE an toàn khi chạy lại.
 -- =====================================================
 PRAGMA foreign_keys = ON;
@@ -16,7 +16,7 @@ VALUES
     (5, 2,    'CAT-PROG', 'Lập trình',            14, 1, 'Active'),
     (6, 2,    'CAT-DB',   'Cơ sở dữ liệu',        14, 1, 'Active');
 
--- ---------- 2. USERS (15 readers + 2 librarians + 1 admin) ----------
+-- ---------- 2. USERS (15 readers + 1 librarian + 1 admin) ----------
 -- Reader: UserType='Reader', MaxActiveCopies NOT NULL, Username/PasswordHash NULL
 -- Librarian/Admin: MaxActiveCopies NULL, Username/PasswordHash NOT NULL
 INSERT OR IGNORE INTO "Users"
@@ -38,13 +38,11 @@ VALUES
     (13, 'RD0013', NULL, NULL, 'Vũ Văn Vy',        '1988-01-26', '0948680824', 'reader013@example.com', '83 Đường mẫu, TP.HCM',  'Reader', 3, 'Active'),
     (14, 'RD0014', NULL, NULL, 'Phan Minh Nam',    '2000-06-02', '0915653550', 'reader014@example.com', '3 Đường mẫu, TP.HCM',   'Reader', 3, 'Active'),
     (15, 'RD0015', NULL, NULL, 'Vũ Văn Giang',     '1982-07-03', '0998941018', 'reader015@example.com', '5 Đường mẫu, TP.HCM',   'Reader', 3, 'Active'),
-    -- Librarians / Admin (16..18)
-    (16, 'NV001', 'librarian1', 'DEMO_HASH_CHANGE_ME_1', 'Nguyễn Minh Anh', NULL, '0905587265', 'librarian1@example.com', 'Thư viện trung tâm', 'Admin',     NULL, 'Active'),
-    (17, 'NV002', 'librarian2', 'DEMO_HASH_CHANGE_ME_2', 'Trần Quốc Bảo',   NULL, '0905319779', 'librarian2@example.com', 'Thư viện trung tâm', 'Librarian', NULL, 'Active'),
-    (18, 'NV003', 'librarian3', 'DEMO_HASH_CHANGE_ME_3', 'Lê Thu Hà',       NULL, '0904523988', 'librarian3@example.com', 'Thư viện trung tâm', 'Librarian', NULL, 'Active');
+    -- 1 Admin (Id 16) và 1 Librarian duy nhất (Id 17)
+    (16, 'NV001', 'admin',      'DEMO_HASH_CHANGE_ME_1', 'Nguyễn Minh Anh', NULL, '0905587265', 'admin@example.com',      'Thư viện trung tâm', 'Admin',     NULL, 'Active'),
+    (17, 'NV002', 'librarian',  'DEMO_HASH_CHANGE_ME_2', 'Trần Quốc Bảo',   NULL, '0905319779', 'librarian@example.com', 'Thư viện trung tâm', 'Librarian', NULL, 'Active');
 
 -- ---------- 3. BOOKS (15) ----------
--- IdCategory phải là category Active (1..6). BookCode/Isbn unique.
 INSERT OR IGNORE INTO "Books"
 ("Id","IdCategory","BookCode","Isbn","Title","Author","Publisher","PublishedYear","Description")
 VALUES
@@ -65,7 +63,6 @@ VALUES
     (15, 3, 'BK0015', '9786041000015', 'Oxford Word Skills',         'Ruth Gairns, Stuart Redman','Oxford',            2016, 'Từ vựng tiếng Anh.');
 
 -- ---------- 4. READER CARDS (15 active + 3 cũ = 18) ----------
--- Mỗi reader chỉ 1 thẻ Active (partial unique index UX_ReaderCards_OneActive)
 INSERT OR IGNORE INTO "ReaderCards"
 ("Id","IdReader","CardCode","IssuedAt","ExpiresAt","Status","Note")
 VALUES
@@ -90,8 +87,6 @@ VALUES
     (18, 3,  'RC00103', '2025-06-20', '2025-09-05', 'Locked',  'Thẻ cũ');
 
 -- ---------- 5. BOOK COPIES (45: mỗi book 3 bản) ----------
--- PhysicalCondition: New/Good/Worn/Damaged
--- CirculationStatus: Available/Borrowed/Reserved/Maintenance/Lost
 INSERT OR IGNORE INTO "BookCopies"
 ("Id","IdBook","CopyCode","ShelfLocation","ReceivedAt","PurchasePriceVnd","PhysicalCondition","CirculationStatus","Note")
 VALUES
@@ -141,72 +136,64 @@ VALUES
     (44, 15, 'CP00044', 'Kệ G-02', '2024-05-16', 120000, 'Good', 'Available', NULL),
     (45, 15, 'CP00045', 'Kệ G-02', '2022-03-20', 150000, 'Good', 'Available', NULL);
 
--- ---------- 6. LOANS (10) ----------
--- IdReader = Users.Id (Reader), IdLibrarian = Users.Id (Librarian/Admin)
+-- ---------- 6. LOANS (10) — Đã bỏ IdLibrarian ----------
 INSERT OR IGNORE INTO "Loans"
-("Id","LoanCode","IdReader","IdLibrarian","BorrowedAt","Note")
+("Id","LoanCode","IdReader","BorrowedAt","Note")
 VALUES
-    (1,  'LN0001', 1,  17, '2026-10-01 09:00:00', 'Mượn thường'),
-    (2,  'LN0002', 2,  17, '2026-10-03 10:15:00', 'Mượn thường'),
-    (3,  'LN0003', 3,  18, '2026-10-05 14:00:00', 'Mượn thường'),
-    (4,  'LN0004', 4,  18, '2026-10-07 08:30:00', 'Mượn thường'),
-    (5,  'LN0005', 5,  17, '2026-10-09 16:45:00', 'Mượn thường'),
-    (6,  'LN0006', 6,  18, '2026-10-11 11:00:00', 'Mượn thường'),
-    (7,  'LN0007', 7,  17, '2026-10-13 13:20:00', 'Mượn thường'),
-    (8,  'LN0008', 8,  18, '2026-10-15 09:40:00', 'Mượn thường'),
-    (9,  'LN0009', 9,  17, '2026-10-17 15:10:00', 'Mượn thường'),
-    (10, 'LN0010', 10, 18, '2026-10-19 10:00:00', 'Mượn thường');
+    (1,  'LN0001', 1,  '2026-10-01 09:00:00', 'Mượn thường'),
+    (2,  'LN0002', 2,  '2026-10-03 10:15:00', 'Mượn thường'),
+    (3,  'LN0003', 3,  '2026-10-05 14:00:00', 'Mượn thường'),
+    (4,  'LN0004', 4,  '2026-10-07 08:30:00', 'Mượn thường'),
+    (5,  'LN0005', 5,  '2026-10-09 16:45:00', 'Mượn thường'),
+    (6,  'LN0006', 6,  '2026-10-11 11:00:00', 'Mượn thường'),
+    (7,  'LN0007', 7,  '2026-10-13 13:20:00', 'Mượn thường'),
+    (8,  'LN0008', 8,  '2026-10-15 09:40:00', 'Mượn thường'),
+    (9,  'LN0009', 9,  '2026-10-17 15:10:00', 'Mượn thường'),
+    (10, 'LN0010', 10, '2026-10-19 10:00:00', 'Mượn thường');
 
--- ---------- 7. LOAN DETAILS (12) ----------
--- Partial unique UX_LoanDetails_ActiveCopy: mỗi copy chỉ 1 dòng ReturnedAt IS NULL
--- PhysicalConditionBefore/After: New/Good/Worn/Damaged
+-- ---------- 7. LOAN DETAILS (12) — Đã bỏ IdLibrarianReturn ----------
 INSERT OR IGNORE INTO "LoanDetails"
-("Id","IdLoan","IdBookCopy","DueAt","ReturnedAt","PhysicalConditionBefore","PhysicalConditionAfter","IdLibrarianReturn","RenewalCount","Note")
+("Id","IdLoan","IdBookCopy","DueAt","ReturnedAt","PhysicalConditionBefore","PhysicalConditionAfter","RenewalCount","Note")
 VALUES
-    (1,  1,  1,  '2026-10-22', '2026-10-20', 'Good', 'Good', 17, 0, NULL),
-    (2,  1,  2,  '2026-10-22', NULL,         'Good', NULL,   NULL, 0, 'Đang mượn'),
-    (3,  2,  4,  '2026-10-17', '2026-10-16', 'New',  'Good', 17, 1, 'Đã gia hạn 1 lần'),
-    (4,  3,  7,  '2026-10-19', NULL,         'Good', NULL,   NULL, 0, 'Đang mượn'),
-    (5,  3,  8,  '2026-10-19', NULL,         'Good', NULL,   NULL, 0, 'Đang mượn (reserved copy)'),
-    (6,  4,  10, '2026-10-21', '2026-10-18', 'Good', 'Worn', 18, 0, 'Trả hơi cũ'),
-    (7,  5,  13, '2026-10-23', NULL,         'Worn', NULL,   NULL, 0, 'Đang mượn'),
-    (8,  6,  16, '2026-10-25', '2026-10-24', 'Good', 'Good', 18, 0, NULL),
-    (9,  7,  19, '2026-10-27', NULL,         'Good', NULL,   NULL, 0, 'Đang mượn'),
-    (10, 8,  22, '2026-10-29', '2026-10-28', 'Good', 'Good', 17, 0, NULL),
-    (11, 9,  25, '2026-10-31', NULL,         'Good', NULL,   NULL, 0, 'Đang mượn'),
-    (12, 10, 28, '2026-11-02', NULL,         'Worn', NULL,   NULL, 0, 'Đang mượn');
+    (1,  1,  1,  '2026-10-22', '2026-10-20', 'Good', 'Good', 0, NULL),
+    (2,  1,  2,  '2026-10-22', NULL,         'Good', NULL,   0, 'Đang mượn'),
+    (3,  2,  4,  '2026-10-17', '2026-10-16', 'New',  'Good', 1, 'Đã gia hạn 1 lần'),
+    (4,  3,  7,  '2026-10-19', NULL,         'Good', NULL,   0, 'Đang mượn'),
+    (5,  3,  8,  '2026-10-19', NULL,         'Good', NULL,   0, 'Đang mượn (reserved copy)'),
+    (6,  4,  10, '2026-10-21', '2026-10-18', 'Good', 'Worn', 0, 'Trả hơi cũ'),
+    (7,  5,  13, '2026-10-23', NULL,         'Worn', NULL,   0, 'Đang mượn'),
+    (8,  6,  16, '2026-10-25', '2026-10-24', 'Good', 'Good', 0, NULL),
+    (9,  7,  19, '2026-10-27', NULL,         'Good', NULL,   0, 'Đang mượn'),
+    (10, 8,  22, '2026-10-29', '2026-10-28', 'Good', 'Good', 0, NULL),
+    (11, 9,  25, '2026-10-31', NULL,         'Good', NULL,   0, 'Đang mượn'),
+    (12, 10, 28, '2026-11-02', NULL,         'Worn', NULL,   0, 'Đang mượn');
 
--- Đồng bộ CirculationStatus cho các copy đang mượn (trong thực tế nên dùng trigger/app)
+-- Đồng bộ CirculationStatus cho các copy đang mượn
 UPDATE "BookCopies" SET "CirculationStatus" = 'Borrowed'
 WHERE "Id" IN (2, 7, 8, 13, 19, 25, 28);
 
--- ---------- 8. RESERVATIONS (5) ----------
--- Status: Pending/ReadyForPickup/Completed/Cancelled/Expired
--- UX_Reservations_ActiveReaderBook: 1 reader+book chỉ 1 active
--- UX_Reservations_AssignedCopy: 1 copy chỉ gán cho 1 ReadyForPickup
+-- ---------- 8. RESERVATIONS (5) — Đã bỏ IdLibrarian ----------
 INSERT OR IGNORE INTO "Reservations"
-("Id","ReservationCode","IdReader","IdBook","IdBookCopy","IdLibrarian","IdLoan","ReservedAt","ExpiresAt","AssignedAt","FulfilledAt","CancelledAt","Status","Note")
+("Id","ReservationCode","IdReader","IdBook","IdBookCopy","IdLoan","ReservedAt","ExpiresAt","AssignedAt","FulfilledAt","CancelledAt","Status","Note")
 VALUES
-    (1, 'RS0001', 11, 3,  8,    17, NULL, '2026-10-10 09:00:00', '2026-10-17 09:00:00', '2026-10-12 09:00:00', NULL, NULL, 'ReadyForPickup', 'Đã gán copy CP00008'),
-    (2, 'RS0002', 12, 4,  12,   18, NULL, '2026-10-12 10:00:00', '2026-10-19 10:00:00', '2026-10-14 10:00:00', NULL, NULL, 'ReadyForPickup', 'Đã gán copy CP00012'),
-    (3, 'RS0003', 13, 1,  NULL, NULL, NULL,'2026-10-15 11:00:00', '2026-10-22 11:00:00', NULL, NULL, NULL, 'Pending',        'Chờ xử lý'),
-    (4, 'RS0004', 14, 5,  NULL, NULL, NULL,'2026-10-16 12:00:00', NULL, NULL, NULL, '2026-10-18 12:00:00', 'Cancelled', 'Độc giả hủy'),
-    (5, 'RS0005', 15, 2,  NULL, NULL, NULL,'2026-10-17 13:00:00', '2026-10-24 13:00:00', NULL, NULL, NULL, 'Expired',        'Hết hạn');
+    (1, 'RS0001', 11, 3,  8,    NULL, '2026-10-10 09:00:00', '2026-10-17 09:00:00', '2026-10-12 09:00:00', NULL, NULL, 'ReadyForPickup', 'Đã gán copy CP00008'),
+    (2, 'RS0002', 12, 4,  12,   NULL, '2026-10-12 10:00:00', '2026-10-19 10:00:00', '2026-10-14 10:00:00', NULL, NULL, 'ReadyForPickup', 'Đã gán copy CP00012'),
+    (3, 'RS0003', 13, 1,  NULL, NULL, '2026-10-15 11:00:00', '2026-10-22 11:00:00', NULL, NULL, NULL, 'Pending',        'Chờ xử lý'),
+    (4, 'RS0004', 14, 5,  NULL, NULL, '2026-10-16 12:00:00', NULL, NULL, NULL, '2026-10-18 12:00:00', 'Cancelled', 'Độc giả hủy'),
+    (5, 'RS0005', 15, 2,  NULL, NULL, '2026-10-17 13:00:00', '2026-10-24 13:00:00', NULL, NULL, NULL, 'Expired',        'Hết hạn');
 
--- ---------- 9. FINES (3) ----------
--- IdLoanDetail phải tồn tại; AmountVnd > 0
+-- ---------- 9. FINES (3) — Đã bỏ IdLibrarian ----------
 INSERT OR IGNORE INTO "Fines"
-("Id","FineCode","IdLoanDetail","IdLibrarian","CreatedAt","ViolationType","AmountVnd","Description")
+("Id","FineCode","IdLoanDetail","CreatedAt","ViolationType","AmountVnd","Description")
 VALUES
-    (1, 'FN0001', 6,  18, '2026-10-18 09:00:00', 'Damaged',   50000, 'Bìa sách bị rách nhẹ'),
-    (2, 'FN0002', 3,  17, '2026-10-16 10:00:00', 'LateReturn', 20000, 'Trả trễ 2 ngày'),
-    (3, 'FN0003', 10, 18, '2026-10-28 11:00:00', 'LateReturn', 10000, 'Trả trễ 1 ngày');
+    (1, 'FN0001', 6,  '2026-10-18 09:00:00', 'Damaged',   50000, 'Bìa sách bị rách nhẹ'),
+    (2, 'FN0002', 3,  '2026-10-16 10:00:00', 'LateReturn', 20000, 'Trả trễ 2 ngày'),
+    (3, 'FN0003', 10, '2026-10-28 11:00:00', 'LateReturn', 10000, 'Trả trễ 1 ngày');
 
--- ---------- 10. FINE PAYMENTS (2) ----------
--- AmountVnd > 0; PaymentMethod: Cash/Other
+-- ---------- 10. FINE PAYMENTS (2) — Đã bỏ IdLibrarian ----------
 INSERT OR IGNORE INTO "FinePayments"
-("Id","PaymentCode","IdFine","IdLibrarian","PaidAt","AmountVnd","PaymentMethod","Note")
+("Id","PaymentCode","IdFine","PaidAt","AmountVnd","PaymentMethod","Note")
 VALUES
-    (1, 'FP0001', 1, 18, '2026-10-18 09:30:00', 50000, 'Cash',  'Đã thu đủ'),
-    (2, 'FP0002', 2, 17, '2026-10-16 10:30:00', 20000, 'Cash',  'Đã thu đủ');
+    (1, 'FP0001', 1, '2026-10-18 09:30:00', 50000, 'Cash',  'Đã thu đủ'),
+    (2, 'FP0002', 2, '2026-10-16 10:30:00', 20000, 'Cash',  'Đã thu đủ');
 -- Fine 3 chưa thanh toán (để test trạng thái nợ)
