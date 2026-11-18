@@ -447,5 +447,60 @@ namespace LibraryManagement.Forms
             IsLogout = true;
             Close();
         }
+        private TabPage? _tabBooks;
+        private TabPage? _tabBookCopies;
+        private TabPage? _tabCategories;
+        private BookCopyControl? _bookCopyControl;
+
+        private void OpenCatalogTab()
+        {
+            if (_tabBooks != null && _tabMain.TabPages.Contains(_tabBooks))
+            {
+                _tabMain.SelectedTab = _tabBooks;
+                return;
+            }
+
+            _tabBooks = new TabPage("Quản lý đầu sách") { BackColor = Color.FromArgb(240, 242, 245) };
+            var ctrl = new Forms.Books.BookCatalogControl { Dock = DockStyle.Fill };
+            ctrl.ViewCopiesRequested += book =>
+            {
+                OpenBookCopiesTab();
+                _bookCopyControl?.FilterByBook(book.Id, book.Title);
+            };
+            _tabBooks.Controls.Add(ctrl);
+            _tabMain.TabPages.Add(_tabBooks);
+            _tabMain.SelectedTab = _tabBooks;
+        }
+
+        private void OpenBookCopiesTab()
+        {
+            if (_tabBookCopies != null && _tabMain.TabPages.Contains(_tabBookCopies))
+            {
+                _tabMain.SelectedTab = _tabBookCopies;
+                return;
+            }
+
+            _tabBookCopies = new TabPage("Quản lý bản sách") { BackColor = Color.FromArgb(240, 242, 245) };
+            _bookCopyControl = new BookCopyControl { Dock = DockStyle.Fill };
+            _tabBookCopies.Controls.Add(_bookCopyControl);
+            _tabMain.TabPages.Add(_tabBookCopies);
+            _tabMain.SelectedTab = _tabBookCopies;
+        }
+
+        private void OpenCategoriesTab()
+        {
+            if (_tabCategories != null && _tabMain.TabPages.Contains(_tabCategories))
+            {
+                _tabMain.SelectedTab = _tabCategories;
+                return;
+            }
+
+            _tabCategories = new TabPage("Thể loại & Danh mục") { BackColor = Color.FromArgb(240, 242, 245) };
+            var ctrl = new Forms.Books.CategoryManagementControl { Dock = DockStyle.Fill };
+            _tabCategories.Controls.Add(ctrl);
+            _tabMain.TabPages.Add(_tabCategories);
+            _tabMain.SelectedTab = _tabCategories;
+        }
     }
+
 }
