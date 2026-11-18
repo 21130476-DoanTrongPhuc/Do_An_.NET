@@ -10,11 +10,15 @@ public class Book
     public string Author { get; set; } = string.Empty;
     public string? Publisher { get; set; }
     public string? PublishedYear { get; set; }
+    public string? Language { get; set; } = "Tiếng Việt";
+    public int? PageCount { get; set; }
+    public string? CoverImagePath { get; set; }
+    public string Status { get; set; } = "Active"; // Active | Discontinued
     public string? Description { get; set; }
     public string CreatedAt { get; set; } = string.Empty;
     public string UpdatedAt { get; set; } = string.Empty;
 
-    public Categories Category { get; set; } = null;
+    public Categories Category { get; set; } = null!;
     public ICollection<BookCopies> Copies { get; set; } = new List<BookCopies>();
-    public ICollection<Reservations>  Reservations { get; set; } = new List<Reservations>();
+    public ICollection<Reservations> Reservations { get; set; } = new List<Reservations>();
 }

@@ -8,7 +8,7 @@ public class LibraryDbContext : DbContext
     public LibraryDbContext()
     {
     }
-
+    public DbSet<BookCopyHistory> BookCopyHistories { get; set; }
     public LibraryDbContext(
         DbContextOptions<LibraryDbContext> options
     ) : base(options)

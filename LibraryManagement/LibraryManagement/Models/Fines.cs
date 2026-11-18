@@ -13,4 +13,5 @@ public class Fines
     // Navigation
     public LoanDetails LoanDetail { get; set; }
     public ICollection<FinePayments> FinePayments { get; set; }
+    public string Status { get; set; }
 }

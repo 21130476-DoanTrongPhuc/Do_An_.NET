@@ -1,4 +1,7 @@
 ﻿using System.Drawing.Drawing2D;
+using LibraryManagement.Data;
+using LibraryManagement.Helpers;
+using Microsoft.EntityFrameworkCore;
 
 namespace LibraryManagement.Forms
 {
@@ -17,18 +20,24 @@ namespace LibraryManagement.Forms
         // Glyph (Segoe MDL2 Assets)
         private const string GHome = "\uE80F", GBook = "\uE82D", GPeople = "\uE716",
             GForward = "\uE72A", GBack = "\uE72B", GRefresh = "\uE72C", GHelp = "\uE897",
-            GWarn = "\uE7BA", GCalendar = "\uE787", GReport = "\uE9F9";
+            GWarn = "\uE7BA", GCalendar = "\uE787", GReport = "\uE9F9", GMoney = "\uE8C7";
 
         public bool IsLogout { get; private set; }
 
         // Control cần truy cập sau
         private TabControl _tabMain = null!;
         private TabPage? _tabReport;
+        private TabPage? _tabReturn;
+        private TabPage? _tabBookCopies;
+        private TabPage? _tabOverdue;
+        private TabPage? _tabFines;
+
         private TableLayoutPanel _tblStats = null!;
         private DataGridView _dgvTrans = null!;
         private FlowLayoutPanel _flowNotice = null!;
         private Label _lblDate = null!;
         private Label _lblUserName = null!;
+        private ToolStripStatusLabel _lblStatusRole = null!;
 
         public LibrarianFormMain()
         {
@@ -42,37 +51,173 @@ namespace LibraryManagement.Forms
         }
 
         // ============================================================
-        //  DỮ LIỆU - thay bằng BookService / Repository khi nối CSDL
+        //  DỮ LIỆU - KẾT NỐI TRỰC TIẾP VỚI DATABASE (LibraryDbContext)
         // ============================================================
         private void LoadData()
         {
             var d = DateTime.Now;
             string[] days = ["Chủ Nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy"];
             _lblDate.Text = $"{days[(int)d.DayOfWeek]}, ngày {d:dd} tháng {d:MM} năm {d:yyyy}";
-            _lblUserName.Text = "Quản trị viên";
 
-            // Thống kê hôm nay (Models/HomeSummary.cs)
-            _tblStats.Controls.Clear();
-            AddStat(0, GBook, "Tổng đầu sách", "2.486", "+32 trong tháng", false);
-            AddStat(1, GPeople, "Độc giả hoạt động", "1.248", "86 độc giả mới", false);
-            AddStat(2, GForward, "Sách đang mượn", "386", "62 lượt hôm nay", false);
-            AddStat(3, GWarn, "Phiếu quá hạn", "24", "Cần xử lý", true);
+            try
+            {
+                using var context = new LibraryDbContext();
+                var today = DateTime.Today;
+                var monthStart = new DateTime(today.Year, today.Month, 1);
 
-            // Giao dịch gần đây (Models/BorrowRecord.cs)
-            _dgvTrans.Rows.Clear();
-            _dgvTrans.Rows.Add("PM-240315", "Nguyễn Minh Anh", "Nhà giả kim", "15/03/2024", "29/03/2024", "Đang mượn");
-            _dgvTrans.Rows.Add("PM-240314", "Trần Hoàng Nam", "Đắc nhân tâm", "14/03/2024", "28/03/2024", "Sắp đến hạn");
-            _dgvTrans.Rows.Add("PM-240311", "Lê Thu Hà", "Lược sử thời gian", "11/03/2024", "25/03/2024", "Quá hạn");
-            _dgvTrans.Rows.Add("PM-240309", "Đỗ Hải Yến", "Mắt biếc", "09/03/2024", "23/03/2024", "Quá hạn");
-            _dgvTrans.ClearSelection();
+                // 1. Lấy thông tin thủ thư / admin đang đăng nhập (chỉ Select các cột cần dùng)
+                var currentUser = context.Users
+                    .Where(u => u.Id == Session.CurrentLibrarianId)
+                    .Select(u => new { u.FullName, u.UserType, u.UserCode })
+                    .FirstOrDefault();
 
-            // Thông báo và nhắc việc (Models/Notification.cs)
-            _flowNotice.Controls.Clear();
-            AddNotice(GWarn, Red, "24 phiếu đã quá hạn", "Cần liên hệ độc giả và xử lý", "Kiểm tra");
-            AddNotice(GPeople, Primary, "38 thẻ sắp hết hạn", "Trong vòng 30 ngày tới", "Xem");
-            AddNotice(GBook, Orange, "12 đầu sách sắp hết", "Số lượng khả dụng dưới 2 cuốn", "Xem");
+                _lblUserName.Text = currentUser?.FullName ?? "Quản trị viên";
+                if (_lblStatusRole != null)
+                {
+                    _lblStatusRole.Text = currentUser != null
+                        ? $"{(currentUser.UserType == "Admin" ? "Quản trị viên" : "Thủ thư")}: {currentUser.UserCode}"
+                        : "Thủ thư";
+                }
+
+                // 2. Truy vấn thống kê tổng quan từ Database
+                int totalBooks = context.Books.Count();
+                int totalCopies = context.BookCopies.Count();
+
+                int activeReaders = context.Users.Count(u => u.UserType == "Reader" && u.Status == "Active");
+                int newReadersThisMonth = context.Users
+                    .Where(u => u.UserType == "Reader")
+                    .Select(u => u.CreatedAt)
+                    .AsEnumerable()
+                    .Count(createdStr => DateTime.TryParse(createdStr, out var created) && created >= monthStart);
+
+                var unreturnedDetails = context.LoanDetails
+                    .Where(ld => ld.ReturnedAt == null)
+                    .Select(ld => new
+                    {
+                        ld.DueAt,
+                        BorrowedAt = ld.Loan.BorrowedAt
+                    })
+                    .ToList();
+
+                int borrowingCount = unreturnedDetails.Count;
+                int borrowedTodayCount = unreturnedDetails.Count(ld => ld.BorrowedAt.Date == today);
+                int overdueCount = unreturnedDetails.Count(ld => ld.DueAt.Date < today);
+
+                _tblStats.Controls.Clear();
+                AddStat(0, GBook, "Tổng đầu sách", totalBooks.ToString("N0"), $"{totalCopies:N0} bản sách vật lý", false);
+                AddStat(1, GPeople, "Độc giả hoạt động", activeReaders.ToString("N0"), $"+{newReadersThisMonth} độc giả mới tháng này", false);
+                AddStat(2, GForward, "Sách đang mượn", borrowingCount.ToString("N0"), $"{borrowedTodayCount} lượt mượn hôm nay", false);
+                AddStat(3, GWarn, "Phiếu quá hạn", overdueCount.ToString("N0"), overdueCount > 0 ? "Cần xử lý ngay" : "Không có quá hạn", overdueCount > 0);
+
+                // 3. Giao dịch mượn/trả gần đây (Dùng Select để tránh lỗi NULL ở các cột Note / Condition)
+                var recentDetails = context.LoanDetails
+                    .OrderByDescending(ld => ld.Loan.BorrowedAt)
+                    .ThenByDescending(ld => ld.Id)
+                    .Take(15)
+                    .Select(ld => new
+                    {
+                        ld.Loan.LoanCode,
+                        ReaderName = ld.Loan.Reader.FullName,
+                        BookTitle = ld.BookCopy.Book.Title,
+                        ld.Loan.BorrowedAt,
+                        ld.DueAt,
+                        ld.ReturnedAt
+                    })
+                    .ToList();
+
+                _dgvTrans.Rows.Clear();
+                foreach (var item in recentDetails)
+                {
+                    string statusText;
+                    if (item.ReturnedAt != null)
+                    {
+                        statusText = "Đã trả";
+                    }
+                    else if (item.DueAt.Date < today)
+                    {
+                        statusText = "Quá hạn";
+                    }
+                    else if ((item.DueAt.Date - today).Days <= 3)
+                    {
+                        statusText = "Sắp đến hạn";
+                    }
+                    else
+                    {
+                        statusText = "Đang mượn";
+                    }
+
+                    _dgvTrans.Rows.Add(
+                        item.LoanCode,
+                        item.ReaderName,
+                        item.BookTitle,
+                        item.BorrowedAt.ToString("dd/MM/yyyy"),
+                        item.DueAt.ToString("dd/MM/yyyy"),
+                        statusText
+                    );
+                }
+                _dgvTrans.ClearSelection();
+
+                // 4. Thông báo và nhắc việc động từ Database
+                _flowNotice.Controls.Clear();
+
+                if (overdueCount > 0)
+                {
+                    AddNotice(GWarn, Red,
+                        $"{overdueCount} cuốn sách đã quá hạn trả",
+                        "Cần liên hệ độc giả và xử lý thu hồi sách",
+                        "Kiểm tra",
+                        OpenOverdueTab);
+                }
+
+                int expiringCardsCount = context.ReaderCards
+                    .Count(rc => rc.Status == "Active"
+                                 && rc.ExpiresAt >= today
+                                 && rc.ExpiresAt <= today.AddDays(30));
+                if (expiringCardsCount > 0)
+                {
+                    AddNotice(GPeople, Primary,
+                        $"{expiringCardsCount} thẻ độc giả sắp hết hạn",
+                        "Sẽ hết hạn trong vòng 30 ngày tới",
+                        "Xem báo cáo",
+                        OpenReportTab);
+                }
+
+                int lowStockBooksCount = context.Books
+                    .Count(b => b.Copies.Count(c => c.CirculationStatus == "Available") < 2);
+                if (lowStockBooksCount > 0)
+                {
+                    AddNotice(GBook, Orange,
+                        $"{lowStockBooksCount} đầu sách sắp hết bản sẵn sàng",
+                        "Số lượng bản có thể mượn dưới 2 cuốn",
+                        "Xem bản sách",
+                        OpenBookCopiesTab);
+                }
+
+                int unpaidFinesCount = context.Fines.Count();
+                if (unpaidFinesCount > 0)
+                {
+                    AddNotice(GMoney, Orange,
+                        $"{unpaidFinesCount} khoản phạt chưa thanh toán",
+                        "Độc giả còn nợ phí phạt quá hạn / hư hỏng",
+                        "Thu phạt",
+                        OpenFinesTab);
+                }
+
+                if (_flowNotice.Controls.Count == 0)
+                {
+                    AddNotice(GBook, Green,
+                        "Hệ thống hoạt động ổn định",
+                        "Hiện không có phiếu quá hạn hay cảnh báo tồn đọng",
+                        "Làm mới",
+                        LoadData);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Lỗi tải dữ liệu trang chủ thủ thư:\n{ex.Message}",
+                    "Lỗi kết nối CSDL", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
-
         // ============================================================
         //  DỰNG GIAO DIỆN
         // ============================================================
@@ -97,14 +242,33 @@ namespace LibraryManagement.Forms
         private MenuStrip BuildMenu()
         {
             var menu = new MenuStrip { BackColor = Color.White, Dock = DockStyle.Top };
-            string[] menus = ["Hệ thống", "Danh mục", "Lưu thông", "Báo cáo", "Trợ giúp"];
-            foreach (var t in menus)
-            {
-                var item = new ToolStripMenuItem(t);
-                if (t == "Báo cáo")
-                    item.Click += (_, _) => OpenReportTab();
-                menu.Items.Add(item);
-            }
+
+            var mnuSystem = new ToolStripMenuItem("Hệ thống");
+            mnuSystem.DropDownItems.Add("Trang chủ tổng quan", null, (_, _) => _tabMain.SelectedIndex = 0);
+            mnuSystem.DropDownItems.Add("Làm mới dữ liệu", null, (_, _) => LoadData());
+            mnuSystem.DropDownItems.Add(new ToolStripSeparator());
+            mnuSystem.DropDownItems.Add("Đăng xuất", null, btnLogout_Click);
+
+            var mnuCatalog = new ToolStripMenuItem("Danh mục");
+            mnuCatalog.DropDownItems.Add("Quản lý bản sách", null, (_, _) => OpenBookCopiesTab());
+            mnuCatalog.DropDownItems.Add("Thêm đầu sách", null, (_, _) => Todo("Thêm đầu sách"));
+            mnuCatalog.DropDownItems.Add("Thêm độc giả", null, (_, _) => Todo("Thêm độc giả"));
+
+            var mnuCirculation = new ToolStripMenuItem("Lưu thông");
+            mnuCirculation.DropDownItems.Add("Lập phiếu mượn", null, (_, _) => Todo("Lập phiếu mượn"));
+            mnuCirculation.DropDownItems.Add("Nhận trả sách", null, (_, _) => OpenReturnTab());
+            mnuCirculation.DropDownItems.Add("Sách quá hạn", null, (_, _) => OpenOverdueTab());
+            mnuCirculation.DropDownItems.Add("Quản lý tiền phạt", null, (_, _) => OpenFinesTab());
+
+            var mnuReport = new ToolStripMenuItem("Báo cáo");
+            mnuReport.DropDownItems.Add("Báo cáo & Thống kê", null, (_, _) => OpenReportTab());
+
+            var mnuHelp = new ToolStripMenuItem("Trợ giúp");
+            mnuHelp.DropDownItems.Add("Hướng dẫn sử dụng", null, (_, _) =>
+                MessageBox.Show("Hệ thống Quản lý Thư viện LIBRA - Phân hệ Thủ thư.", "Trợ giúp",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information));
+
+            menu.Items.AddRange([mnuSystem, mnuCatalog, mnuCirculation, mnuReport, mnuHelp]);
             MainMenuStrip = menu;
             return menu;
         }
@@ -119,19 +283,19 @@ namespace LibraryManagement.Forms
                 Dock = DockStyle.Fill, GripStyle = ToolStripGripStyle.Hidden, BackColor = Color.FromArgb(246, 247, 249),
                 ImageScalingSize = new Size(24, 24), Padding = new Padding(6, 4, 0, 0)
             };
-            AddTool(ts, "Trang chủ", GHome, () => _tabMain.SelectedIndex = 0);
+            AddTool(ts, "Trang chủ", GHome, () => { _tabMain.SelectedIndex = 0; LoadData(); });
             ts.Items.Add(new ToolStripSeparator());
             AddTool(ts, "Thêm đầu sách", GBook, () => Todo("Thêm đầu sách"));
-            AddTool(ts, "Bản sách", GBook, () => Todo("Bản sách"));
+            AddTool(ts, "Bản sách", GBook, OpenBookCopiesTab);
             AddTool(ts, "Thêm độc giả", GPeople, () => Todo("Thêm độc giả"));
             ts.Items.Add(new ToolStripSeparator());
             AddTool(ts, "Lập phiếu mượn", GForward, () => Todo("Lập phiếu mượn"));
-            AddTool(ts, "Nhận trả sách", GBack, () => Todo("Nhận trả sách"));
-            AddTool(ts, "Đặt trước", GCalendar, () => Todo("Đặt trước"));
+            AddTool(ts, "Nhận trả sách", GBack, OpenReturnTab);
+            AddTool(ts, "Quá hạn", GWarn, OpenOverdueTab);
+            AddTool(ts, "Tiền phạt", GMoney, OpenFinesTab);
             ts.Items.Add(new ToolStripSeparator());
             AddTool(ts, "Báo cáo", GReport, OpenReportTab);
             AddTool(ts, "Làm mới", GRefresh, LoadData);
-            AddTool(ts, "Trợ giúp", GHelp, () => Todo("Trợ giúp"));
 
             // Khu người dùng bên phải
             var user = new Panel { Dock = DockStyle.Right, Width = 340 };
@@ -155,14 +319,15 @@ namespace LibraryManagement.Forms
         private StatusStrip BuildStatusBar()
         {
             var st = new StatusStrip { Dock = DockStyle.Bottom, SizingGrip = true, BackColor = Color.FromArgb(240, 242, 245), Font = new Font("Segoe UI", 8F) };
+            _lblStatusRole = new ToolStripStatusLabel("Thủ thư");
             st.Items.AddRange([
                 new ToolStripStatusLabel("●") { ForeColor = Green },
-                new ToolStripStatusLabel("Đã kết nối"),
+                new ToolStripStatusLabel("Đã kết nối CSDL"),
                 new ToolStripSeparator(),
                 new ToolStripStatusLabel("Thư viện Trung tâm · Giờ mở cửa: 07:30 - 20:00"),
                 new ToolStripStatusLabel { Spring = true },
                 new ToolStripSeparator(),
-                new ToolStripStatusLabel("Thủ thư"),
+                _lblStatusRole,
                 new ToolStripSeparator(),
                 new ToolStripStatusLabel("Phiên bản 2.4.0")
             ]);
@@ -207,10 +372,10 @@ namespace LibraryManagement.Forms
             tblQuick.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
             tblQuick.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
             tblQuick.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
-            tblQuick.Controls.Add(QuickButton("Lập phiếu mượn", GForward), 0, 0);
-            tblQuick.Controls.Add(QuickButton("Nhận trả sách", GBack), 1, 0);
-            tblQuick.Controls.Add(QuickButton("Thêm đầu sách", GBook), 0, 1);
-            tblQuick.Controls.Add(QuickButton("Thêm độc giả", GPeople), 1, 1);
+            tblQuick.Controls.Add(QuickButton("Nhận trả sách", GBack, OpenReturnTab), 0, 0);
+            tblQuick.Controls.Add(QuickButton("Sách quá hạn", GWarn, OpenOverdueTab), 1, 0);
+            tblQuick.Controls.Add(QuickButton("Quản lý bản sách", GBook, OpenBookCopiesTab), 0, 1);
+            tblQuick.Controls.Add(QuickButton("Quản lý tiền phạt", GMoney, OpenFinesTab), 1, 1);
             grpQuick.Controls.Add(tblQuick);
             quickHost.Controls.Add(grpQuick);
 
@@ -298,6 +463,7 @@ namespace LibraryManagement.Forms
             Color c = text switch
             {
                 "Đang mượn" => Primary,
+                "Đã trả" => Green,
                 "Sắp đến hạn" => Orange,
                 "Quá hạn" => Red,
                 _ => TextGray
@@ -342,7 +508,7 @@ namespace LibraryManagement.Forms
             _tblStats.Controls.Add(card, col, 0);
         }
 
-        private Button QuickButton(string text, string glyph)
+        private Button QuickButton(string text, string glyph, Action onClick)
         {
             var b = new Button
             {
@@ -353,11 +519,11 @@ namespace LibraryManagement.Forms
                 Padding = new Padding(10, 0, 0, 0), Cursor = Cursors.Hand
             };
             b.FlatAppearance.BorderColor = BorderGray;
-            b.Click += (_, _) => Todo(text);
+            b.Click += (_, _) => onClick();
             return b;
         }
 
-        private void AddNotice(string glyph, Color color, string title, string desc, string linkText)
+        private void AddNotice(string glyph, Color color, string title, string desc, string linkText, Action onLinkClick)
         {
             var row = new Panel { Height = 66, Width = Math.Max(_flowNotice.ClientSize.Width - 8, 200), Margin = new Padding(4, 0, 4, 10), BackColor = Color.White };
             row.Paint += (_, e) => e.Graphics.DrawRectangle(new Pen(BorderGray), 0, 0, row.Width - 1, row.Height - 1);
@@ -366,8 +532,8 @@ namespace LibraryManagement.Forms
             row.Controls.Add(new Label { Text = desc, Font = new Font("Segoe UI", 8F), ForeColor = TextGray, AutoSize = true, Location = new Point(54, 36) });
 
             var link = new LinkLabel { Text = linkText, AutoSize = true, Font = new Font("Segoe UI", 8.5F), Anchor = AnchorStyles.Top | AnchorStyles.Right };
-            link.Location = new Point(row.Width - 70, 24);
-            link.LinkClicked += (_, _) => Todo(title);
+            link.Location = new Point(row.Width - 85, 24);
+            link.LinkClicked += (_, _) => onLinkClick();
             row.Controls.Add(link);
             _flowNotice.Controls.Add(row);
         }
@@ -385,6 +551,46 @@ namespace LibraryManagement.Forms
             b.Click += (_, _) => onClick();
             ts.Items.Add(b);
         }
+
+        // ============================================================
+        //  ĐIỀU HƯỚNG CÁC TAB CHỨC NĂNG CỦA THỦ THƯ
+        // ============================================================
+        private void OpenOrSelectTab(ref TabPage? tabField, string title, Func<UserControl> createControl)
+        {
+            if (tabField != null && _tabMain.TabPages.Contains(tabField))
+            {
+                _tabMain.SelectedTab = tabField;
+                return;
+            }
+
+            tabField = new TabPage(title)
+            {
+                BackColor = Color.FromArgb(240, 242, 245),
+                Padding = new Padding(8)
+            };
+
+            var ctrl = createControl();
+            ctrl.Dock = DockStyle.Fill;
+            tabField.Controls.Add(ctrl);
+
+            _tabMain.TabPages.Add(tabField);
+            _tabMain.SelectedTab = tabField;
+        }
+
+        private void OpenReportTab() =>
+            OpenOrSelectTab(ref _tabReport, "Báo cáo & Thống kê", () => new Controls.StatisticalReportControl());
+
+        private void OpenReturnTab() =>
+            OpenOrSelectTab(ref _tabReturn, "Nhận trả sách", () => new BookFormReturn.BookFormReturn());
+
+        private void OpenBookCopiesTab() =>
+            OpenOrSelectTab(ref _tabBookCopies, "Quản lý bản sách", () => new BookCopyControl());
+
+        private void OpenOverdueTab() =>
+            OpenOrSelectTab(ref _tabOverdue, "Sách quá hạn", () => new OverdueBooks.OverdueBooks());
+
+        private void OpenFinesTab() =>
+            OpenOrSelectTab(ref _tabFines, "Quản lý tiền phạt", () => new FineManagement.FineManagement());
 
         // ============================================================
         //  TIỆN ÍCH
@@ -411,32 +617,8 @@ namespace LibraryManagement.Forms
             return p;
         }
 
-        private void OpenReportTab()
-        {
-            if (_tabReport != null && _tabMain.TabPages.Contains(_tabReport))
-            {
-                _tabMain.SelectedTab = _tabReport;
-                return;
-            }
-
-            _tabReport = new TabPage("Báo cáo & Thống kê")
-            {
-                BackColor = Color.FromArgb(240, 242, 245),
-                Padding = new Padding(8)
-            };
-
-            var reportControl = new Controls.StatisticalReportControl
-            {
-                Dock = DockStyle.Fill
-            };
-            _tabReport.Controls.Add(reportControl);
-
-            _tabMain.TabPages.Add(_tabReport);
-            _tabMain.SelectedTab = _tabReport;
-        }
-
         private void Todo(string feature) =>
-            MessageBox.Show($"Chức năng \"{feature}\" chưa được nối.", "LIBRA", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show($"Chức năng \"{feature}\" đang chờ hoàn thiện giao diện.", "LIBRA", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
         private void btnLogout_Click(object? sender, EventArgs e)
         {
