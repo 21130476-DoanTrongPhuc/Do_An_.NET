@@ -1,4 +1,9 @@
 ﻿using System.Drawing.Drawing2D;
+using LibraryManagement.Data;
+using LibraryManagement.Forms.Books.ReaderPortal;
+using LibraryManagement.Helpers;
+using LibraryManagement.Models;
+using Microsoft.EntityFrameworkCore;
 
 namespace LibraryManagement.Forms.HomePage
 {
@@ -11,7 +16,7 @@ namespace LibraryManagement.Forms.HomePage
         private static readonly Color Orange = Color.FromArgb(230, 145, 20);
         private static readonly Color Green = Color.FromArgb(34, 160, 90);
         private static readonly Color Red = Color.FromArgb(200, 50, 50);
-        private const string IconFont = "Segoe MDL2 Assets"; // có sẵn trên Windows 10/11
+        private const string IconFont = "Segoe MDL2 Assets";
         public bool IsLogout { get; private set; }
 
         // Glyph (Segoe MDL2 Assets)
@@ -27,16 +32,36 @@ namespace LibraryManagement.Forms.HomePage
             GInfo = "\uE946",
             GHistory = "\uE81C";
 
+        // Vùng chứa các trang con (Trang 2 -> Trang 7)
+        private Panel _pnlSubView = null!;
+        private BookSearchControl _searchControl = null!;
+        private BookDetailControl _detailControl = null!;
+        private CurrentLoansControl _loansControl = null!;
+        private BorrowHistoryControl _historyControl = null!;
+        private FavoriteBooksControl _favoriteControl = null!;
+        private ReaderProfileControl _profileControl = null!;
+
+        private ToolStripButton _btnNavHome = null!;
+        private ToolStripButton _btnNavSearch = null!;
+        private ToolStripButton _btnNavLoans = null!;
+        private ToolStripButton _btnNavFavorite = null!;
+        private ToolStripButton _btnNavHistory = null!;
+        private ToolStripButton _btnNavProfile = null!;
+
+        private Label? _lblFavStatValue;
+        private string _currentView = "Home";
+        private string _previousView = "Home";
+
         public HomePage()
         {
             InitializeComponent();
+            InitReaderPortalViews();
             BuildMenu();
             BuildToolbar();
             StyleStatic();
             BuildStatusBar();
             LoadData();
 
-            // responsive: chia đều thẻ khi đổi kích thước
             flowBorrow.Resize += (_, _) => LayoutCards(flowBorrow, 2, flowBorrow.Height - 8);
             flowSuggest.Resize += (_, _) => LayoutCards(flowSuggest, 5, 82);
             flowNotice.Resize += (_, _) =>
@@ -46,64 +71,334 @@ namespace LibraryManagement.Forms.HomePage
         }
 
         // ============================================================
-        //  DỮ LIỆU - thay phần này bằng BookService / Repository của bạn
+        //  KHỞI TẠO & ĐIỀU HƯỚNG 6 TRANG CON (TRANG 2 -> TRANG 7)
+        // ============================================================
+        private void InitReaderPortalViews()
+        {
+            _pnlSubView = new Panel
+            {
+                Dock = DockStyle.Fill,
+                BackColor = Color.FromArgb(240, 242, 245),
+                Visible = false
+            };
+
+            _searchControl = new BookSearchControl();
+            _searchControl.OnOpenBookDetail += OpenBookDetail;
+            _searchControl.OnDataChanged += RefreshHomeBadges;
+
+            _detailControl = new BookDetailControl();
+            _detailControl.OnBackRequested += () => SwitchView(_previousView);
+            _detailControl.OnDataChanged += RefreshHomeBadges;
+
+            _loansControl = new CurrentLoansControl();
+            _loansControl.OnOpenBookDetail += OpenBookDetail;
+            _loansControl.OnDataChanged += RefreshHomeBadges;
+
+            _historyControl = new BorrowHistoryControl();
+            _historyControl.OnOpenBookDetail += OpenBookDetail;
+
+            _favoriteControl = new FavoriteBooksControl();
+            _favoriteControl.OnOpenBookDetail += OpenBookDetail;
+            _favoriteControl.OnDataChanged += RefreshHomeBadges;
+            _favoriteControl.OnNavigateSearchRequested += () => SwitchView("Search");
+
+            _profileControl = new ReaderProfileControl();
+            _profileControl.OnProfileUpdated += LoadData;
+
+            Controls.Add(_pnlSubView);
+            Controls.SetChildIndex(_pnlSubView, 0);
+        }
+
+        private void OpenBookDetail(int bookId)
+        {
+            if (_currentView != "Detail")
+            {
+                _previousView = _currentView;
+            }
+
+            _currentView = "Detail";
+            lblBreadcrumb.Text = "Cổng độc giả  ›  Tra cứu sách  ›  Chi tiết đầu sách";
+            UpdateToolbarActiveState("Search");
+
+            pnlContent.Visible = false;
+            _pnlSubView.Visible = true;
+            _pnlSubView.Controls.Clear();
+            _pnlSubView.Controls.Add(_detailControl);
+            _detailControl.LoadBook(bookId);
+        }
+
+        private void SwitchView(string viewName, string searchKeyword = "")
+        {
+            _currentView = viewName;
+            UpdateToolbarActiveState(viewName);
+
+            if (viewName == "Home")
+            {
+                lblBreadcrumb.Text = "Cổng độc giả  ›  Trang chủ";
+                _pnlSubView.Visible = false;
+                pnlContent.Visible = true;
+                LoadData();
+                return;
+            }
+
+            pnlContent.Visible = false;
+            _pnlSubView.Visible = true;
+            _pnlSubView.Controls.Clear();
+
+            switch (viewName)
+            {
+                case "Search":
+                    lblBreadcrumb.Text = "Cổng độc giả  ›  Tra cứu sách";
+                    _pnlSubView.Controls.Add(_searchControl);
+                    if (!string.IsNullOrWhiteSpace(searchKeyword))
+                        _searchControl.ApplyKeyword(searchKeyword);
+                    else
+                        _searchControl.LoadBooks();
+                    break;
+
+                case "Loans":
+                    lblBreadcrumb.Text = "Cổng độc giả  ›  Sách đang mượn & Đặt trước";
+                    _pnlSubView.Controls.Add(_loansControl);
+                    _loansControl.ReloadData();
+                    break;
+
+                case "Favorite":
+                    lblBreadcrumb.Text = "Cổng độc giả  ›  Sách yêu thích";
+                    _pnlSubView.Controls.Add(_favoriteControl);
+                    _favoriteControl.ReloadData();
+                    break;
+
+                case "History":
+                    lblBreadcrumb.Text = "Cổng độc giả  ›  Lịch sử mượn trả";
+                    _pnlSubView.Controls.Add(_historyControl);
+                    _historyControl.ReloadData();
+                    break;
+
+                case "Profile":
+                    lblBreadcrumb.Text = "Cổng độc giả  ›  Thông tin tài khoản";
+                    _pnlSubView.Controls.Add(_profileControl);
+                    _profileControl.ReloadData();
+                    break;
+            }
+        }
+
+        private void UpdateToolbarActiveState(string activeKey)
+        {
+            Color activeBg = Color.FromArgb(220, 235, 248);
+            _btnNavHome.BackColor = activeKey == "Home" ? activeBg : Color.White;
+            _btnNavSearch.BackColor = activeKey == "Search" ? activeBg : Color.White;
+            _btnNavLoans.BackColor = activeKey == "Loans" ? activeBg : Color.White;
+            _btnNavFavorite.BackColor = activeKey == "Favorite" ? activeBg : Color.White;
+            _btnNavHistory.BackColor = activeKey == "History" ? activeBg : Color.White;
+            _btnNavProfile.BackColor = activeKey == "Profile" ? activeBg : Color.White;
+        }
+
+        private void RefreshHomeBadges()
+        {
+            if (Session.CurrentReaderId <= 0) return;
+
+            using var context = new LibraryDbContext();
+            int activeBorrowCount = context.LoanDetails
+                .Include(d => d.Loan)
+                .Count(d => d.Loan.IdReader == Session.CurrentReaderId && d.ReturnedAt == null);
+
+            _btnNavLoans.Image = GlyphImage(GBook, 20, Primary, activeBorrowCount);
+        }
+
+        // ============================================================
+        //  DỮ LIỆU TRANG CHỦ
         // ============================================================
         private void LoadData()
         {
-            // TODO: var summary = _service.GetHomeSummary(readerId);  (Models/HomeSummary.cs)
-            string readerName = "Nguyễn Minh Anh", readerCode = "DG001", expire = "12/08/2025";
+            using var context = new LibraryDbContext();
+            int readerId = Session.CurrentReaderId;
+
+            var reader = context.Users.FirstOrDefault(u => u.Id == readerId);
+            string readerName = reader?.FullName ?? "Độc giả";
+            string readerCode = reader?.UserCode ?? "DG001";
+
+            var card = context.ReaderCards
+                .Where(c => c.IdReader == readerId && c.Status == "Active")
+                .OrderByDescending(c => c.ExpiresAt)
+                .FirstOrDefault();
+            string expire = card != null ? card.ExpiresAt.ToString("dd/MM/yyyy") : "Chưa cấp thẻ";
 
             lblName.Text = readerName;
             lblCode.Text = $"Mã độc giả: {readerCode} · Thẻ còn hạn đến {expire}";
             lblUserName.Text = readerName;
             lblUserCode.Text = $"Độc giả · {readerCode}";
-            lblStatusReader.Text = $"Độc giả: {readerCode}";
+            if (lblStatusReader != null) lblStatusReader.Text = $"Độc giả: {readerCode}";
+            picAvatar.Invalidate();
 
-            // Thẻ thống kê
-            tblStats.Controls.Clear();
-            AddStat(0, GBook, "02", "Sách đang mượn");
-            AddStat(1, GClock, "04 ngày", "Đến hạn gần nhất");
-            AddStat(2, GHeart, "06", "Sách yêu thích");
-            AddStat(3, GCheck, "24", "Sách đã đọc");
+            // Truy vấn số liệu thực tế của độc giả
+            var activeLoanDetails = context.LoanDetails
+                .Include(d => d.Loan)
+                .Include(d => d.BookCopy)
+                    .ThenInclude(cp => cp.Book)
+                .Where(d => d.Loan.IdReader == readerId && d.ReturnedAt == null)
+                .OrderBy(d => d.DueAt)
+                .ToList();
 
-            // Sách đang mượn (Models/BorrowRecord.cs)
-            flowBorrow.Controls.Clear();
-            var borrowed = new[]
+            int returnedBooksCount = context.LoanDetails
+                .Include(d => d.Loan)
+                .Count(d => d.Loan.IdReader == readerId && d.ReturnedAt != null);
+
+            var favoriteBookIds = context.FavoriteBooks
+                .Where(f => f.ReaderId == readerId)
+                .Select(f => f.BookId)
+                .ToHashSet();
+
+            _btnNavLoans.Image = GlyphImage(GBook, 20, Primary, activeLoanDetails.Count);
+
+            string nearestDueText = "Không có";
+            if (activeLoanDetails.Count > 0)
             {
-                (Title: "Nhà giả kim", Author: "Paulo Coelho", Code: "BK001", Due: "29/03/2024", Days: 4,
-                    Color: Primary),
-                (Title: "Tư duy nhanh và chậm", Author: "Daniel Kahneman", Code: "BK006", Due: "02/04/2024", Days: 8,
-                    Color: Color.FromArgb(110, 80, 150)),
-            };
-            foreach (var b in borrowed)
-            {
-                bool soon = b.Days <= 5;
-                flowBorrow.Controls.Add(CreateBookCard(b.Title, $"{b.Author} · {b.Code}", $"Hạn trả: {b.Due}",
-                    b.Color, $"Còn {b.Days} ngày", soon ? Orange : Green, null));
+                int minDays = (activeLoanDetails[0].DueAt.Date - DateTime.Today).Days;
+                nearestDueText = minDays < 0
+                    ? $"Quá {Math.Abs(minDays)} ngày"
+                    : minDays == 0 ? "Hôm nay" : $"{minDays:D2} ngày";
             }
 
-            LayoutCards(flowBorrow, 2, flowBorrow.Height - 8);
+            // 4 Thẻ thống kê
+            tblStats.Controls.Clear();
+            AddStat(0, GBook, activeLoanDetails.Count.ToString("D2"), "Sách đang mượn", () => SwitchView("Loans"));
+            AddStat(1, GClock, nearestDueText, "Đến hạn gần nhất", () => SwitchView("Loans"));
+            _lblFavStatValue = AddStat(2, GHeart, favoriteBookIds.Count.ToString("D2"), "Sách yêu thích", () => SwitchView("Favorite"));
+            AddStat(3, GCheck, returnedBooksCount.ToString("D2"), "Sách đã đọc", () => SwitchView("History"));
 
-            // Thông báo (Models/Notification.cs)
-            flowNotice.Controls.Clear();
-            AddNotice(GBell, Primary, "Nhắc hạn trả sách", "\"Nhà giả kim\" sẽ đến hạn sau 4 ngày.");
-            AddNotice(GCheck, Green, "Sách đặt trước đã sẵn sàng", "Vui lòng nhận trước ngày 28/03.");
-            AddNotice(GInfo, Primary, "Cập nhật giờ mở cửa", "Thứ Hai - Thứ Bảy: 07:30 - 20:00.");
-
-            // Gợi ý (Models/Book.cs)
-            flowSuggest.Controls.Clear();
-            var suggest = new[]
+            // Sách đang mượn (tối đa 2 thẻ trên Trang chủ)
+            flowBorrow.Controls.Clear();
+            if (activeLoanDetails.Count == 0)
             {
-                (T: "Đắc nhân tâm", A: "Dale Carnegie", Ok: true, C: Primary),
-                (T: "Tuổi trẻ đáng giá bao nhiêu", A: "Rosie Nguyễn", Ok: true, C: Color.FromArgb(110, 80, 150)),
-                (T: "Lược sử thời gian", A: "Stephen Hawking", Ok: false, C: Color.FromArgb(40, 140, 110)),
-                (T: "Mắt biếc", A: "Nguyễn Nhật Ánh", Ok: true, C: Color.FromArgb(165, 90, 60)),
-                (T: "Tư duy nhanh và chậm", A: "Daniel Kahneman", Ok: true, C: Primary),
-            };
-            foreach (var s in suggest)
-                flowSuggest.Controls.Add(CreateBookCard(s.T, s.A, null, s.C,
-                    s.Ok ? "Còn sách" : "Đã hết", s.Ok ? Green : Red, s.T));
+                var emptyBorrow = new Label
+                {
+                    Text = "Hiện tại bạn chưa mượn cuốn sách nào. Bấm \"Tra cứu sách\" để tìm sách trong thư viện.",
+                    Font = new Font("Segoe UI", 9F),
+                    ForeColor = TextGray,
+                    AutoSize = true,
+                    Padding = new Padding(8, 24, 8, 8)
+                };
+                flowBorrow.Controls.Add(emptyBorrow);
+            }
+            else
+            {
+                foreach (var d in activeLoanDetails.Take(2))
+                {
+                    int daysLeft = (d.DueAt.Date - DateTime.Today).Days;
+                    Color pillColor = daysLeft < 0 ? Red : (daysLeft <= 5 ? Orange : Green);
+                    string statusText = daysLeft < 0
+                        ? $"Quá hạn {Math.Abs(daysLeft)} ngày"
+                        : $"Còn {daysLeft} ngày";
+
+                    flowBorrow.Controls.Add(CreateBookCard(
+                        d.BookCopy.Book.Title,
+                        $"{d.BookCopy.Book.Author} · {d.BookCopy.Book.BookCode}",
+                        $"Hạn trả: {d.DueAt:dd/MM/yyyy}",
+                        Primary,
+                        statusText,
+                        pillColor,
+                        d.BookCopy.IdBook,
+                        false,
+                        isBorrowedCard: true));
+                }
+                LayoutCards(flowBorrow, 2, flowBorrow.Height - 8);
+            }
+
+            // Thông báo động
+            flowNotice.Controls.Clear();
+            foreach (var d in activeLoanDetails.Where(x => (x.DueAt.Date - DateTime.Today).Days <= 5).Take(2))
+            {
+                int daysLeft = (d.DueAt.Date - DateTime.Today).Days;
+                if (daysLeft < 0)
+                    AddNotice(GBell, Red, "Sách đã quá hạn trả!", $"\"{d.BookCopy.Book.Title}\" đã quá hạn {Math.Abs(daysLeft)} ngày.");
+                else
+                    AddNotice(GBell, Orange, "Nhắc hạn trả sách", $"\"{d.BookCopy.Book.Title}\" sẽ đến hạn sau {daysLeft} ngày.");
+            }
+
+            var readyRes = context.Reservations
+                .Include(r => r.Book)
+                .FirstOrDefault(r => r.IdReader == readerId && r.Status == "ReadyForPickup");
+            if (readyRes != null)
+            {
+                AddNotice(GCheck, Green, "Sách đặt trước đã sẵn sàng", $"\"{readyRes.Book.Title}\" đang chờ bạn nhận tại quầy.");
+            }
+
+            AddNotice(GInfo, Primary, "Giờ mở cửa thư viện", "Thứ Hai - Thứ Bảy: 07:30 - 20:00.");
+
+            // Gợi ý sách từ CSDL
+            flowSuggest.Controls.Clear();
+            var suggestBooks = context.Books
+                .OrderBy(b => b.Id)
+                .Take(5)
+                .Select(b => new
+                {
+                    b.Id,
+                    b.IdCategory,
+                    b.Title,
+                    b.Author,
+                    Ok = context.BookCopies.Any(cp => cp.IdBook == b.Id && cp.CirculationStatus == "Available")
+                })
+                .ToList();
+
+            foreach (var s in suggestBooks)
+            {
+                Color c = (s.IdCategory % 4) switch
+                {
+                    1 => Primary,
+                    2 => Color.FromArgb(40, 140, 110),
+                    3 => Color.FromArgb(110, 80, 150),
+                    _ => Color.FromArgb(165, 90, 60)
+                };
+
+                bool isFav = favoriteBookIds.Contains(s.Id);
+                flowSuggest.Controls.Add(CreateBookCard(
+                    s.Title,
+                    s.Author,
+                    null,
+                    c,
+                    s.Ok ? "Còn sách" : "Đã hết",
+                    s.Ok ? Green : Red,
+                    s.Id,
+                    isFav,
+                    isBorrowedCard: false));
+            }
             LayoutCards(flowSuggest, 5, 82);
+        }
+
+        private bool ToggleFavoriteBook(int bookId)
+        {
+            if (Session.CurrentReaderId <= 0) return false;
+
+            using var context = new LibraryDbContext();
+            var existing = context.FavoriteBooks
+                .FirstOrDefault(f => f.ReaderId == Session.CurrentReaderId && f.BookId == bookId);
+
+            bool isNowFavorite;
+            if (existing != null)
+            {
+                context.FavoriteBooks.Remove(existing);
+                isNowFavorite = false;
+            }
+            else
+            {
+                context.FavoriteBooks.Add(new FavoriteBook
+                {
+                    ReaderId = Session.CurrentReaderId,
+                    BookId = bookId,
+                    AddedDate = DateTime.Now
+                });
+                isNowFavorite = true;
+            }
+
+            context.SaveChanges();
+
+            int newCount = context.FavoriteBooks.Count(f => f.ReaderId == Session.CurrentReaderId);
+            if (_lblFavStatValue != null)
+            {
+                _lblFavStatValue.Text = newCount.ToString("D2");
+            }
+
+            return isNowFavorite;
         }
 
         // ============================================================
@@ -112,23 +407,47 @@ namespace LibraryManagement.Forms.HomePage
         private void BuildMenu()
         {
             menuStrip.Items.Clear();
-            foreach (var t in new[] { "Hệ thống", "Tra cứu", "Mượn sách", "Tài khoản", "Trợ giúp" })
-                menuStrip.Items.Add(new ToolStripMenuItem(t));
+
+            var mnuSystem = new ToolStripMenuItem("Hệ thống");
+            mnuSystem.DropDownItems.Add("Trang chủ", null, (_, _) => SwitchView("Home"));
+            mnuSystem.DropDownItems.Add(new ToolStripSeparator());
+            mnuSystem.DropDownItems.Add("Đăng xuất", null, btnLogout_Click);
+
+            var mnuSearch = new ToolStripMenuItem("Tra cứu");
+            mnuSearch.DropDownItems.Add("Tìm kiếm sách & danh mục", null, (_, _) => SwitchView("Search"));
+            mnuSearch.DropDownItems.Add("Sách yêu thích", null, (_, _) => SwitchView("Favorite"));
+
+            var mnuBorrow = new ToolStripMenuItem("Mượn sách");
+            mnuBorrow.DropDownItems.Add("Sách đang mượn & Đặt trước", null, (_, _) => SwitchView("Loans"));
+            mnuBorrow.DropDownItems.Add("Lịch sử mượn trả & Tiền phạt", null, (_, _) => SwitchView("History"));
+
+            var mnuAccount = new ToolStripMenuItem("Tài khoản");
+            mnuAccount.DropDownItems.Add("Thông tin cá nhân & Đổi mật khẩu", null, (_, _) => SwitchView("Profile"));
+
+            var mnuHelp = new ToolStripMenuItem("Trợ giúp");
+            mnuHelp.DropDownItems.Add("Nội quy mượn trả thư viện", null, (_, _) =>
+                MessageBox.Show(
+                    "• Độc giả được mượn tối đa 3 cuốn sách cùng lúc.\n" +
+                    "• Mỗi đầu sách được gia hạn trước khi đến hạn theo quy định từng thể loại.\n" +
+                    "• Phí phạt trả trễ hạn: 5.000 đ / ngày / cuốn.",
+                    "Nội quy thư viện", MessageBoxButtons.OK, MessageBoxIcon.Information));
+
+            menuStrip.Items.AddRange(new ToolStripItem[] { mnuSystem, mnuSearch, mnuBorrow, mnuAccount, mnuHelp });
         }
 
         private void BuildToolbar()
         {
             toolStrip.Items.Clear();
             toolStrip.Padding = new Padding(8, 2, 0, 0);
-            AddTool("Trang chủ", GHome, 0, true, null);
-            AddTool("Tra cứu sách", GSearch, 0, false, null);
-            AddTool("Sách đang mượn", GBook, 2, false, null);
-            AddTool("Sách yêu thích", GHeart, 0, false, null);
-            AddTool("Lịch sử mượn", GHistory, 0, false, null);
-            AddTool("Thông tin tài khoản", GUser, 0, false, null);
+            _btnNavHome = AddTool("Trang chủ", GHome, 0, true, (_, _) => SwitchView("Home"));
+            _btnNavSearch = AddTool("Tra cứu sách", GSearch, 0, false, (_, _) => SwitchView("Search"));
+            _btnNavLoans = AddTool("Sách đang mượn", GBook, 0, false, (_, _) => SwitchView("Loans"));
+            _btnNavFavorite = AddTool("Sách yêu thích", GHeart, 0, false, (_, _) => SwitchView("Favorite"));
+            _btnNavHistory = AddTool("Lịch sử mượn", GHistory, 0, false, (_, _) => SwitchView("History"));
+            _btnNavProfile = AddTool("Thông tin tài khoản", GUser, 0, false, (_, _) => SwitchView("Profile"));
         }
 
-        private void AddTool(string text, string glyph, int badge, bool active, EventHandler? onClick)
+        private ToolStripButton AddTool(string text, string glyph, int badge, bool active, EventHandler? onClick)
         {
             var btn = new ToolStripButton(text)
             {
@@ -142,12 +461,12 @@ namespace LibraryManagement.Forms.HomePage
             };
             if (onClick != null) btn.Click += onClick;
             toolStrip.Items.Add(btn);
+            return btn;
         }
 
         private void StyleStatic()
         {
-            // avatar tròn "MA"
-            picAvatar.Paint += (s, e) =>
+            picAvatar.Paint += (_, e) =>
             {
                 e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
                 using var br = new SolidBrush(Primary);
@@ -157,71 +476,94 @@ namespace LibraryManagement.Forms.HomePage
                     new Rectangle(0, 0, picAvatar.Width, picAvatar.Height), Color.White,
                     TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
             };
-            lblBreadcrumb.Paint += (s, e) => { };
-            // icon kính lúp trong ô tìm kiếm
-            pnlSearch.Paint += (s, e) =>
+            lblBreadcrumb.Paint += (_, _) => { };
+            pnlSearch.Paint += (_, e) =>
                 TextRenderer.DrawText(e.Graphics, GSearch, new Font(IconFont, 12F),
                     new Point(10, 12), TextGray);
-            lnkAllBorrow.LinkClicked += (_, _) =>
-            {
-                /* TODO: mở danh sách sách đang mượn */
-            };
+            lnkAllBorrow.LinkClicked += (_, _) => SwitchView("Loans");
         }
 
         // ============================================================
-        //  CÁC HÀM DỰNG THẺ
+        //  CÁC HÀM DỰNG THẺ TRANG CHỦ
         // ============================================================
-        private void AddStat(int col, string glyph, string value, string caption)
+        private Label AddStat(int col, string glyph, string value, string caption, Action onClick)
         {
             var card = new Panel
-                { Dock = DockStyle.Fill, BackColor = Color.White, Margin = new Padding(0, 0, col == 3 ? 0 : 12, 0) };
-            card.Paint += (s, e) =>
+            {
+                Dock = DockStyle.Fill,
+                BackColor = Color.White,
+                Margin = new Padding(0, 0, col == 3 ? 0 : 12, 0),
+                Cursor = Cursors.Hand
+            };
+            card.Paint += (_, e) =>
                 e.Graphics.DrawRectangle(new Pen(BorderGray), 0, 0, card.Width - 1, card.Height - 1);
 
             card.Controls.Add(new Label
             {
-                Text = glyph, Font = new Font(IconFont, 16F), ForeColor = Primary, AutoSize = true,
+                Text = glyph, Font = new Font(IconFont, 16F), ForeColor = col == 2 ? Red : Primary, AutoSize = true,
                 Location = new Point(14, 20)
             });
-            card.Controls.Add(new Label
+            var lblVal = new Label
             {
                 Text = value, Font = new Font("Segoe UI", 15F, FontStyle.Bold), AutoSize = true,
                 Location = new Point(48, 8)
-            });
+            };
+            card.Controls.Add(lblVal);
             card.Controls.Add(new Label
             {
                 Text = caption, Font = new Font("Segoe UI", 8F), ForeColor = TextGray, AutoSize = true,
                 Location = new Point(50, 40)
             });
+
+            card.Click += (_, _) => onClick();
+            foreach (Control child in card.Controls)
+                child.Click += (_, _) => onClick();
+
             tblStats.Controls.Add(card, col, 0);
+            return lblVal;
         }
 
         private Panel CreateBookCard(string title, string subtitle, string? extra, Color cover,
-            string status, Color statusColor, string? favoriteKey)
+            string status, Color statusColor, int bookId, bool isFavorite, bool isBorrowedCard)
         {
             var card = new Panel
-                { Height = 74, Width = 300, BackColor = Color.White, Margin = new Padding(0, 0, 8, 8) };
-            card.Paint += (s, e) =>
+            {
+                Height = 74,
+                Width = 300,
+                BackColor = Color.White,
+                Margin = new Padding(0, 0, 8, 8),
+                Cursor = Cursors.Hand
+            };
+            card.Paint += (_, e) =>
                 e.Graphics.DrawRectangle(new Pen(BorderGray), 0, 0, card.Width - 1, card.Height - 1);
 
-            // bìa sách
             var coverPnl = new Label
             {
                 Text = GBook, Font = new Font(IconFont, 18F), ForeColor = Color.White, BackColor = cover,
-                TextAlign = ContentAlignment.MiddleCenter, Size = new Size(44, 56), Location = new Point(8, 9)
+                TextAlign = ContentAlignment.MiddleCenter, Size = new Size(44, 56), Location = new Point(8, 9),
+                Cursor = Cursors.Hand
             };
-            card.Controls.Add(coverPnl);
+            var lblTitle = new Label
+            {
+                Text = title, Font = new Font("Segoe UI", 9F, FontStyle.Bold), AutoEllipsis = true,
+                Size = new Size(145, 19), Location = new Point(60, 8), Cursor = Cursors.Hand
+            };
+            var lblSub = new Label
+            {
+                Text = subtitle, Font = new Font("Segoe UI", 7.5F), ForeColor = TextGray, AutoEllipsis = true,
+                Size = new Size(145, 16), Location = new Point(60, 27), Cursor = Cursors.Hand
+            };
 
-            card.Controls.Add(new Label
-            {
-                Text = title, Font = new Font("Segoe UI", 9F, FontStyle.Bold), AutoSize = true,
-                Location = new Point(60, 8)
-            });
-            card.Controls.Add(new Label
-            {
-                Text = subtitle, Font = new Font("Segoe UI", 7.5F), ForeColor = TextGray, AutoSize = true,
-                Location = new Point(60, 27)
-            });
+            card.Controls.Add(coverPnl);
+            card.Controls.Add(lblTitle);
+            card.Controls.Add(lblSub);
+
+            // Bấm vào bìa hoặc tiêu đề sách để mở Trang 3 (Chi tiết sách)
+            card.Click += (_, _) => OpenBookDetail(bookId);
+            coverPnl.Click += (_, _) => OpenBookDetail(bookId);
+            lblTitle.Click += (_, _) => OpenBookDetail(bookId);
+            lblSub.Click += (_, _) => OpenBookDetail(bookId);
+
             if (extra != null)
                 card.Controls.Add(new Label
                 {
@@ -229,34 +571,47 @@ namespace LibraryManagement.Forms.HomePage
                     Location = new Point(60, 44)
                 });
 
-            // nhãn trạng thái dạng "pill"
             var pill = new Label
             {
                 Text = "● " + status, Font = new Font("Segoe UI", 7.5F), ForeColor = statusColor,
                 AutoSize = true, Padding = new Padding(4, 1, 4, 1), BackColor = Color.FromArgb(25, statusColor)
             };
-            if (favoriteKey == null) // thẻ "đang mượn": pill bên phải
+
+            if (isBorrowedCard)
             {
-                pill.Location = new Point(card.Width - 100, 24);
+                pill.Location = new Point(card.Width - 108, 24);
                 pill.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             }
-            else // thẻ gợi ý: pill dưới + nút tim bên phải
+            else
             {
                 pill.Location = new Point(60, 50);
                 var heart = new Button
                 {
-                    Text = GHeart, Font = new Font(IconFont, 11F), FlatStyle = FlatStyle.Flat, Size = new Size(34, 30),
-                    Location = new Point(card.Width - 42, 8), Anchor = AnchorStyles.Top | AnchorStyles.Right,
-                    Tag = false, Cursor = Cursors.Hand
+                    Text = isFavorite ? GHeartFill : GHeart,
+                    ForeColor = isFavorite ? Red : Color.Black,
+                    Font = new Font(IconFont, 11F),
+                    FlatStyle = FlatStyle.Flat,
+                    Size = new Size(34, 30),
+                    Location = new Point(card.Width - 42, 8),
+                    Anchor = AnchorStyles.Top | AnchorStyles.Right,
+                    Tag = isFavorite,
+                    Cursor = Cursors.Hand
                 };
                 heart.FlatAppearance.BorderColor = BorderGray;
                 heart.Click += (_, _) =>
                 {
-                    bool fav = !(bool)heart.Tag;
-                    heart.Tag = fav;
-                    heart.Text = fav ? GHeartFill : GHeart;
-                    heart.ForeColor = fav ? Red : Color.Black;
-                    // TODO: lưu sách yêu thích (Models/FavoriteBook.cs)
+                    try
+                    {
+                        bool fav = ToggleFavoriteBook(bookId);
+                        heart.Tag = fav;
+                        heart.Text = fav ? GHeartFill : GHeart;
+                        heart.ForeColor = fav ? Red : Color.Black;
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"Lỗi lưu sách yêu thích:\n{ex.Message}",
+                            "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
                 };
                 card.Controls.Add(heart);
             }
@@ -270,7 +625,7 @@ namespace LibraryManagement.Forms.HomePage
         {
             var row = new Panel
                 { Height = 50, Width = flowNotice.ClientSize.Width - 8, Margin = new Padding(4, 0, 4, 0) };
-            row.Paint += (s, e) =>
+            row.Paint += (_, e) =>
                 e.Graphics.DrawLine(new Pen(BorderGray), 0, row.Height - 1, row.Width, row.Height - 1);
             row.Controls.Add(new Label
             {
@@ -296,8 +651,11 @@ namespace LibraryManagement.Forms.HomePage
             int w = (flow.ClientSize.Width - flow.Padding.Left - 8 * perRow) / perRow;
             foreach (Control c in flow.Controls)
             {
-                c.Width = Math.Max(w, 120);
-                c.Height = Math.Min(height, 74);
+                if (c is Panel)
+                {
+                    c.Width = Math.Max(w, 120);
+                    c.Height = Math.Min(height, 74);
+                }
             }
         }
 
@@ -335,8 +693,7 @@ namespace LibraryManagement.Forms.HomePage
         // ============================================================
         private void btnSearch_Click(object? sender, EventArgs e)
         {
-            // TODO: mở form tra cứu sách (Forms/Books) với từ khóa txtSearch.Text
-            MessageBox.Show($"Tìm: {txtSearch.Text}", "Tra cứu");
+            SwitchView("Search", txtSearch.Text.Trim());
         }
 
         private void txtSearch_KeyDown(object? sender, KeyEventArgs e)
@@ -358,6 +715,7 @@ namespace LibraryManagement.Forms.HomePage
             IsLogout = true;
             Close();
         }
+
         private ToolStripStatusLabel lblStatusReader = null!;
 
         private void BuildStatusBar()
@@ -370,15 +728,11 @@ namespace LibraryManagement.Forms.HomePage
                 Font = new Font("Segoe UI", 8F)
             };
 
-            // Bên trái: trạng thái kết nối
             var dot = new ToolStripStatusLabel("●") { ForeColor = Green, Margin = new Padding(4, 3, 0, 2) };
             var connected = new ToolStripStatusLabel("Đã kết nối") { Margin = new Padding(0, 3, 6, 2) };
             var hours = new ToolStripStatusLabel("Thư viện Trung tâm · Giờ mở cửa: 07:30 - 20:00");
-
-            // Đẩy phần còn lại sang phải
             var spring = new ToolStripStatusLabel { Spring = true };
 
-            // Bên phải: độc giả và phiên bản
             lblStatusReader = new ToolStripStatusLabel("Độc giả: DG001");
             var version = new ToolStripStatusLabel("Phiên bản 2.4.0");
 

@@ -66,6 +66,31 @@ public partial class RegisterForm : Form
             context.Users.Add(newReader);
             context.SaveChanges();
 
+            context.ReaderCards.Add(new ReaderCards
+            {
+                IdReader = newReader.Id,
+                CardCode = $"CARD-{readerCode}",
+                IssuedAt = DateTime.Today,
+                ExpiresAt = DateTime.Today.AddYears(1),
+                Status = "Active"
+            });
+            context.SaveChanges();
+
+            
+
+            context.ReaderCards.Add(new ReaderCards
+            {
+                IdReader = newReader.Id,
+                CardCode = $"CARD-{readerCode}",
+                IssuedAt = DateTime.Today,
+                ExpiresAt = DateTime.Today.AddYears(1),
+                Status = "Active"
+            });
+            context.SaveChanges();
+
+            context.Users.Add(newReader);
+            context.SaveChanges();
+
             RegisteredEmail = email;
 
             MessageBox.Show($"Đăng ký thành công!\nMã độc giả của bạn là: {readerCode}", "Thông báo",
