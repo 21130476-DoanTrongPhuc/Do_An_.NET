@@ -35,6 +35,30 @@
       <Compile Update="Forms\LoginForm\LoginForm.cs">
         <SubType>Form</SubType>
       </Compile>
+      <Compile Update="Forms\BookFormReturn\BookFormReturn.cs">
+        <SubType>UserControl</SubType>
+      </Compile>
+      <Compile Update="Forms\OverdueBooks\OverdueBooks.cs">
+        <SubType>UserControl</SubType>
+      </Compile>
+      <Compile Update="Forms\OverduePrintPreviewForm\OverduePrintPreviewForm .cs">
+        <SubType>Form</SubType>
+      </Compile>
+      <Compile Update="Forms\FineManagement\FineManagement.cs">
+        <SubType>UserControl</SubType>
+      </Compile>
+      <Compile Update="Forms\FineCreateDialog\FineCreateDialog.cs">
+        <SubType>Form</SubType>
+      </Compile>
+      <Compile Update="Forms\FinePayDialog\FinePayDialog.cs">
+        <SubType>Form</SubType>
+      </Compile>
+      <Compile Update="Forms\FineAdjustDialog\FineAdjustDialog.cs">
+        <SubType>Form</SubType>
+      </Compile>
+      <Compile Update="Forms\FineCancelDialog\FineCancelDialog.cs">
+        <SubType>Form</SubType>
+      </Compile>
     </ItemGroup>
 
 	<ItemGroup>

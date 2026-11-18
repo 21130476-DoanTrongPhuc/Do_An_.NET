@@ -17,7 +17,7 @@ namespace LibraryManagement.Forms
         // Glyph (Segoe MDL2 Assets)
         private const string GHome = "\uE80F", GBook = "\uE82D", GPeople = "\uE716", GAdd = "\uE710",
             GForward = "\uE72A", GBack = "\uE72B", GRefresh = "\uE72C", GHelp = "\uE897",
-            GWarn = "\uE7BA", GCalendar = "\uE787", GLibrary = "\uE8F1";
+            GWarn = "\uE7BA", GCalendar = "\uE787", GLibrary = "\uE8F1", GMoney   = "\uE8C7";
 
         public bool IsLogout { get; private set; }
 
@@ -27,6 +27,13 @@ namespace LibraryManagement.Forms
         private FlowLayoutPanel flowNotice = null!;
         private Label lblDate = null!;
         private Label lblUserName = null!;
+        
+        // Khai báo ở đầu class LibrarianFormMain
+        private const string GReturn = "\uE7A7"; // glyph "trả sách" (bạn có thể dùng \uE72B như cũ)
+        private Panel pnlContent = null!;         // vùng chứa nội dung động
+        private Panel? currentPage;               // trang đang hiển thị
+        
+        private const string GWarnOverdue = "\uE7BA";
 
         public LibrarianFormMain()
         {
@@ -74,13 +81,18 @@ namespace LibraryManagement.Forms
         private void BuildUi()
         {
             SuspendLayout();
-
+            
             // ---- TabControl (Fill - add đầu tiên) ----
             var tabMain = new TabControl { Dock = DockStyle.Fill, Font = new Font("Segoe UI", 9F), Padding = new Point(14, 4) };
             var tabOverview = new TabPage("Tổng quan") { BackColor = Color.FromArgb(240, 242, 245), Padding = new Padding(8) };
             tabMain.TabPages.Add(tabOverview);
+            pnlContent = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(240, 242, 245) };
+            Controls.Add(pnlContent);
             BuildOverview(tabOverview);
             Controls.Add(tabMain);
+            
+            // ---- TabControl mặc định chứa trang Tổng quan ----
+            ShowOverviewPage();
 
             Controls.Add(BuildStatusBar());      // Bottom
             Controls.Add(BuildToolbar());        // Top
@@ -88,12 +100,105 @@ namespace LibraryManagement.Forms
 
             ResumeLayout(true);
         }
+        
+        private void ShowOverdueBooks()
+        {
+            var uc = new OverdueBooks.OverdueBooks();
+            uc.CloseRequested += (_, _) => BackToOverview();
+            uc.ReturnBookRequested += (s, e) =>
+            {
+                // Điều hướng sang trang Nhận trả sách, truyền mã phiếu / mã độc giả
+                var returnUc = new BookFormReturn.BookFormReturn();
+                ShowUserControl(returnUc);
+                // (Nếu UCBookReturn hỗ trợ) returnUc.PrefillSearch(e.TicketId);
+            };
+            ShowUserControl(uc);
+        }
+        
+        private void ShowFineManagement()
+        {
+            var uc = new FineManagement.FineManagement();
+            ShowUserControl(uc);
+        }
+        
+        // Trang mặc định = Tổng quan (TabControl cũ)
+        private void ShowOverviewPage()
+        {
+            pnlContent.SuspendLayout();
+            pnlContent.Controls.Clear();
+
+            var tabMain = new TabControl
+            {
+                Dock = DockStyle.Fill,
+                Font = new Font("Segoe UI", 9F),
+                Padding = new Point(14, 4)
+            };
+            var tabOverview = new TabPage("Tổng quan")
+            {
+                BackColor = Color.FromArgb(240, 242, 245),
+                Padding = new Padding(8)
+            };
+            tabMain.TabPages.Add(tabOverview);
+            BuildOverview(tabOverview);
+
+            pnlContent.Controls.Add(tabMain);
+            pnlContent.ResumeLayout(true);
+            currentPage = pnlContent;
+        }
+
+        // Hiển thị UserControl bất kỳ
+        private void ShowUserControl(UserControl uc)
+        {
+            pnlContent.SuspendLayout();
+            pnlContent.Controls.Clear();
+            uc.Dock = DockStyle.Fill;
+            pnlContent.Controls.Add(uc);
+            pnlContent.ResumeLayout(true);
+            currentPage = pnlContent;
+        }
+
+        // Quay lại trang Tổng quan
+        private void BackToOverview() => ShowOverviewPage();
+        
+        private void ShowBookReturn()
+        {
+            var uc = new BookFormReturn.BookFormReturn();
+        
+            // Nếu UC muốn tự đóng (ví dụ sau khi xác nhận xong), host sẽ quay về Tổng quan
+            uc.CloseRequested += (_, _) => BackToOverview();
+        
+            ShowUserControl(uc);
+        }
 
         private MenuStrip BuildMenu()
         {
             var menu = new MenuStrip { BackColor = Color.White, Dock = DockStyle.Top };
+
             foreach (var t in new[] { "Hệ thống", "Danh mục", "Lưu thông", "Báo cáo", "Trợ giúp" })
-                menu.Items.Add(new ToolStripMenuItem(t));
+            {
+                var item = new ToolStripMenuItem(t);
+
+                if (t == "Lưu thông")
+                {
+                    item.DropDownItems.Add(new ToolStripMenuItem("Lập phiếu mượn"));
+                    item.DropDownItems.Add(new ToolStripMenuItem("Nhận trả sách", null,
+                        (_, _) => ShowBookReturn()));
+                    item.DropDownItems.Add(new ToolStripSeparator());
+                    item.DropDownItems.Add(new ToolStripMenuItem("Sách quá hạn", null,
+                        (_, _) => ShowOverdueBooks()));
+                    item.DropDownItems.Add(new ToolStripMenuItem("Quản lý phiếu phạt", null,
+                        (_, _) => ShowFineManagement()));
+                }
+                else if (t == "Báo cáo")
+                {
+                    item.DropDownItems.Add(new ToolStripMenuItem("Thống kê mượn trả"));
+                    item.DropDownItems.Add(new ToolStripMenuItem("Sách quá hạn", null,
+                        (_, _) => ShowOverdueBooks()));
+                }
+
+                menu.Items.Add(item);
+            }
+
             MainMenuStrip = menu;
             return menu;
         }
@@ -108,15 +213,17 @@ namespace LibraryManagement.Forms
                 Dock = DockStyle.Fill, GripStyle = ToolStripGripStyle.Hidden, BackColor = Color.FromArgb(246, 247, 249),
                 ImageScalingSize = new Size(24, 24), Padding = new Padding(6, 4, 0, 0)
             };
-            AddTool(ts, "Trang chủ", GHome, () => Todo("Trang chủ"));
+            AddTool(ts, "Trang chủ", GHome, BackToOverview);
             ts.Items.Add(new ToolStripSeparator());
             AddTool(ts, "Thêm đầu sách", GBook, () => Todo("Thêm đầu sách"));
             AddTool(ts, "Bản sách", GBook, () => Todo("Bản sách"));
             AddTool(ts, "Thêm độc giả", GPeople, () => Todo("Thêm độc giả"));
             ts.Items.Add(new ToolStripSeparator());
             AddTool(ts, "Lập phiếu mượn", GForward, () => Todo("Lập phiếu mượn"));
-            AddTool(ts, "Nhận trả sách", GBack, () => Todo("Nhận trả sách"));
+            AddTool(ts, "Nhận trả sách", GBack, ShowBookReturn);
             AddTool(ts, "Đặt trước", GCalendar, () => Todo("Đặt trước"));
+            AddTool(ts, "Sách quá hạn", GWarnOverdue, ShowOverdueBooks);
+            AddTool(ts, "Phiếu phạt", GMoney, ShowFineManagement);
             ts.Items.Add(new ToolStripSeparator());
             AddTool(ts, "Làm mới", GRefresh, LoadData);
             AddTool(ts, "Trợ giúp", GHelp, () => Todo("Trợ giúp"));
