@@ -26,6 +26,7 @@ namespace LibraryManagement.Forms
 
         // Control cần truy cập sau
         private TabControl _tabMain = null!;
+        private TabPage? _tabLoan;
         private TabPage? _tabReport;
         private TabPage? _tabReturn;
         private TabPage? _tabBookCopies;
@@ -218,6 +219,7 @@ namespace LibraryManagement.Forms
                     "Lỗi kết nối CSDL", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
+
         // ============================================================
         //  DỰNG GIAO DIỆN
         // ============================================================
@@ -255,7 +257,7 @@ namespace LibraryManagement.Forms
             mnuCatalog.DropDownItems.Add("Thêm độc giả", null, (_, _) => Todo("Thêm độc giả"));
 
             var mnuCirculation = new ToolStripMenuItem("Lưu thông");
-            mnuCirculation.DropDownItems.Add("Lập phiếu mượn", null, (_, _) => Todo("Lập phiếu mượn"));
+            mnuCirculation.DropDownItems.Add("Quản lý mượn sách", null, (_, _) => OpenLoanTab());
             mnuCirculation.DropDownItems.Add("Nhận trả sách", null, (_, _) => OpenReturnTab());
             mnuCirculation.DropDownItems.Add("Sách quá hạn", null, (_, _) => OpenOverdueTab());
             mnuCirculation.DropDownItems.Add("Quản lý tiền phạt", null, (_, _) => OpenFinesTab());
@@ -289,7 +291,7 @@ namespace LibraryManagement.Forms
             AddTool(ts, "Bản sách", GBook, OpenBookCopiesTab);
             AddTool(ts, "Thêm độc giả", GPeople, () => Todo("Thêm độc giả"));
             ts.Items.Add(new ToolStripSeparator());
-            AddTool(ts, "Lập phiếu mượn", GForward, () => Todo("Lập phiếu mượn"));
+            AddTool(ts, "Lập phiếu mượn", GForward, OpenLoanTab);
             AddTool(ts, "Nhận trả sách", GBack, OpenReturnTab);
             AddTool(ts, "Quá hạn", GWarn, OpenOverdueTab);
             AddTool(ts, "Tiền phạt", GMoney, OpenFinesTab);
@@ -576,6 +578,14 @@ namespace LibraryManagement.Forms
             _tabMain.TabPages.Add(tabField);
             _tabMain.SelectedTab = tabField;
         }
+
+        private void OpenLoanTab() =>
+            OpenOrSelectTab(ref _tabLoan, "Quản lý mượn sách", () =>
+            {
+                var ctrl = new LoanManagement.LoanManagementControl();
+                ctrl.LoanDataChanged += LoadData;
+                return ctrl;
+            });
 
         private void OpenReportTab() =>
             OpenOrSelectTab(ref _tabReport, "Báo cáo & Thống kê", () => new Controls.StatisticalReportControl());
