@@ -172,6 +172,7 @@ public class LibraryDbContext : DbContext
         {
             entity.ToTable("Fines");
             entity.HasKey(f => f.Id);
+            entity.Ignore(f => f.Status);
 
             entity.HasOne(f => f.LoanDetail)
                 .WithMany(d => d.Fines)
