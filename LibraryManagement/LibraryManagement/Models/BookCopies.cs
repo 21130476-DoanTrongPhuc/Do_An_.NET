@@ -1,4 +1,6 @@
-﻿namespace LibraryManagement.Models;
+﻿using LibraryManagement.Enums;
+
+namespace LibraryManagement.Models;
 
 public class BookCopies
 {
@@ -9,7 +11,7 @@ public class BookCopies
     public string ReceivedAt  { get; set; } = string.Empty;
     public int PurchasePrice { get; set; }
     public string PhysicalCondition { get; set; } = string.Empty;
-    public string CirculationStatus { get; set; } = string.Empty;
+    public BookCopyStatus CirculationStatus { get; set; } 
     public string? Notes { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }

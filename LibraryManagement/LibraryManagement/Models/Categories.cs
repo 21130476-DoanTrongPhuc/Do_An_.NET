@@ -9,9 +9,9 @@ public class Categories
     public int MaxLoanDays { get; set; }
     public int MaxRenewals { get; set; }
     public string Status { get; set; } = string.Empty;
-    public string CreatedAt { get; set; } = string.Empty;
-    public string UpdatedAt { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
     
     
     public Categories? ParentCategory { get; set; }

@@ -29,8 +29,8 @@ public class Users
     public string Status { get; set; } = "Active";
 
     // Timestamps
-    public string CreatedAt { get; set; } = string.Empty;
-    public string UpdatedAt { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; } 
+    public DateTime UpdatedAt { get; set; } 
 
     // Navigation Properties
 

@@ -1,8 +1,12 @@
 using LibraryManagement.Data;
 using LibraryManagement.Forms;
+using LibraryManagement.Forms.BookFormReturn;
 using LibraryManagement.Forms.HomePage;
 using LibraryManagement.Forms.LoginForm;
 using LibraryManagement.Helpers;
+using LibraryManagement.Repositories;
+using LibraryManagement.Repositories.Interafaces;
+using LibraryManagement.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -27,7 +31,14 @@ internal static class Program
                 options.UseSqlite(DatabaseConnection.GetConnectionString()));
 
             // Các đăng ký Repository và Service sẽ thêm ở đây (bước sau).
-
+            services.AddTransient<ReturnedBookRepository, ReturnedBookRepositoryImpl>();
+            services.AddTransient<ReturnedBookServiceImpl>();
+            
+            services.AddTransient<FineRepository, FineRepositoryImpl>();
+            
+            services.AddTransient<LoginForm>();
+            services.AddTransient<BookFormReturn>();
+            
             AppServices.Provider = services.BuildServiceProvider();
 
             Application.Run(new LoginForm());

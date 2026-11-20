@@ -1,10 +1,20 @@
-﻿namespace LibraryManagement.Forms.BookFormReturn;
+﻿using LibraryManagement.DTO.Request;
+using LibraryManagement.DTO.Response;
+using LibraryManagement.Enums;
+using LibraryManagement.Filters;
+using LibraryManagement.Services;
+
+namespace LibraryManagement.Forms.BookFormReturn;
 
 using System.Drawing.Drawing2D;
 
 
 public partial class BookFormReturn : UserControl
 {
+    private readonly ReturnedBookServiceImpl _returnBookService;
+    private ReturnedBookReaderInfor? _currentReader;
+    private ReturnedBookInfor? _bookInfor;
+    
     // ====== Màu sắc (dùng chung với LibrarianFormMain) ======
     private static readonly Color Primary    = Color.FromArgb(19, 98, 160);
     private static readonly Color BorderGray = Color.FromArgb(205, 210, 218);
@@ -34,35 +44,68 @@ public partial class BookFormReturn : UserControl
     // Sự kiện để host form biết khi cần đóng
     public event EventHandler? CloseRequested;
 
-    public BookFormReturn()
+    public BookFormReturn(ReturnedBookServiceImpl returnBookService)
     {
         InitializeComponent();
+
+        _returnBookService = returnBookService;
+        
         BuildUi();
     }
 
     // ============================================================
     //  DỮ LIỆU MẪU
     // ============================================================
-    private void LoadSampleReader(string readerId)
+    private void LoadReaderInfo(ReturnedBookReaderInfor reader)
     {
+        _currentReader = reader;
         pnlReaderInfo.Controls.Clear();
-        AddReaderField("Họ và tên:", "Nguyễn Minh Anh", 0);
-        AddReaderField("Mã độc giả:", "DG-00125", 1);
-        AddReaderField("Email:", "minhanh@example.com", 2);
-        AddReaderField("Điện thoại:", "0901 234 567", 3);
-        AddReaderBadge("Nợ phạt cũ: 12.000 đ", Red, 4);
+        AddReaderField("Họ và tên:", reader.FullName, 0);
+        AddReaderField("Mã độc giả:", reader.UserCode, 1);
+        AddReaderField("Email:", reader.Email, 2);
+        AddReaderField("Điện thoại:", reader.Phone, 3);
+        // AddReaderBadge("Nợ phạt cũ: 12.000 đ", Red, 4);
     }
 
-    private void LoadSampleBooks()
+    private void LoadBooks(List<ReturnedBookInfor>? books)
     {
         dgvBooks.Rows.Clear();
-        var today = DateTime.Today;
-        AddBook("PM001", "BC-0001", "Nhà giả kim", "Mới 100%", new DateTime(2024, 3, 20), today);
-        AddBook("PM001", "BC-0002", "Đắc nhân tâm", "Bình thường", new DateTime(2024, 3, 25), today);
-        AddBook("PM002", "BC-0003", "Lược sử thời gian", "Bình thường", new DateTime(2024, 3, 10), today);
-        AddBook("PM002", "BC-0004", "Mắt biếc", "Bình thường", new DateTime(2024, 3, 28), today);
-        dgvBooks.ClearSelection();
-        RecalcSummary();
+
+        foreach (var book in books)
+        {
+            int index = dgvBooks.Rows.Add();
+            
+            var row = dgvBooks.Rows[index];
+
+            row.Cells["colLoanDetailId"].Value = book.LoanDetailId;
+
+            row.Cells["colCheck"].Value = false;
+
+            row.Cells["colTicket"].Value = book.LoanCode;
+
+            row.Cells["colTitle"].Value = book.Title;
+
+            row.Cells["colCondBorrow"].Value = book.PhysicalConditionBefore.ToString();
+
+            row.Cells["colDue"].Value = book.DueAt == DateTime.MinValue 
+                ? "" 
+                : book.DueAt.ToString("dd/MM/yyyy");
+
+            row.Cells["colReturn"].Value =
+                book.ReturnedAt?.ToString("dd/MM/yyyy") ?? "";
+
+            row.Cells["colLate"].Value = book.NumberDaysLate;
+
+            row.Cells["colCondReturn"].Value = "Bình thường";
+
+            row.Cells["colLateFee"].Value = book.AmountPayDaysLate.ToString("N0") + " đ";
+
+            row.Cells["colDamageFee"].Value = "0 đ";
+
+            row.Cells["colNote"].Value = "";
+            
+            UpdateRowFees(index);
+        }
     }
 
     private void AddBook(string ticketId, string copyId, string title, string condition,
@@ -209,16 +252,157 @@ public partial class BookFormReturn : UserControl
         });
     }
 
-    private void DoSearch()
+    private static BookCondition ConvertCondition(string condition)
     {
+        return condition switch
+        {
+            "Bình thường" => BookCondition.Good,
+            "Hư hỏng nhẹ" => BookCondition.MinorDamage,
+            "Hư hỏng nặng" => BookCondition.MajorDamage,
+            "Mất sách" => BookCondition.Lost,
+            _ => BookCondition.Good
+        };
+    }
+    
+    private async Task ConfirmReturnAsync(bool print)
+{
+    var checkedRows = dgvBooks.Rows
+        .Cast<DataGridViewRow>()
+        .Where(r => Convert.ToBoolean(
+            r.Cells["colCheck"].Value ?? false))
+        .ToList();
+
+    if (checkedRows.Count == 0)
+    {
+        MessageBox.Show("Vui lòng chọn ít nhất một cuốn sách.");
+        return;
+    }
+
+    decimal total = checkedRows.Sum(row =>
+        ParseMoney(row.Cells["colLateFee"].Value) +
+        ParseMoney(row.Cells["colDamageFee"].Value)
+    );
+
+    string payMode = rdoPaid.Checked
+        ? "Đã thu tiền"
+        : "Ghi nợ phạt";
+
+    string msg =
+        $"Xác nhận trả {checkedRows.Count} cuốn sách.\n" +
+        $"Tổng phạt: {total:N0} đ ({payMode}).";
+
+    if (MessageBox.Show(
+        msg,
+        "Xác nhận trả sách",
+        MessageBoxButtons.YesNo,
+        MessageBoxIcon.Question) != DialogResult.Yes)
+    {
+        return;
+    }
+
+    try
+    {
+        foreach (var row in checkedRows)
+        {
+            int loanDetailId = Convert.ToInt32(
+                row.Cells["colLoanDetailId"].Value
+            );
+
+            string condition = row.Cells["colCondReturn"]
+                .Value?.ToString() ?? "Bình thường";
+
+            var request = new ReturnedBookAddRequest
+            {
+                PhysicalConditionAfter =
+                    ConvertCondition(condition)
+            };
+
+            await _returnBookService.ReturnAsync(
+                loanDetailId,
+                request
+            );
+        }
+
+        MessageBox.Show(
+            "Đã xác nhận trả sách thành công.",
+            "LIBRA",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Information
+        );
+
+        if (print)
+        {
+            // TODO: Gọi chức năng in phiếu trả sách
+        }
+
+        await SearchCurrentReaderAsync();
+    }
+    catch (Exception ex)
+    {
+        MessageBox.Show(
+            $"Không thể trả sách: {ex.Message}",
+            "Lỗi",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Error
+        );
+    }
+
+    async Task SearchCurrentReaderAsync()
+    {
+        if (_currentReader == null)
+            return;
+
+        var filter = new ReturnedBookFilter
+        {
+            keyWord = _currentReader.UserCode
+        };
+
+        var books = await _returnBookService
+            .GetReturneedBookInfor(filter);
+
+        LoadBooks(books);
+    }
+}
+
+    private async void DoSearch()
+    {
+        string userCode = txtSearch.Text.Trim();
+        
         if (string.IsNullOrWhiteSpace(txtSearch.Text))
         {
             MessageBox.Show("Vui lòng nhập mã độc giả / mã phiếu mượn / mã vạch.",
                 "Tra cứu", MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
-        LoadSampleReader(txtSearch.Text);
-        LoadSampleBooks();
+
+        try
+        {
+            var reader = await _returnBookService.GetReaderInforAsync(userCode);
+
+            if (reader == null)
+            {
+                MessageBox.Show("Không tìm thấy độc giả.");
+                
+                ResetForm();
+                return;
+            }
+
+            LoadReaderInfo(reader);
+
+            var filter = new ReturnedBookFilter
+            {
+                keyWord = userCode
+            };
+
+            var books = await _returnBookService.GetReturneedBookInfor(filter);
+            
+            LoadBooks(books);
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            throw;
+        }
     }
 
     // ---------- 2. DATA TABLE ----------
@@ -271,6 +455,12 @@ public partial class BookFormReturn : UserControl
         {
             Name = "colCheck", HeaderText = "", FillWeight = 28, FlatStyle = FlatStyle.Standard
         });
+        
+        g.Columns.Add(new DataGridViewTextBoxColumn
+        {
+            Name = "colLoanDetailId",
+            Visible = false
+        });
 
         AddTextCol(g, "colTicket", "Mã phiếu", 55);
         AddTextCol(g, "colCopy", "Mã vạch", 65);
@@ -279,7 +469,20 @@ public partial class BookFormReturn : UserControl
         AddTextCol(g, "colDue", "Hạn trả", 65);
         AddTextCol(g, "colReturn", "Ngày trả", 65);
         AddTextCol(g, "colLate", "Số ngày trễ", 55);
-        AddTextCol(g, "colCondReturn", "Tình trạng khi trả", 100);
+        g.Columns.Add(new DataGridViewComboBoxColumn
+        {
+            Name = "colCondReturn",
+            HeaderText = "Tình trạng khi trả",
+            FillWeight = 100,
+            FlatStyle = FlatStyle.Flat,
+            DataSource = new[]
+            {
+                "Bình thường",
+                "Hư hỏng",
+                "Hư hỏng nặng",
+                "Mất sách"
+            }
+        });
         AddTextCol(g, "colLateFee", "Phạt trễ hạn", 75);
         AddTextCol(g, "colDamageFee", "Phạt hư hỏng/mất", 85);
         AddTextCol(g, "colNote", "Ghi chú", 100);
@@ -463,7 +666,7 @@ public partial class BookFormReturn : UserControl
             TextImageRelation = TextImageRelation.ImageBeforeText
         };
         btnConfirm.FlatAppearance.BorderSize = 0;
-        btnConfirm.Click += (_, _) => ConfirmReturn(false);
+        btnConfirm.Click += (_, _) => ConfirmReturnAsync(false);
 
         var btnPrint = new Button
         {
@@ -479,7 +682,7 @@ public partial class BookFormReturn : UserControl
             TextImageRelation = TextImageRelation.ImageBeforeText
         };
         btnPrint.FlatAppearance.BorderSize = 0;
-        btnPrint.Click += (_, _) => ConfirmReturn(true);
+        btnPrint.Click += (_, _) => ConfirmReturnAsync(true);
 
         right.Controls.Add(btnReset);
         right.Controls.Add(btnConfirm);
@@ -514,23 +717,35 @@ public partial class BookFormReturn : UserControl
     private void RecalcSummary()
     {
         int count = 0;
-        decimal lateFee = 0, damageFee = 0;
+        decimal lateFee = 0;
+        decimal damageFee = 0;
 
         foreach (DataGridViewRow row in dgvBooks.Rows)
         {
-            if (!Convert.ToBoolean(row.Cells["colCheck"].Value ?? false)) continue;
+            if (row.IsNewRow)
+                continue;
+
+            // Kiểm tra checkbox
+            bool isChecked = row.Cells["colCheck"].Value is bool value && value;
+
+            if (!isChecked)
+                continue;
+
             count++;
+
             lateFee += ParseMoney(row.Cells["colLateFee"].Value);
             damageFee += ParseMoney(row.Cells["colDamageFee"].Value);
         }
 
         decimal total = lateFee + damageFee;
+
         lblTotalBooks.Text = count.ToString();
         lblTotalLateFee.Text = lateFee.ToString("N0") + " đ";
         lblTotalDamageFee.Text = damageFee.ToString("N0") + " đ";
-        lblGrandTotal.Text = "Tổng thanh toán:  " + total.ToString("N0") + " đ";
+        lblGrandTotal.Text = "Tổng thanh toán: " + total.ToString("N0") + " đ";
 
         bool hasFee = total > 0;
+
         rdoPaid.Visible = hasFee;
         rdoDebt.Visible = hasFee;
     }

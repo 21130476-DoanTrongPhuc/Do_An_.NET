@@ -111,7 +111,7 @@ public partial class LoginForm : Form
 
                     Session.CurrentLibrarianId = librarian.Id;
 
-                    var f = new LibrarianFormMain();
+                    var f = new LibrarianFormMain.LibrarianFormMain();
                     f.FormClosed += (_, _) => AfterClose(f.IsLogout);
                     this.Hide();
                     f.Show();
