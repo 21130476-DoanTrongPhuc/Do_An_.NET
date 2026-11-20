@@ -12,7 +12,7 @@ public class LoanDetails
     public DateTime DueAt { get; set; }
     public DateTime? ReturnedAt { get; set; }
     public string PhysicalConditionBefore { get; set; }
-    public BookCondition PhysicalConditionAfter { get; set; }
+    public BookCondition? PhysicalConditionAfter { get; set; }
     public int RenewalCount { get; set; }
     public string Note { get; set; }
 

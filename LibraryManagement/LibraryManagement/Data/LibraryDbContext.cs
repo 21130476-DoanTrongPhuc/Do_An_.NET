@@ -83,6 +83,9 @@ public class LibraryDbContext : DbContext
 
         modelBuilder.Entity<LoanDetails>().ToTable("LoanDetails");
         modelBuilder.Entity<LoanDetails>().HasKey(d => d.Id);
+        modelBuilder.Entity<LoanDetails>()
+            .Property(d => d.PhysicalConditionAfter)
+            .HasConversion<string>();
 
         modelBuilder.Entity<LoanDetails>()
             .HasOne(d => d.Loan)

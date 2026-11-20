@@ -93,6 +93,7 @@ public class ReturnedBookRepositoryImpl : ReturnedBookRepository
                 .OrderBy(ld => ld.DueAt)
                 .Select(ld => new
                 {
+                    LoanDetailId = ld.Id,          
                     ld.Loan.LoanCode,
                     ld.BookCopy.Book.Title,
                     ld.BookCopy.Book.ISBN,
@@ -107,12 +108,12 @@ public class ReturnedBookRepositoryImpl : ReturnedBookRepository
                 var daysLate = Math.Max(0, (today - x.DueAt).Days);
                 return new ReturnedBookInfor
                 {
+                    LoanDetailId = x.LoanDetailId, // <--- GÁN VÀO DTO Ở ĐÂY
                     LoanCode = x.LoanCode,
                     Title = x.Title,
                     ISBN = x.ISBN,
                     PhysicalConditionBefore = x.PhysicalConditionBefore,
                     DueAt = x.DueAt,
-                    ReturnedAt = today,
                     NumberDaysLate = daysLate,
                     PhysicalConditionAfter = BookCondition.Good,
                     AmountPayDaysLate = daysLate * 5000
