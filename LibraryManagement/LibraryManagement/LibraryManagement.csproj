@@ -55,6 +55,9 @@
       <Compile Update="Forms\FineCancelDialog\FineCancelDialog.cs">
         <SubType>Form</SubType>
       </Compile>
+      <Compile Update="Forms\FineEditDialog\FineEditDialog.cs">
+        <SubType>UserControl</SubType>
+      </Compile>
     </ItemGroup>
 
 	<ItemGroup>

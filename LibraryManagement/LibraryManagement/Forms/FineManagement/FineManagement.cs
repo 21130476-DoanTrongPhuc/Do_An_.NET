@@ -208,11 +208,15 @@ namespace LibraryManagement.Forms.FineManagement
             BackColor = Color.FromArgb(240, 242, 245);
             Font = new Font("Segoe UI", 9F);
 
-            // Thứ tự add: Fill -> Top dưới -> Top trên -> Drawer (Right)
-            Controls.Add(BuildTableArea());
-            Controls.Add(BuildToolbar());
-            Controls.Add(BuildKpiArea());
-            Controls.Add(BuildDrawer());
+            // THỨ TỰ ADD QUAN TRỌNG (WinForms: add sau → dock trước):
+            // 1. Fill  (table)   — add trước
+            // 2. Top   (toolbar) — add sau → dock trên table
+            // 3. Top   (KPI)     — add sau → dock trên toolbar
+            // 4. Right (drawer)  — add sau → dock phải
+            Controls.Add(BuildTableArea());   // Fill
+            Controls.Add(BuildToolbar());     // Top (dưới)
+            Controls.Add(BuildKpiArea());     // Top (trên)
+            Controls.Add(BuildDrawer());      // Right
 
             ResumeLayout(true);
         }
@@ -274,61 +278,150 @@ namespace LibraryManagement.Forms.FineManagement
         // ---------- 2. TOOLBAR ----------
         private Panel BuildToolbar()
         {
-            var host = new Panel { Dock = DockStyle.Top, Height = 96, Padding = new Padding(12, 8, 12, 0) };
+            var host = new Panel
+            {
+                Dock = DockStyle.Top,
+                Height = 130,
+                Padding = new Padding(12, 8, 12, 0)
+            };
+
             var grp = new GroupBox
             {
                 Text = "Tìm kiếm & Bộ lọc",
                 Dock = DockStyle.Fill,
-                Padding = new Padding(12, 6, 12, 8)
+                Padding = new Padding(12, 6, 12, 6)
             };
 
-            var row1 = new Panel { Dock = DockStyle.Top, Height = 38 };
+            var tbl = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 1,
+                RowCount = 2,
+                Padding = new Padding(0),
+                Margin = new Padding(0)
+            };
+            tbl.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
+            tbl.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
+
+            // ---------- Hàng 1: search + nút ----------
+            var row1 = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                ColumnCount = 3,
+                RowCount = 1,
+                Margin = new Padding(0)
+            };
+            row1.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+            row1.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 130));
+            row1.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 190));
 
             txtSearch = new TextBox
             {
                 PlaceholderText = "Tìm theo mã phạt, mã ĐG, tên ĐG, mã phiếu mượn, mã vạch...",
-                Location = new Point(6, 6), Width = 340, Font = new Font("Segoe UI", 9F)
+                Dock = DockStyle.Fill,
+                Font = new Font("Segoe UI", 9F),
+                Margin = new Padding(0, 4, 8, 4)
             };
             txtSearch.TextChanged += (_, _) => ApplyFilter();
-            row1.Controls.Add(txtSearch);
+            row1.Controls.Add(txtSearch, 0, 0);
 
-            row1.Controls.Add(MakeLabel("Loại vi phạm:", 358, 12));
-            cboType = MakeCombo(440, 8, 180, new[] {
+            var btnReset = new Button
+            {
+                Text = "  Làm mới",
+                Dock = DockStyle.Fill,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.White,
+                Font = new Font("Segoe UI", 9F),
+                Image = GlyphImage(GRefresh, 14, Color.Black),
+                ImageAlign = ContentAlignment.MiddleLeft,
+                TextImageRelation = TextImageRelation.ImageBeforeText,
+                Margin = new Padding(0, 4, 8, 4)
+            };
+            btnReset.FlatAppearance.BorderColor = BorderGray;
+            btnReset.Click += (_, _) => ResetFilter();
+            row1.Controls.Add(btnReset, 1, 0);
+
+            var btnAdd = new Button
+            {
+                Text = "  Tạo khoản phạt",
+                Dock = DockStyle.Fill,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Primary,
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+                Image = GlyphImage(GAdd, 14, Color.White),
+                ImageAlign = ContentAlignment.MiddleLeft,
+                TextImageRelation = TextImageRelation.ImageBeforeText,
+                Margin = new Padding(0, 4, 0, 4)
+            };
+            btnAdd.FlatAppearance.BorderSize = 0;
+            btnAdd.Click += (_, _) => ShowCreateFineDialog();
+            row1.Controls.Add(btnAdd, 2, 0);
+
+            tbl.Controls.Add(row1, 0, 0);
+
+            // ---------- Hàng 2: filter ----------
+            var row2 = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = false,
+                AutoScroll = true,
+                Margin = new Padding(0),
+                Padding = new Padding(0, 2, 0, 0)
+            };
+
+            row2.Controls.Add(FilterLabel("Loại vi phạm:"));
+            cboType = MakeComboFilter(180, new[] {
                 "Tất cả", "Trả sách quá hạn", "Làm hư hỏng sách", "Làm mất sách", "Vi phạm nội quy khác"
             });
             cboType.SelectedIndexChanged += (_, _) => ApplyFilter();
-            row1.Controls.Add(cboType);
+            row2.Controls.Add(cboType);
 
-            row1.Controls.Add(MakeLabel("Trạng thái:", 630, 12));
-            cboStatus = MakeCombo(706, 8, 170, new[] {
+            row2.Controls.Add(FilterLabel("Trạng thái:"));
+            cboStatus = MakeComboFilter(170, new[] {
                 "Tất cả", "Chưa thanh toán", "Thanh toán 1 phần", "Đã thanh toán", "Đã hủy"
             });
             cboStatus.SelectedIndexChanged += (_, _) => ApplyFilter();
-            row1.Controls.Add(cboStatus);
+            row2.Controls.Add(cboStatus);
 
             chkUseDate = new CheckBox
             {
                 Text = "Ngày tạo:",
-                AutoSize = true, ForeColor = TextGray, Font = new Font("Segoe UI", 8.5F),
-                Location = new Point(886, 12)
+                AutoSize = true,
+                ForeColor = TextGray,
+                Font = new Font("Segoe UI", 8.5F),
+                Margin = new Padding(12, 7, 4, 0)
             };
-            row1.Controls.Add(chkUseDate);
+            row2.Controls.Add(chkUseDate);
 
             dtpFrom = new DateTimePicker
             {
-                Format = DateTimePickerFormat.Short, Location = new Point(958, 8),
-                Width = 110, Enabled = false, Value = DateTime.Today.AddDays(-30)
+                Format = DateTimePickerFormat.Short,
+                Width = 110,
+                Enabled = false,
+                Value = DateTime.Today.AddDays(-30),
+                Margin = new Padding(0, 3, 0, 0)
             };
-            row1.Controls.Add(dtpFrom);
+            row2.Controls.Add(dtpFrom);
 
-            row1.Controls.Add(new Label { Text = "–", AutoSize = true, ForeColor = TextGray, Location = new Point(1070, 12) });
+            row2.Controls.Add(new Label
+            {
+                Text = "–",
+                AutoSize = true,
+                ForeColor = TextGray,
+                Margin = new Padding(4, 7, 4, 0)
+            });
 
             dtpTo = new DateTimePicker
             {
-                Format = DateTimePickerFormat.Short, Location = new Point(1086, 8),
-                Width = 110, Enabled = false, Value = DateTime.Today
+                Format = DateTimePickerFormat.Short,
+                Width = 110,
+                Enabled = false,
+                Value = DateTime.Today,
+                Margin = new Padding(0, 3, 0, 0)
             };
-            row1.Controls.Add(dtpTo);
+            row2.Controls.Add(dtpTo);
 
             chkUseDate.CheckedChanged += (_, _) =>
             {
@@ -338,62 +431,30 @@ namespace LibraryManagement.Forms.FineManagement
             dtpFrom.ValueChanged += (_, _) => ApplyFilter();
             dtpTo.ValueChanged += (_, _) => ApplyFilter();
 
-            // Action buttons bên phải
-            var right = new Panel { Dock = DockStyle.Right, Width = 320 };
-            row1.Controls.Add(right);
+            tbl.Controls.Add(row2, 0, 1);
 
-            var btnReset = new Button
-            {
-                Text = "  Làm mới",
-                Size = new Size(120, 32),
-                Location = new Point(0, 4),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.White,
-                Font = new Font("Segoe UI", 9F),
-                Image = GlyphImage(GRefresh, 14, Color.Black),
-                ImageAlign = ContentAlignment.MiddleLeft,
-                TextImageRelation = TextImageRelation.ImageBeforeText,
-                Anchor = AnchorStyles.Top | AnchorStyles.Right
-            };
-            btnReset.FlatAppearance.BorderColor = BorderGray;
-            btnReset.Click += (_, _) => ResetFilter();
-            right.Controls.Add(btnReset);
-
-            var btnAdd = new Button
-            {
-                Text = "  Tạo khoản phạt",
-                Size = new Size(180, 32),
-                Location = new Point(130, 4),
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Primary,
-                ForeColor = Color.White,
-                Font = new Font("Segoe UI", 9F, FontStyle.Bold),
-                Image = GlyphImage(GAdd, 14, Color.White),
-                ImageAlign = ContentAlignment.MiddleLeft,
-                TextImageRelation = TextImageRelation.ImageBeforeText,
-                Anchor = AnchorStyles.Top | AnchorStyles.Right
-            };
-            btnAdd.FlatAppearance.BorderSize = 0;
-            btnAdd.Click += (_, _) => ShowCreateFineDialog();
-            right.Controls.Add(btnAdd);
-
-            grp.Controls.Add(row1);
+            grp.Controls.Add(tbl);
             host.Controls.Add(grp);
             return host;
         }
 
-        private static Label MakeLabel(string text, int x, int y) => new()
+        private static Label FilterLabel(string text) => new()
         {
-            Text = text, AutoSize = true, ForeColor = Color.FromArgb(110, 117, 128),
-            Font = new Font("Segoe UI", 8.5F), Location = new Point(x, y)
+            Text = text,
+            AutoSize = true,
+            ForeColor = Color.FromArgb(110, 117, 128),
+            Font = new Font("Segoe UI", 8.5F),
+            Margin = new Padding(0, 10, 6, 0)
         };
 
-        private static ComboBox MakeCombo(int x, int y, int width, string[] items)
+        private static ComboBox MakeComboFilter(int width, string[] items)
         {
             var c = new ComboBox
             {
                 DropDownStyle = ComboBoxStyle.DropDownList,
-                Location = new Point(x, y), Width = width, Font = new Font("Segoe UI", 9F)
+                Width = width,
+                Font = new Font("Segoe UI", 9F),
+                Margin = new Padding(0, 6, 12, 0)
             };
             c.Items.AddRange(items);
             c.SelectedIndex = 0;
@@ -419,15 +480,20 @@ namespace LibraryManagement.Forms.FineManagement
         {
             var g = new DataGridView
             {
-                Dock = DockStyle.Fill, ReadOnly = true, AllowUserToAddRows = false,
-                AllowUserToDeleteRows = false, AllowUserToResizeRows = false,
-                RowHeadersVisible = false, BackgroundColor = Color.White,
+                Dock = DockStyle.Fill,
+                ReadOnly = false,
+                AllowUserToAddRows = false,
+                AllowUserToDeleteRows = false,
+                AllowUserToResizeRows = false,
+                RowHeadersVisible = false,
+                BackgroundColor = Color.White,
                 BorderStyle = BorderStyle.FixedSingle,
                 CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal,
                 GridColor = Color.FromArgb(225, 228, 233),
                 SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-                MultiSelect = false, EnableHeadersVisualStyles = false,
-                RowTemplate = { Height = 52 },
+                MultiSelect = false,
+                EnableHeadersVisualStyles = false,
+                RowTemplate = { Height = 40 },
                 ColumnHeadersHeight = 38,
                 ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing,
                 AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
@@ -441,27 +507,78 @@ namespace LibraryManagement.Forms.FineManagement
             g.DefaultCellStyle.SelectionBackColor = Color.FromArgb(225, 236, 248);
             g.DefaultCellStyle.SelectionForeColor = Color.Black;
 
-            AddCol(g, "colId",      "Mã phạt",          60);
-            AddCol(g, "colTicket",  "Mã phiếu mượn",    70);
-            AddCol(g, "colReader",  "Độc giả",          120);
-            AddCol(g, "colBook",    "Thông tin sách",   130);
-            AddCol(g, "colType",    "Loại vi phạm",     90);
-            AddCol(g, "colReason",  "Lý do / Ghi chú",  150);
-            AddCol(g, "colCreated", "Ngày tạo & Người lập", 100);
-            AddCol(g, "colAmount",  "Tiền phạt",        80);
-            AddCol(g, "colPaid",    "Đã trả",           70);
-            AddCol(g, "colDebt",    "Còn nợ",           70);
-            AddCol(g, "colStatus",  "Trạng thái",       90);
-            AddCol(g, "colActions", "Thao tác",         110);
+            // ===== CỘT CHECKBOX — ĐẦU TIÊN =====
+            var colCheck = new DataGridViewCheckBoxColumn
+            {
+                Name = "colSelect",
+                HeaderText = "",
+                FillWeight = 30,
+                Width = 30,
+                ReadOnly = false,
+                Resizable = DataGridViewTriState.False
+            };
+            g.Columns.Add(colCheck);
+            g.Columns["colSelect"]!.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+            g.Columns["colSelect"]!.DefaultCellStyle.Padding = new Padding(0);
 
+            // ===== CÁC CỘT CÒN LẠI — ĐỦ 14 CỘT =====
+            AddCol(g, "colId",       "Mã phạt",             60);
+            AddCol(g, "colTicket",   "Mã phiếu mượn",       75);
+            AddCol(g, "colReaderId", "Mã ĐG",               65);
+            AddCol(g, "colReader",   "Tên độc giả",        120);
+            AddCol(g, "colBook",     "Tên sách",           130);
+            AddCol(g, "colCopy",     "Mã vạch",             70);
+            AddCol(g, "colType",     "Loại vi phạm",        90);
+            AddCol(g, "colReason",   "Lý do / Ghi chú",    140);
+            AddCol(g, "colCreated",  "Ngày tạo",            85);
+            AddCol(g, "colBy",       "Người lập",           85);
+            AddCol(g, "colAmount",   "Tiền phạt",           80);
+            AddCol(g, "colPaid",     "Đã trả",              70);
+            AddCol(g, "colDebt",     "Còn nợ",              70);
+            AddCol(g, "colStatus",   "Trạng thái",          90);
+            AddCol(g, "colActions",  "Thao tác",           100);
+
+            // ===== STYLE =====
             g.Columns["colId"]!.DefaultCellStyle.ForeColor = Primary;
             g.Columns["colId"]!.DefaultCellStyle.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
             g.Columns["colAmount"]!.DefaultCellStyle.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
             g.Columns["colDebt"]!.DefaultCellStyle.ForeColor = Red;
             g.Columns["colDebt"]!.DefaultCellStyle.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+            g.Columns["colCreated"]!.DefaultCellStyle.Format = "dd/MM/yyyy";
+
+            // ===== CHẶN EDIT CÁC CỘT KHÁC =====
+            g.CellBeginEdit += (_, e) =>
+            {
+                if (g.Columns[e.ColumnIndex].Name != "colSelect")
+                    e.Cancel = true;
+            };
+
+            // ===== COMMIT NGAY KHI CLICK CHECKBOX =====
+            g.CurrentCellDirtyStateChanged += (_, _) =>
+            {
+                if (g.IsCurrentCellDirty)
+                    g.CommitEdit(DataGridViewDataErrorContexts.Commit);
+            };
 
             g.CellPainting += DgvFines_CellPainting;
             g.CellMouseClick += DgvFines_CellMouseClick;
+            
+            g.CellValueChanged += (_, e) =>
+            {
+                if (e.RowIndex < 0 || e.ColumnIndex < 0) return;
+                if (g.Columns[e.ColumnIndex].Name != "colSelect") return;
+
+                // Nếu vừa tick true → bỏ tick tất cả dòng khác
+                bool isChecked = g.Rows[e.RowIndex].Cells["colSelect"].Value is bool b && b;
+                if (!isChecked) return;
+
+                foreach (DataGridViewRow r in g.Rows)
+                {
+                    if (r.Index == e.RowIndex) continue;
+                    if (r.Cells["colSelect"].Value is bool other && other)
+                        r.Cells["colSelect"].Value = false;
+                }
+            };
 
             return g;
         }
@@ -472,6 +589,54 @@ namespace LibraryManagement.Forms.FineManagement
             {
                 Name = name, HeaderText = header, FillWeight = weight
             });
+        }
+
+        private void RenderGrid()
+        {
+            dgvFines.Rows.Clear();
+            foreach (var r in _filtered)
+            {
+                int idx = dgvFines.Rows.Add();
+                var row = dgvFines.Rows[idx];
+                row.Tag = r;
+                row.Cells["colSelect"].Value   = false;
+                row.Cells["colId"].Value       = r.FineId;
+                row.Cells["colTicket"].Value   = string.IsNullOrEmpty(r.TicketId) ? "—" : r.TicketId;
+                row.Cells["colReaderId"].Value = r.ReaderId;
+                row.Cells["colReader"].Value   = r.ReaderName;
+                row.Cells["colBook"].Value     = string.IsNullOrEmpty(r.BookTitle) ? "Không áp dụng" : r.BookTitle;
+                row.Cells["colCopy"].Value     = string.IsNullOrEmpty(r.CopyId) ? "—" : r.CopyId;
+                row.Cells["colReason"].Value   = r.Reason;
+                row.Cells["colCreated"].Value  = r.CreatedAt;
+                row.Cells["colBy"].Value       = r.CreatedBy;
+                row.Cells["colAmount"].Value   = r.Amount.ToString("N0") + " đ";
+                row.Cells["colPaid"].Value     = r.Paid.ToString("N0") + " đ";
+                row.Cells["colDebt"].Value     = r.Remaining.ToString("N0") + " đ";
+                // colType, colStatus, colActions được vẽ trong CellPainting
+            }
+            dgvFines.ClearSelection();
+        }
+
+        /// <summary>
+        /// Trả về dòng đang được tick checkbox (nếu có).
+        /// Nếu nhiều dòng được tick, trả về dòng đầu tiên + cảnh báo.
+        /// </summary>
+        private FineRow? GetCheckedRow()
+        {
+            var checkedRows = dgvFines.Rows
+                .Cast<DataGridViewRow>()
+                .Where(r => r.Cells["colSelect"].Value is bool b && b)
+                .ToList();
+
+            if (checkedRows.Count == 0) return null;
+
+            if (checkedRows.Count > 1)
+            {
+                MessageBox.Show("Chỉ được chọn 1 dòng để auto-fill. Sẽ dùng dòng đầu tiên.",
+                    "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+
+            return checkedRows[0].Tag as FineRow;
         }
 
         // ============================================================
@@ -542,11 +707,9 @@ namespace LibraryManagement.Forms.FineManagement
             int cx = bounds.X + bounds.Width / 2;
             bool canPay = row.Status == FineStatus.Unpaid || row.Status == FineStatus.Partial;
 
-            // Menu luôn ở bên phải: cx - 4 .. cx + 24
             var moreRect = new Rectangle(cx - 4, bounds.Y + (bounds.Height - 28) / 2, 28, 28);
             DrawIconButton(g, moreRect, GMore, TextGray);
 
-            // Nút Thu tiền chỉ hiện khi cần: cx - 46 .. cx - 6
             if (canPay)
             {
                 var payRect = new Rectangle(cx - 46, bounds.Y + (bounds.Height - 28) / 2, 40, 28);
@@ -600,29 +763,6 @@ namespace LibraryManagement.Forms.FineManagement
             RecalcKpi();
         }
 
-        private void RenderGrid()
-        {
-            dgvFines.Rows.Clear();
-            foreach (var r in _filtered)
-            {
-                int idx = dgvFines.Rows.Add();
-                var row = dgvFines.Rows[idx];
-                row.Tag = r;
-                row.Cells["colId"].Value = r.FineId;
-                row.Cells["colTicket"].Value = string.IsNullOrEmpty(r.TicketId) ? "—" : r.TicketId;
-                row.Cells["colReader"].Value = $"{r.ReaderName}\n{r.ReaderId}";
-                row.Cells["colBook"].Value = string.IsNullOrEmpty(r.BookTitle)
-                    ? "Không áp dụng"
-                    : $"{r.BookTitle}\n{r.CopyId}";
-                row.Cells["colReason"].Value = r.Reason;
-                row.Cells["colCreated"].Value = $"{r.CreatedAt:dd/MM/yyyy}\n{r.CreatedBy}";
-                row.Cells["colAmount"].Value = r.Amount.ToString("N0") + " đ";
-                row.Cells["colPaid"].Value = r.Paid.ToString("N0") + " đ";
-                row.Cells["colDebt"].Value = r.Remaining.ToString("N0") + " đ";
-            }
-            dgvFines.ClearSelection();
-        }
-
         private void RecalcKpi()
         {
             decimal total = _filtered.Sum(r => r.Amount);
@@ -644,7 +784,7 @@ namespace LibraryManagement.Forms.FineManagement
         }
 
         // ============================================================
-        //  CLICK HANDLER (CellMouseClick)
+        //  CLICK HANDLER
         // ============================================================
         private void DgvFines_CellMouseClick(object? sender, DataGridViewCellMouseEventArgs e)
         {
@@ -655,6 +795,9 @@ namespace LibraryManagement.Forms.FineManagement
             if (row == null) return;
 
             string colName = dgvFines.Columns[e.ColumnIndex].Name;
+
+            // Click checkbox → bỏ qua, để DataGridView tự toggle
+            if (colName == "colSelect") return;
 
             if (colName == "colId")
             {
@@ -678,12 +821,11 @@ namespace LibraryManagement.Forms.FineManagement
                 return;
             }
 
-            // onMoreIcon hoặc fallback → mở menu
             ShowMoreMenu(row, e.RowIndex, e.ColumnIndex);
         }
 
         // ============================================================
-        //  MENU ... (Điều chỉnh / Hủy / Lịch sử / In biên lai)
+        //  MENU ...
         // ============================================================
         private void ShowMoreMenu(FineRow row, int rowIndex, int colIndex)
         {
@@ -691,8 +833,12 @@ namespace LibraryManagement.Forms.FineManagement
             {
                 var menu = new ContextMenuStrip { Font = new Font("Segoe UI", 9F) };
 
+                // MỚI: chỉnh sửa toàn bộ thông tin
+                var mnuEdit = new ToolStripMenuItem("  Chỉnh sửa thông tin",
+                    GlyphImage(GEdit, 14, Color.Black), (_, _) => ShowEditDialog(row));
+
                 var mnuAdjust = new ToolStripMenuItem("  Điều chỉnh mức phạt",
-                    GlyphImage(GEdit, 14, Color.Black), (_, _) => ShowAdjustDialog(row));
+                    GlyphImage(GEdit, 14, Color.Orange), (_, _) => ShowAdjustDialog(row));
                 var mnuCancel = new ToolStripMenuItem("  Hủy khoản phạt",
                     GlyphImage(GCancel, 14, Color.Red), (_, _) => ShowCancelDialog(row));
                 var mnuHistory = new ToolStripMenuItem("  Xem lịch sử",
@@ -700,9 +846,15 @@ namespace LibraryManagement.Forms.FineManagement
                 var mnuPrint = new ToolStripMenuItem("  In biên lai",
                     GlyphImage(GPrint, 14, Color.Black), (_, _) => PrintReceipt(row));
 
+                // Chỉ cho sửa khi chưa hủy và chưa thanh toán xong
+                bool canEdit = row.Status != FineStatus.Cancelled && row.Status != FineStatus.Paid;
+                mnuEdit.Enabled = canEdit;
+
+                // Điều chỉnh mức phạt cũng chỉ khi chưa hủy
                 mnuAdjust.Enabled = row.Status == FineStatus.Unpaid || row.Status == FineStatus.Partial;
                 mnuCancel.Enabled = row.Status != FineStatus.Cancelled;
 
+                menu.Items.Add(mnuEdit);
                 menu.Items.Add(mnuAdjust);
                 menu.Items.Add(mnuCancel);
                 menu.Items.Add(new ToolStripSeparator());
@@ -725,18 +877,20 @@ namespace LibraryManagement.Forms.FineManagement
         // ============================================================
         private void ShowCreateFineDialog()
         {
-            using var dlg = new FineCreateDialog.FineCreateDialog();
+            var checkedRow = GetCheckedRow();
+
+            using var dlg = new FineCreateDialog.FineCreateDialog(checkedRow);
             if (dlg.ShowDialog(FindForm()) != DialogResult.OK) return;
 
             var row = new FineRow
             {
                 FineId = $"PP{(_allRows.Count + 1):D4}",
-                ReaderId = dlg.ReaderId,
-                ReaderName = dlg.ReaderName,
-                TicketId = dlg.TicketId,
-                BookTitle = dlg.BookTitle,
-                CopyId = dlg.CopyId,
-                Type = dlg.FineType,
+                ReaderId = dlg.ReaderId,           // ← lấy từ dialog (đã có thể sửa)
+                ReaderName = dlg.ReaderName,       // ← lấy từ dialog
+                TicketId = dlg.TicketId,           // ← lấy từ dialog
+                BookTitle = checkedRow?.BookTitle ?? "",   // ← sách/vạch vẫn từ dòng nguồn
+                CopyId    = checkedRow?.CopyId ?? "",
+                Type = dlg.FineType,               // ← lấy từ dialog (đã có thể sửa)
                 Reason = dlg.Reason,
                 Amount = dlg.Amount,
                 Paid = 0,
@@ -751,6 +905,9 @@ namespace LibraryManagement.Forms.FineManagement
             });
             _allRows.Add(row);
             ApplyFilter();
+
+            foreach (DataGridViewRow r in dgvFines.Rows)
+                r.Cells["colSelect"].Value = false;
         }
 
         // ============================================================
@@ -782,6 +939,71 @@ namespace LibraryManagement.Forms.FineManagement
             ApplyFilter();
             if (_drawerRow == row) OpenDrawer(row);
         }
+        
+        private void ShowEditDialog(FineRow row)
+{
+    if (row.Status == FineStatus.Cancelled)
+    {
+        MessageBox.Show("Không thể chỉnh sửa phiếu đã hủy.",
+            "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        return;
+    }
+    if (row.Status == FineStatus.Paid)
+    {
+        MessageBox.Show("Không thể chỉnh sửa phiếu đã thanh toán đầy đủ.",
+            "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        return;
+    }
+
+    using var dlg = new FineEditDialog.FineEditDialog(row);
+    if (dlg.ShowDialog(FindForm()) != DialogResult.OK) return;
+
+    // Lưu giá trị cũ để ghi audit
+    decimal oldAmount = row.Amount;
+    string oldReaderId = row.ReaderId;
+    string oldReaderName = row.ReaderName;
+    string oldTicketId = row.TicketId;
+    FineType oldType = row.Type;
+    string oldReason = row.Reason;
+
+    // Cập nhật
+    row.ReaderId = dlg.ReaderId;
+    row.ReaderName = dlg.ReaderName;
+    row.TicketId = dlg.TicketId;
+    row.Type = dlg.FineType;
+    row.Amount = dlg.Amount;
+    row.Reason = dlg.Reason;
+
+    // Cập nhật lại status nếu cần (trường hợp sửa Amount)
+    if (row.Status != FineStatus.Cancelled)
+    {
+        if (row.Paid >= row.Amount) row.Status = FineStatus.Paid;
+        else if (row.Paid > 0) row.Status = FineStatus.Partial;
+        else row.Status = FineStatus.Unpaid;
+    }
+
+    // Ghi audit
+    var changes = new List<string>();
+    if (oldReaderId != row.ReaderId) changes.Add($"Mã ĐG: {oldReaderId} → {row.ReaderId}");
+    if (oldReaderName != row.ReaderName) changes.Add($"Tên ĐG: {oldReaderName} → {row.ReaderName}");
+    if (oldTicketId != row.TicketId) changes.Add($"Mã phiếu: {oldTicketId} → {row.TicketId}");
+    if (oldType != row.Type) changes.Add($"Loại: {oldType} → {row.Type}");
+    if (oldAmount != row.Amount) changes.Add($"Tiền: {oldAmount:N0} → {row.Amount:N0} đ");
+    if (oldReason != row.Reason) changes.Add("Lý do: đã thay đổi");
+
+    row.Audits.Add(new AuditRecord
+    {
+        At = DateTime.Now,
+        Action = "Chỉnh sửa",
+        BeforeAmount = oldAmount,
+        AfterAmount = row.Amount,
+        Reason = changes.Count > 0 ? string.Join("; ", changes) : "Chỉnh sửa thông tin phiếu phạt",
+        Actor = "Quản trị viên"
+    });
+
+    ApplyFilter();
+    if (_drawerRow == row) OpenDrawer(row);
+}
 
         private void ShowAdjustDialog(FineRow row)
         {
@@ -845,7 +1067,6 @@ namespace LibraryManagement.Forms.FineManagement
                 e.Graphics.DrawLine(pen, 0, 0, 0, pnlDrawer.Height);
             };
 
-            // Header
             var header = new Panel { Dock = DockStyle.Top, Height = 92, BackColor = SoftBlue, Padding = new Padding(14, 10, 14, 10) };
             lblDrawerTitle = new Label
             {
@@ -874,7 +1095,6 @@ namespace LibraryManagement.Forms.FineManagement
             header.Controls.Add(btnClose);
             header.Resize += (_, _) => btnClose.Location = new Point(header.Width - 40, 10);
 
-            // Tabs
             tabDrawer = new TabControl
             {
                 Dock = DockStyle.Fill, Font = new Font("Segoe UI", 9F), Padding = new Point(14, 4)
@@ -977,6 +1197,7 @@ namespace LibraryManagement.Forms.FineManagement
             {
                 "Tạo mới" => Primary,
                 "Điều chỉnh" => Orange,
+                "Chỉnh sửa" => Color.FromArgb(100, 130, 200),   // MỚI: xanh lam
                 "Hủy phiếu" => Red,
                 _ => TextGray
             };

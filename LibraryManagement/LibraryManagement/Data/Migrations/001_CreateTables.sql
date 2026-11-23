@@ -288,20 +288,36 @@ CREATE UNIQUE INDEX IF NOT EXISTS "UX_Reservations_AssignedCopy"
 
 CREATE TABLE IF NOT EXISTS "Fines" (
                                        "Id"                INTEGER PRIMARY KEY AUTOINCREMENT,
-                                       "FineCode"          TEXT NOT NULL UNIQUE,
-                                       "IdLoanDetail"      INTEGER NOT NULL,
-                                       "CreatedAt"         TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                                       "ViolationType"     TEXT NOT NULL,
+                                       "FineCode"          TEXT    NOT NULL UNIQUE,
+                                       "IdLoanDetail"      INTEGER,                          -- nullable: cho phép phạt không gắn phiếu mượn
+                                       "CreatedAt"         TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                       "ViolationType"     TEXT    NOT NULL,
                                        "AmountVnd"         INTEGER NOT NULL,
                                        "Description"       TEXT,
+
+    -- Trạng thái thanh toán
+                                       "Status"            TEXT    NOT NULL DEFAULT 'Unpaid',
+
+    -- Hủy phiếu (chỉ dùng khi Status = 'Cancelled')
+                                       "CancelledAt"       TEXT,
+                                       "CancelReason"      TEXT,
+
+    -- Audit điều chỉnh
+                                       "UpdatedAt"         TEXT,
 
                                        FOREIGN KEY ("IdLoanDetail")
                                            REFERENCES "LoanDetails"("Id")
                                            ON UPDATE CASCADE
                                            ON DELETE RESTRICT,
 
-                                       CHECK ("AmountVnd" > 0)
+
+                                       CHECK ("AmountVnd" > 0),
+                                       CHECK ("Status" IN ('Unpaid', 'Partial', 'Paid', 'Cancelled'))
 );
+
+CREATE INDEX IF NOT EXISTS "IX_Fines_IdLoanDetail" ON "Fines"("IdLoanDetail");
+CREATE INDEX IF NOT EXISTS "IX_Fines_Status"       ON "Fines"("Status");
+CREATE INDEX IF NOT EXISTS "IX_Fines_CreatedAt"    ON "Fines"("CreatedAt");
 
 
 -- =====================================================
@@ -309,13 +325,14 @@ CREATE TABLE IF NOT EXISTS "Fines" (
 -- =====================================================
 
 CREATE TABLE IF NOT EXISTS "FinePayments" (
-                                              "Id"                INTEGER PRIMARY KEY AUTOINCREMENT,
-                                              "PaymentCode"       TEXT NOT NULL UNIQUE,
-                                              "IdFine"            INTEGER NOT NULL,
-                                              "PaidAt"            TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                                              "AmountVnd"         INTEGER NOT NULL,
-                                              "PaymentMethod"     TEXT NOT NULL DEFAULT 'Cash',
-                                              "Note"              TEXT,
+                                              "Id"                 INTEGER PRIMARY KEY AUTOINCREMENT,
+                                              "PaymentCode"        TEXT    NOT NULL UNIQUE,
+                                              "IdFine"             INTEGER NOT NULL,
+                                              "PaidAt"             TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                              "AmountVnd"          INTEGER NOT NULL,
+                                              "PaymentMethod"      TEXT    NOT NULL DEFAULT 'Cash',
+                                              "Note"               TEXT,
+                                              "CreatedAt"          TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP, -- THÊM: thời điểm ghi nhận (khác PaidAt)
 
                                               FOREIGN KEY ("IdFine")
                                                   REFERENCES "Fines"("Id")
@@ -323,5 +340,35 @@ CREATE TABLE IF NOT EXISTS "FinePayments" (
                                                   ON DELETE RESTRICT,
 
                                               CHECK ("AmountVnd" > 0),
-                                              CHECK ("PaymentMethod" IN ('Cash', 'Other'))
+                                              CHECK ("PaymentMethod" IN ('Cash', 'BankTransfer', 'Other'))
 );
+
+CREATE INDEX IF NOT EXISTS "IX_FinePayments_IdFine" ON "FinePayments"("IdFine");
+CREATE INDEX IF NOT EXISTS "IX_FinePayments_PaidAt" ON "FinePayments"("PaidAt");
+
+
+CREATE TABLE IF NOT EXISTS "FineAuditLogs" (
+                                               "Id"            INTEGER PRIMARY KEY AUTOINCREMENT,
+                                               "IdFine"        INTEGER NOT NULL,
+                                               "Action"        TEXT    NOT NULL,          -- 'Created', 'Adjusted', 'Cancelled', 'Paid'
+                                               "BeforeAmount"  INTEGER NOT NULL DEFAULT 0,
+                                               "AfterAmount"   INTEGER NOT NULL DEFAULT 0,
+                                               "Reason"        TEXT,
+                                               "ActorUserId"   INTEGER NOT NULL,
+                                               "At"            TEXT    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+                                               FOREIGN KEY ("IdFine")
+                                                   REFERENCES "Fines"("Id")
+                                                   ON UPDATE CASCADE
+                                                   ON DELETE CASCADE,          -- xóa phiếu thì xóa luôn audit (hoặc RESTRICT nếu muốn giữ)
+
+                                               FOREIGN KEY ("ActorUserId")
+                                                   REFERENCES "Users"("Id")
+                                                   ON UPDATE CASCADE
+                                                   ON DELETE RESTRICT,
+
+                                               CHECK ("Action" IN ('Created', 'Adjusted', 'Cancelled', 'Paid'))
+);
+
+CREATE INDEX IF NOT EXISTS "IX_FineAuditLogs_IdFine" ON "FineAuditLogs"("IdFine");
+CREATE INDEX IF NOT EXISTS "IX_FineAuditLogs_At"     ON "FineAuditLogs"("At");

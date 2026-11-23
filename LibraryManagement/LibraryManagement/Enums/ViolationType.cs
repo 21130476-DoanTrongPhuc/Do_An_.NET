@@ -3,8 +3,7 @@
 public enum ViolationType
 {
     Overdue,
-    LostBook,
-    DamagedBook,
-    SeveralyDamagedBook,
+    Damaged,
+    Lost,
     Other
 }
