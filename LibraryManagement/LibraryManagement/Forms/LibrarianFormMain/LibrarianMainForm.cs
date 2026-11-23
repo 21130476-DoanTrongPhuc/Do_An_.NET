@@ -29,7 +29,9 @@ namespace LibraryManagement.Forms
         private TabPage? _tabLoan;
         private TabPage? _tabReport;
         private TabPage? _tabReturn;
+        private TabPage? _tabBookCatalog;
         private TabPage? _tabBookCopies;
+        private TabPage? _tabReaders;
         private TabPage? _tabOverdue;
         private TabPage? _tabFines;
 
@@ -66,7 +68,7 @@ namespace LibraryManagement.Forms
                 var today = DateTime.Today;
                 var monthStart = new DateTime(today.Year, today.Month, 1);
 
-                // 1. Lấy thông tin thủ thư / admin đang đăng nhập (chỉ Select các cột cần dùng)
+                // 1. Lấy thông tin thủ thư / admin đang đăng nhập
                 var currentUser = context.Users
                     .Where(u => u.Id == Session.CurrentLibrarianId)
                     .Select(u => new { u.FullName, u.UserType, u.UserCode })
@@ -110,7 +112,7 @@ namespace LibraryManagement.Forms
                 AddStat(2, GForward, "Sách đang mượn", borrowingCount.ToString("N0"), $"{borrowedTodayCount} lượt mượn hôm nay", false);
                 AddStat(3, GWarn, "Phiếu quá hạn", overdueCount.ToString("N0"), overdueCount > 0 ? "Cần xử lý ngay" : "Không có quá hạn", overdueCount > 0);
 
-                // 3. Giao dịch mượn/trả gần đây (Dùng Select để tránh lỗi NULL ở các cột Note / Condition)
+                // 3. Giao dịch mượn/trả gần đây
                 var recentDetails = context.LoanDetails
                     .OrderByDescending(ld => ld.Loan.BorrowedAt)
                     .ThenByDescending(ld => ld.Id)
@@ -252,9 +254,9 @@ namespace LibraryManagement.Forms
             mnuSystem.DropDownItems.Add("Đăng xuất", null, btnLogout_Click);
 
             var mnuCatalog = new ToolStripMenuItem("Danh mục");
+            mnuCatalog.DropDownItems.Add("Quản lý đầu sách", null, (_, _) => OpenBookCatalogTab());
             mnuCatalog.DropDownItems.Add("Quản lý bản sách", null, (_, _) => OpenBookCopiesTab());
-            mnuCatalog.DropDownItems.Add("Thêm đầu sách", null, (_, _) => Todo("Thêm đầu sách"));
-            mnuCatalog.DropDownItems.Add("Thêm độc giả", null, (_, _) => Todo("Thêm độc giả"));
+            mnuCatalog.DropDownItems.Add("Quản lý độc giả", null, (_, _) => OpenReadersTab());
 
             var mnuCirculation = new ToolStripMenuItem("Lưu thông");
             mnuCirculation.DropDownItems.Add("Quản lý mượn sách", null, (_, _) => OpenLoanTab());
@@ -287,9 +289,9 @@ namespace LibraryManagement.Forms
             };
             AddTool(ts, "Trang chủ", GHome, () => { _tabMain.SelectedIndex = 0; LoadData(); });
             ts.Items.Add(new ToolStripSeparator());
-            AddTool(ts, "Thêm đầu sách", GBook, () => Todo("Thêm đầu sách"));
+            AddTool(ts, "Thêm đầu sách", GBook, OpenAddBookAction);
             AddTool(ts, "Bản sách", GBook, OpenBookCopiesTab);
-            AddTool(ts, "Thêm độc giả", GPeople, () => Todo("Thêm độc giả"));
+            AddTool(ts, "Thêm độc giả", GPeople, OpenAddReaderAction);
             ts.Items.Add(new ToolStripSeparator());
             AddTool(ts, "Lập phiếu mượn", GForward, OpenLoanTab);
             AddTool(ts, "Nhận trả sách", GBack, OpenReturnTab);
@@ -593,14 +595,54 @@ namespace LibraryManagement.Forms
         private void OpenReturnTab() =>
             OpenOrSelectTab(ref _tabReturn, "Nhận trả sách", () => new BookFormReturn.BookFormReturn());
 
+        private void OpenBookCatalogTab() =>
+            OpenOrSelectTab(ref _tabBookCatalog, "Quản lý đầu sách", () =>
+            {
+                var ctrl = new Books.BookCatalogControl();
+                ctrl.ViewCopiesRequested += _ => OpenBookCopiesTab();
+                return ctrl;
+            });
+
         private void OpenBookCopiesTab() =>
             OpenOrSelectTab(ref _tabBookCopies, "Quản lý bản sách", () => new BookCopyControl());
+
+        private void OpenReadersTab() =>
+            OpenOrSelectTab(ref _tabReaders, "Quản lý độc giả", () =>
+            {
+                var ctrl = new Readers.ReaderManagementControl();
+                ctrl.ReaderDataChanged += LoadData;
+                return ctrl;
+            });
 
         private void OpenOverdueTab() =>
             OpenOrSelectTab(ref _tabOverdue, "Sách quá hạn", () => new OverdueBooks.OverdueBooks());
 
         private void OpenFinesTab() =>
             OpenOrSelectTab(ref _tabFines, "Quản lý tiền phạt", () => new FineManagement.FineManagement());
+
+        private void OpenAddBookAction()
+        {
+            OpenBookCatalogTab();
+            using var dlg = new Books.BookEditDialog(null);
+            if (dlg.ShowDialog() == DialogResult.OK)
+            {
+                if (_tabBookCatalog?.Controls[0] is Books.BookCatalogControl ctrl)
+                    ctrl.LoadData();
+                LoadData();
+            }
+        }
+
+        private void OpenAddReaderAction()
+        {
+            OpenReadersTab();
+            using var dlg = new Readers.ReaderEditDialog(null);
+            if (dlg.ShowDialog() == DialogResult.OK)
+            {
+                if (_tabReaders?.Controls[0] is Readers.ReaderManagementControl ctrl)
+                    ctrl.LoadData();
+                LoadData();
+            }
+        }
 
         // ============================================================
         //  TIỆN ÍCH
@@ -626,9 +668,6 @@ namespace LibraryManagement.Forms
             p.CloseFigure();
             return p;
         }
-
-        private void Todo(string feature) =>
-            MessageBox.Show($"Chức năng \"{feature}\" đang chờ hoàn thiện giao diện.", "LIBRA", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
         private void btnLogout_Click(object? sender, EventArgs e)
         {
