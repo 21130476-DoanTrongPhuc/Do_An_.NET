@@ -4,6 +4,7 @@ namespace LibraryManagement.DTO.Response;
 
 public class ReturnedBookInfor
 {
+    public string CopyCode { get; set; } = string.Empty;
     public int LoanDetailId  { get; set; }
     public string LoanCode { get; set; }
     public string Title { get; set; } = string.Empty;

@@ -8,13 +8,35 @@ namespace LibraryManagement.Data;
 
 public class DatabaseInitializer
 {
-    private static string MigrationFolder = "Data\\Migrations";
+    private static readonly string MigrationFolder = Path.Combine("Data", "Migrations");
+
+    private static readonly object InitLock = new();
+    private static bool _initialized;
 
     public static void Initialize()
     {
-        ResetOutdatedDatabaseIfNeeded();
+        lock (InitLock)
+        {
+            if (_initialized) return;
+            InitializeCore();
+            _initialized = true;
+        }
+    }
 
+    private static void InitializeCore()
+    {
         using var connection = DatabaseConnection.CreateConnection();
+
+        /* WAL giúp đọc/ghi đồng thời tốt hơn với Cache=Shared.
+           journal_mode là persistent (chỉ cần set 1 lần), busy_timeout là per-connection. */
+        using (var pragma = connection.CreateCommand())
+        {
+            pragma.CommandText = @"
+                PRAGMA journal_mode = WAL;
+                PRAGMA synchronous = NORMAL;
+                PRAGMA busy_timeout = 30000;";
+            pragma.ExecuteNonQuery();
+        }
 
         CreateMigrationHistoryTable(connection);
 
@@ -22,7 +44,7 @@ public class DatabaseInitializer
 
         if (!Directory.Exists(migrationPath))
         {
-            throw new DirectoryNotFoundException($"không tìm thấy thư mục migration: {migrationPath}");
+            throw new DirectoryNotFoundException($"Không tìm thấy thư mục migration: {migrationPath}");
         }
 
         var migrationFiles = Directory
@@ -54,59 +76,17 @@ public class DatabaseInitializer
         EnsureAdminAccount(connection);
     }
 
-    private static void ResetOutdatedDatabaseIfNeeded()
-    {
-        string dbPath = DatabaseConnection.GetDatabasePath();
-        if (!File.Exists(dbPath))
-        {
-            return;
-        }
-
-        bool isOutdated = false;
-        using (var checkConnection = DatabaseConnection.CreateConnection())
-        {
-            using var command = checkConnection.CreateCommand();
-            command.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'Users';";
-            long userTableCount = (long)command.ExecuteScalar()!;
-            if (userTableCount == 0)
-            {
-                isOutdated = true;
-            }
-        }
-
-        if (isOutdated)
-        {
-            SqliteConnection.ClearAllPools();
-            File.Delete(dbPath);
-            if (File.Exists(dbPath + "-wal")) File.Delete(dbPath + "-wal");
-            if (File.Exists(dbPath + "-shm")) File.Delete(dbPath + "-shm");
-        }
-    }
-
-    private static void EnsureAdminAccount(SqliteConnection connection)
-    {
-        using var command = connection.CreateCommand();
-
-        command.CommandText = @"
-            INSERT OR IGNORE INTO ""Users"" 
-                (""UserCode"", ""Username"", ""PasswordHash"", ""FullName"", ""UserType"", ""MaxActiveCopies"", ""Status"")
-            VALUES 
-                ('NV000', 'admin', '123456', 'Quản trị viên', 'Admin', NULL, 'Active');
-            UPDATE ""Users"" SET ""PasswordHash"" = '123456', ""Status"" = 'Active' WHERE ""Username"" = 'admin';";
-
-        command.ExecuteNonQuery();
-    }
-
     private static void CreateMigrationHistoryTable(SqliteConnection connection)
     {
         using var command = connection.CreateCommand();
 
-        command.CommandText = @"CREATE TABLE IF NOT EXISTS SchemaMigrations 
-                                (
-                                    Version INTEGER PRIMARY KEY,
-                                    MigrationName TEXT NOT NULL,
-                                    AppliedAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-                                );";
+        command.CommandText = @"
+            CREATE TABLE IF NOT EXISTS SchemaMigrations
+            (
+                Version       INTEGER PRIMARY KEY,
+                MigrationName TEXT NOT NULL UNIQUE,
+                AppliedAt     TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );";
 
         command.ExecuteNonQuery();
     }
@@ -114,14 +94,14 @@ public class DatabaseInitializer
     private static int GetMigrationVersion(string filePath)
     {
         string fileName = Path.GetFileNameWithoutExtension(filePath);
+        string versionPart = fileName.Split('_')[0];
 
-        string versionPath = fileName.Split('_')[0];
-
-        if (!int.TryParse(versionPath, NumberStyles.None, CultureInfo.InvariantCulture, out int version) ||
+        if (!int.TryParse(versionPart, NumberStyles.None, CultureInfo.InvariantCulture, out int version) ||
             version <= 0)
         {
             throw new InvalidOperationException($"Tên migration không hợp lệ: {fileName}");
         }
+
         return version;
     }
 
@@ -129,19 +109,26 @@ public class DatabaseInitializer
     {
         using var command = connection.CreateCommand();
 
-        command.CommandText = @"SELECT COUNT(*) FROM SchemaMigrations WHERE Version = $version";
-
+        command.CommandText = "SELECT COUNT(*) FROM SchemaMigrations WHERE Version = $version";
         command.Parameters.AddWithValue("$version", version);
 
         long count = (long)command.ExecuteScalar()!;
-
         return count > 0;
     }
 
-    private static void ApplyMigration(SqliteConnection connection, string migrationFilePath, string migrationName,
+    private static void ApplyMigration(
+        SqliteConnection connection,
+        string migrationFilePath,
+        string migrationName,
         int version)
     {
         string sql = File.ReadAllText(migrationFilePath);
+
+        if (string.IsNullOrWhiteSpace(sql))
+        {
+            throw new InvalidOperationException($"Migration rỗng: {migrationName}");
+        }
+
         using var transaction = connection.BeginTransaction();
 
         try
@@ -150,30 +137,40 @@ public class DatabaseInitializer
             {
                 command.Transaction = transaction;
                 command.CommandText = sql;
-
                 command.ExecuteNonQuery();
             }
 
             using (var historyCommand = connection.CreateCommand())
             {
                 historyCommand.Transaction = transaction;
-
-                historyCommand.CommandText = @"INSERT INTO SchemaMigrations (Version, MigrationName)
-                                               VALUES ($version, $name)";
-
+                historyCommand.CommandText = @"
+                    INSERT INTO SchemaMigrations (Version, MigrationName)
+                    VALUES ($version, $name)";
                 historyCommand.Parameters.AddWithValue("$version", version);
-
                 historyCommand.Parameters.AddWithValue("$name", migrationName);
-
                 historyCommand.ExecuteNonQuery();
             }
 
             transaction.Commit();
         }
-        catch (Exception)
+        catch
         {
             transaction.Rollback();
             throw;
         }
+    }
+
+    private static void EnsureAdminAccount(SqliteConnection connection)
+    {
+        using var command = connection.CreateCommand();
+
+        command.CommandText = @"
+            INSERT OR IGNORE INTO ""Users""
+                (""UserCode"", ""Username"", ""PasswordHash"", ""FullName"", ""UserType"", ""MaxActiveCopies"", ""Status"")
+            VALUES
+                ('NV000', 'admin', '123456', 'Quản trị viên', 'Admin', NULL, 'Active');
+            UPDATE ""Users"" SET ""PasswordHash"" = '123456', ""Status"" = 'Active' WHERE ""Username"" = 'admin';";
+
+        command.ExecuteNonQuery();
     }
 }

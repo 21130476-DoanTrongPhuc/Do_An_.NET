@@ -58,7 +58,7 @@
     </ItemGroup>
 
 	<ItemGroup>
-		<None Update="Data/Migrations/**/*.sql">
+		<None Update="Data\Migrations\*.sql">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</None>
 	</ItemGroup>

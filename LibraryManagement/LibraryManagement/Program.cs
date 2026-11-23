@@ -3,6 +3,8 @@ using LibraryManagement.Forms;
 using LibraryManagement.Forms.BookFormReturn;
 using LibraryManagement.Forms.HomePage;
 using LibraryManagement.Forms.LoginForm;
+using LibraryManagement.Forms.OverdueBooks;
+using LibraryManagement.Forms.OverdueBooks;
 using LibraryManagement.Helpers;
 using LibraryManagement.Repositories;
 using LibraryManagement.Repositories.Interafaces;
@@ -35,9 +37,13 @@ internal static class Program
             services.AddTransient<ReturnedBookServiceImpl>();
             
             services.AddTransient<FineRepository, FineRepositoryImpl>();
+
+            services.AddTransient<ManageOverdueBookRepository, ManageOverdueRepositoryImpl>();
+            services.AddTransient<ManageOverdueServiceImpl>();
             
             services.AddTransient<LoginForm>();
             services.AddTransient<BookFormReturn>();
+            services.AddTransient<OverdueBooks>();
             
             AppServices.Provider = services.BuildServiceProvider();
 

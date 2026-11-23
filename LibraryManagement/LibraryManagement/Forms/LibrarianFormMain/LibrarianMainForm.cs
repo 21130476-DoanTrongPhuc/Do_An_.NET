@@ -113,7 +113,7 @@ namespace LibraryManagement.Forms.LibrarianFormMain
         // --------- Trang Sách quá hạn ---------
         private void ShowOverdueBooks()
         {
-            var uc = new OverdueBooks.OverdueBooks();
+            var uc = AppServices.Provider.GetRequiredService<OverdueBooks.OverdueBooks>();
             uc.CloseRequested += (_, _) => ShowOverviewPage();
 
             // Điều hướng sang trang Nhận trả sách (có thể prefill mã phiếu sau)

@@ -33,6 +33,7 @@ public class LibraryDbContext : DbContext
     public DbSet<Reservations> Reservations { get; set; }
     public DbSet<Fines> Fines { get; set; }
     public DbSet<FinePayments> FinePayments { get; set; }
+    public DbSet<Reminders> Reminders  { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -146,5 +147,38 @@ public class LibraryDbContext : DbContext
             .WithMany(f => f.FinePayments)
             .HasForeignKey(p => p.IdFine)
             .OnDelete(DeleteBehavior.Restrict);
+        
+        modelBuilder.Entity<Reminders>()
+            .HasOne(e => e.LoanDetail)
+            .WithMany(ld => ld.Reminders)
+            .HasForeignKey(e => e.IdLoanDetail)
+            .OnDelete(DeleteBehavior.Cascade);
+        
+        modelBuilder.Entity<Reminders>().ToTable("Reminders");
+        modelBuilder.Entity<Reminders>().HasKey(r => r.Id);
+
+        modelBuilder.Entity<Reminders>()
+            .Property(r => r.Channel)
+            .HasConversion<string>()          // Email / SMS
+            .IsRequired();
+
+        modelBuilder.Entity<Reminders>()
+            .Property(r => r.Status)
+            .HasConversion<string>()          // Pending / Sent / Failed
+            .IsRequired();
+
+        modelBuilder.Entity<Reminders>()
+            .Property(r => r.CreatedAt)
+            .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+        modelBuilder.Entity<Reminders>()
+            .Property(r => r.UpdatedAt)
+            .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+        modelBuilder.Entity<Reminders>()
+            .HasOne(r => r.LoanDetail)
+            .WithMany(ld => ld.Reminders)
+            .HasForeignKey(r => r.IdLoanDetail)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

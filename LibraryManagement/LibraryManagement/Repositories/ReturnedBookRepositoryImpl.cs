@@ -97,6 +97,7 @@ public class ReturnedBookRepositoryImpl : ReturnedBookRepository
                     ld.Loan.LoanCode,
                     ld.BookCopy.Book.Title,
                     ld.BookCopy.Book.ISBN,
+                    ld.BookCopy.CopyCode,
                     ld.PhysicalConditionBefore,
                     ld.DueAt
                 })
@@ -111,9 +112,11 @@ public class ReturnedBookRepositoryImpl : ReturnedBookRepository
                     LoanDetailId = x.LoanDetailId, // <--- GÁN VÀO DTO Ở ĐÂY
                     LoanCode = x.LoanCode,
                     Title = x.Title,
+                    CopyCode = x.CopyCode,
                     ISBN = x.ISBN,
                     PhysicalConditionBefore = x.PhysicalConditionBefore,
                     DueAt = x.DueAt,
+                    ReturnedAt = DateTime.Today,
                     NumberDaysLate = daysLate,
                     PhysicalConditionAfter = BookCondition.Good,
                     AmountPayDaysLate = daysLate * 5000
