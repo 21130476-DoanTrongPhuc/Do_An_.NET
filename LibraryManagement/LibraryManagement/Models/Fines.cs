@@ -1,6 +1,4 @@
-﻿using LibraryManagement.Enums;
-
-namespace LibraryManagement.Models;
+﻿namespace LibraryManagement.Models;
 
 public class Fines
 {
@@ -20,4 +18,5 @@ public class Fines
     public LoanDetails? LoanDetail { get; set; }
     public ICollection<FinePayments> FinePayments { get; set; } = new List<FinePayments>();
     public ICollection<FineAuditLogs> AuditLogs { get; set; } = new List<FineAuditLogs>();
+    public string Status { get; set; }
 }
