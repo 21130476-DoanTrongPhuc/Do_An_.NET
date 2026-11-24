@@ -6,7 +6,7 @@ namespace LibraryManagement.Forms.FineAdjustDialog
 {
     public partial class FineAdjustDialog : Form
     {
-        public decimal NewAmount { get; private set; }
+        public int NewAmount { get; private set; }
         public string Reason { get; private set; } = "";
 
         private readonly FineManagement.FineManagement.FineRow _row;
@@ -201,9 +201,16 @@ namespace LibraryManagement.Forms.FineAdjustDialog
             lblError.Text = "";
 
             string raw = txtAmount.Text.Trim().Replace(",", "").Replace(".", "");
-            if (!decimal.TryParse(raw, out var amt) || amt < 0)
+            if (!int.TryParse(raw, out var amt) || amt <= 0)
             {
-                lblError.Text = "Số tiền không hợp lệ.";
+                lblError.Text = "Số tiền phải là số nguyên dương.";
+                return;
+            }
+
+            // ⭐ Cảnh báo sớm nếu nhỏ hơn số đã trả (server cũng check, nhưng UX tốt hơn)
+            if (amt < _row.Paid)
+            {
+                lblError.Text = $"Mức phạt không được nhỏ hơn số đã trả ({_row.Paid:N0} đ).";
                 return;
             }
 

@@ -1,5 +1,6 @@
 ﻿using System.Text;
 using LibraryManagement.Data;
+using LibraryManagement.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace LibraryManagement.Controls;
@@ -40,7 +41,7 @@ public partial class StatisticalReportControl : UserControl
             using var context = new LibraryDbContext();
 
             int totalBooks = context.Books.Count();
-            int totalReaders = context.Users.Count(u => u.UserType == "Reader");
+            int totalReaders = context.Users.Count(u => u.UserType == UserType.Reader);
 
             var loansInRange = context.Loans
                 .Include(l => l.Reader)

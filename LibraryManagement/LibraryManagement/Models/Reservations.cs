@@ -3,7 +3,7 @@
 public class Reservations
 {
     public int Id { get; set; }
-    public string ReservationCode { get; set; }
+    public string ReservationCode { get; set; } = string.Empty;
     public int IdReader { get; set; }
     public int IdBook { get; set; }
     public int? IdBookCopy { get; set; }
@@ -13,13 +13,12 @@ public class Reservations
     public DateTime? AssignedAt { get; set; }
     public DateTime? FulfilledAt { get; set; }
     public DateTime? CancelledAt { get; set; }
-    public string Status { get; set; }
-    public string Note { get; set; }
+    public string Status { get; set; } = "Pending";
+    public string? Note { get; set; }               // ← nullable
 
     // Navigation
-    public Users Reader { get; set; }
-    public Book Book { get; set; }
-    public BookCopies BookCopy { get; set; }
-    public Loans Loan { get; set; }
-    
+    public Users Reader { get; set; } = null!;
+    public Book Book { get; set; } = null!;
+    public BookCopies? BookCopy { get; set; }
+    public Loans? Loan { get; set; }
 }

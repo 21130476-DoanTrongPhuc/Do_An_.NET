@@ -1,4 +1,5 @@
 ﻿using LibraryManagement.Data;
+using LibraryManagement.Enums;
 using LibraryManagement.Models;
 
 namespace LibraryManagement.Forms.RegisterForm;
@@ -58,7 +59,7 @@ public partial class RegisterForm : Form
                 Email = email,
                 Phone = phone,
                 PasswordHash = password,
-                UserType = "Reader",
+                UserType = UserType.Reader,
                 MaxActiveCopies = 3,
                 Status = "Active"
             };

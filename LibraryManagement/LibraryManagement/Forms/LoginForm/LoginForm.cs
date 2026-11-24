@@ -1,4 +1,5 @@
 ﻿using LibraryManagement.Data;
+using LibraryManagement.Enums;
 using LibraryManagement.Helpers;
 using LibraryManagement.Models;
 
@@ -43,7 +44,7 @@ public partial class LoginForm : Form
                     Username = "admin",
                     PasswordHash = "123456",
                     FullName = "Quản trị viên",
-                    UserType = "Admin",
+                    UserType = UserType.Reader,
                     MaxActiveCopies = null,
                     Status = "Active"
                 });
@@ -98,7 +99,7 @@ public partial class LoginForm : Form
                 var librarian = context.Users.FirstOrDefault(l =>
                     l.Username == username &&
                     l.PasswordHash == password &&
-                    (l.UserType == "Librarian" || l.UserType == "Admin"));
+                    l.UserType == UserType.Librarian);
 
                 if (librarian != null)
                 {
@@ -127,7 +128,7 @@ public partial class LoginForm : Form
                 var reader = context.Users.FirstOrDefault(r =>
                     (r.UserCode == username || r.Email == username) &&
                     r.PasswordHash == password &&
-                    r.UserType == "Reader");
+                    r.UserType == UserType.Reader);
 
                 if (reader != null)
                 {

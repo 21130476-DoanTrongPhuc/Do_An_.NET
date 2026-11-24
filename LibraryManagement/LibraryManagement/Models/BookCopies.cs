@@ -2,7 +2,6 @@
 
 namespace LibraryManagement.Models;
 
-// Trong file Models/BookCopies.cs:
 public class BookCopies
 {
     public int Id { get; set; }
@@ -11,11 +10,10 @@ public class BookCopies
     public string? ShelfLocation { get; set; }
     public DateTime ReceivedAt { get; set; }
     public int PurchasePriceVnd { get; set; }
-    public string PhysicalCondition { get; set; } = "Good";
-    public BookCopyStatus CirculationStatus { get; set; }
+    public BookCondition PhysicalCondition { get; set; } = BookCondition.Good;   // ← enum thay vì string
+    public BookCopyStatus CirculationStatus { get; set; } = BookCopyStatus.Available;
 
-    // Sửa từ Notes -> Note (số ít) để khớp với cột "Note" trong SQLite
-    public string? Note { get; set; } 
+    public string? Note { get; set; }
 
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }

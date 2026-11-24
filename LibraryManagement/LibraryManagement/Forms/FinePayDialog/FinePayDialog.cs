@@ -2,7 +2,7 @@
 {
     public partial class FinePayDialog : Form
     {
-        public decimal PaidAmount { get; private set; }
+        public int PaidAmount { get; private set; }
         public string Method { get; private set; } = "Tiền mặt";
 
         private readonly FineManagement.FineManagement.FineRow _row;
@@ -131,9 +131,22 @@
         private void TrySave()
         {
             lblError.Text = "";
-            if (!decimal.TryParse(txtAmount.Text.Trim().Replace(",", "").Replace(".", ""), out var amt) || amt <= 0)
-            { lblError.Text = "Số tiền phải là số dương."; return; }
-            if (amt > _row.Remaining) { lblError.Text = "Số tiền vượt quá số còn nợ."; return; }
+
+            // Parse số nguyên — bỏ dấu phân cách
+            if (!int.TryParse(
+                    txtAmount.Text.Trim().Replace(",", "").Replace(".", ""),
+                    out var amt) || amt <= 0)
+            {
+                lblError.Text = "Số tiền phải là số nguyên dương.";
+                return;
+            }
+
+            if (amt > _row.Remaining)
+            {
+                lblError.Text = $"Số tiền vượt quá số còn nợ ({_row.Remaining:N0} đ).";
+                return;
+            }
+
             PaidAmount = amt;
             Method = rdoCash.Checked ? "Tiền mặt" : "Chuyển khoản";
             DialogResult = DialogResult.OK;

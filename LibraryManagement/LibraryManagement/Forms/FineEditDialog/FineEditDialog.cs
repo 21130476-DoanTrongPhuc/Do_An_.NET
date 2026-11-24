@@ -17,7 +17,7 @@ namespace LibraryManagement.Forms.FineEditDialog
         public string TicketId { get; private set; } = "";
         public FineManagement.FineManagement.FineType FineType { get; private set; }
         public string Reason { get; private set; } = "";
-        public decimal Amount { get; private set; }
+        public int Amount { get; private set; }
 
         // ====== Controls ======
         private TextBox txtReaderId = null!;
@@ -173,8 +173,16 @@ namespace LibraryManagement.Forms.FineEditDialog
 
             // Các field
             txtReaderId   = AddField(tbl, "Mã độc giả *");
+            txtReaderId.ReadOnly = true;
+            txtReaderId.BackColor = Color.FromArgb(245, 245, 245);
+            txtReaderId.TabStop = false;
+
             txtReaderName = AddField(tbl, "Tên độc giả");
-            txtTicket     = AddField(tbl, "Mã phiếu mượn");
+            txtReaderName.ReadOnly = true;
+            txtReaderName.BackColor = Color.FromArgb(245, 245, 245);
+            txtReaderName.TabStop = false;
+
+            txtTicket = AddField(tbl, "Mã phiếu mượn *");   // cho phép sửa
 
             AddLabelRow(tbl, "Loại vi phạm *");
             cboType = new ComboBox
@@ -253,8 +261,10 @@ namespace LibraryManagement.Forms.FineEditDialog
             if (idx >= 0 && idx < cboType.Items.Count)
                 cboType.SelectedIndex = idx;
 
-            lblCurrentInfo.Text = $"Mã phạt: {_row.FineId}  ·  Ngày tạo: {_row.CreatedAt:dd/MM/yyyy HH:mm}  ·  " +
-                                  $"Người lập: {_row.CreatedBy}  ·  Đã trả: {_row.Paid:N0} đ";
+            lblCurrentInfo.Text =
+                $"Mã phạt: {_row.FineId}  ·  Ngày tạo: {_row.CreatedAt:dd/MM/yyyy HH:mm}  ·  " +
+                $"Người lập: {_row.CreatedBy}  ·  Đã trả: {_row.Paid:N0} đ\n" +
+                "Lưu ý: Mã độc giả / Tên độc giả chỉ hiển thị — đổi độc giả bằng cách đổi Mã phiếu mượn.";
         }
 
         // ====== Lưu ======
@@ -262,21 +272,20 @@ namespace LibraryManagement.Forms.FineEditDialog
         {
             lblError.Text = "";
 
-            if (string.IsNullOrWhiteSpace(txtReaderId.Text))
+            if (string.IsNullOrWhiteSpace(txtTicket.Text))
             {
-                lblError.Text = "Vui lòng nhập Mã độc giả.";
+                lblError.Text = "Vui lòng nhập Mã phiếu mượn.";
                 return;
             }
 
-            if (!decimal.TryParse(
+            if (!int.TryParse(
                     txtAmount.Text.Trim().Replace(",", "").Replace(".", ""),
                     out var amt) || amt <= 0)
             {
-                lblError.Text = "Số tiền phạt phải là số dương.";
+                lblError.Text = "Số tiền phạt phải là số nguyên dương.";
                 return;
             }
 
-            // Không cho giảm số tiền xuống dưới số đã trả
             if (amt < _row.Paid)
             {
                 lblError.Text = $"Số tiền phạt không được nhỏ hơn số đã trả ({_row.Paid:N0} đ).";
@@ -289,7 +298,7 @@ namespace LibraryManagement.Forms.FineEditDialog
                 return;
             }
 
-            ReaderId   = txtReaderId.Text.Trim();
+            ReaderId   = txtReaderId.Text.Trim();     // giữ để UI hiển thị, không gửi
             ReaderName = txtReaderName.Text.Trim();
             TicketId   = txtTicket.Text.Trim();
             FineType   = (FineManagement.FineManagement.FineType)cboType.SelectedIndex;

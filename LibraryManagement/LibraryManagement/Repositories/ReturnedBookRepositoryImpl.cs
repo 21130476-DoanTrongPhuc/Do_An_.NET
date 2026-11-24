@@ -96,7 +96,7 @@ public class ReturnedBookRepositoryImpl : ReturnedBookRepository
                     LoanDetailId = ld.Id,          
                     ld.Loan.LoanCode,
                     ld.BookCopy.Book.Title,
-                    ld.BookCopy.Book.ISBN,
+                    ld.BookCopy.Book.Isbn,
                     ld.BookCopy.CopyCode,
                     ld.PhysicalConditionBefore,
                     ld.DueAt
@@ -113,7 +113,7 @@ public class ReturnedBookRepositoryImpl : ReturnedBookRepository
                     LoanCode = x.LoanCode,
                     Title = x.Title,
                     CopyCode = x.CopyCode,
-                    ISBN = x.ISBN,
+                    ISBN = x.Isbn,
                     PhysicalConditionBefore = x.PhysicalConditionBefore,
                     DueAt = x.DueAt,
                     ReturnedAt = DateTime.Today,

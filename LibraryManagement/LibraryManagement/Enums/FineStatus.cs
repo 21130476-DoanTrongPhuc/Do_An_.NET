@@ -2,5 +2,8 @@
 
 public enum FineStatus
 {
-    Unpaid,Partial,Paid,Cancelled
+    Unpaid,
+    Partial,
+    Paid,
+    Cancelled
 }

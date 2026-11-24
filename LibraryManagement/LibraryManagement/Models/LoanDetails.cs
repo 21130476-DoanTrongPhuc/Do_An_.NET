@@ -10,7 +10,7 @@ public class LoanDetails
     public DateTime DueAt { get; set; }
     public DateTime? ReturnedAt { get; set; }
 
-    public string PhysicalConditionBefore { get; set; } = string.Empty;
+    public BookCondition PhysicalConditionBefore { get; set; }   // ← enum (SQL CHECK 4 giá trị)
     public BookCondition? PhysicalConditionAfter { get; set; }
 
     public int RenewalCount { get; set; }

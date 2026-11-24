@@ -6,6 +6,4 @@ public enum BookCondition
     MinorDamage,
     MajorDamage,
     Lost
-    
-    
 }

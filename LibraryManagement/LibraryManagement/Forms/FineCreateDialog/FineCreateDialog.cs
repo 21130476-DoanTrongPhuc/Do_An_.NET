@@ -12,7 +12,7 @@ namespace LibraryManagement.Forms.FineCreateDialog
         public string TicketId { get; private set; } = "";
         public FineManagement.FineManagement.FineType FineType { get; private set; }
         public string Reason { get; private set; } = "";
-        public decimal Amount { get; private set; }
+        public int Amount { get; private set; }
 
         // ====== Controls ======
         private TextBox txtReaderId = null!;
@@ -259,17 +259,18 @@ namespace LibraryManagement.Forms.FineCreateDialog
         {
             lblError.Text = "";
 
-            if (string.IsNullOrWhiteSpace(txtReaderId.Text))
+            // ⭐ Bắt buộc TicketId — cần để resolve LoanDetailId
+            if (string.IsNullOrWhiteSpace(txtTicket.Text))
             {
-                lblError.Text = "Vui lòng nhập Mã độc giả.";
+                lblError.Text = "Vui lòng nhập Mã phiếu mượn.";
                 return;
             }
 
-            if (!decimal.TryParse(
+            if (!int.TryParse(
                     txtAmount.Text.Trim().Replace(",", "").Replace(".", ""),
                     out var amt) || amt <= 0)
             {
-                lblError.Text = "Số tiền phạt phải là số dương.";
+                lblError.Text = "Số tiền phạt phải là số nguyên dương.";
                 return;
             }
 

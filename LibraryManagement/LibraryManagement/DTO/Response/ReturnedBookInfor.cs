@@ -9,7 +9,7 @@ public class ReturnedBookInfor
     public string LoanCode { get; set; }
     public string Title { get; set; } = string.Empty;
     public string? ISBN { get; set; }
-    public string PhysicalConditionBefore { get; set; }
+    public BookCondition PhysicalConditionBefore { get; set; }
     public BookCondition PhysicalConditionAfter { get; set; }
     public DateTime DueAt { get; set; }
     public DateTime? ReturnedAt { get; set; }

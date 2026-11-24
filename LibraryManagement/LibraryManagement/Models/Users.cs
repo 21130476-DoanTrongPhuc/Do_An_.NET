@@ -1,4 +1,6 @@
-﻿namespace LibraryManagement.Models;
+﻿using LibraryManagement.Enums;
+
+namespace LibraryManagement.Models;
 
 public class Users
 {
@@ -7,17 +9,17 @@ public class Users
     public string FullName { get; set; } = string.Empty;
     public string? Username { get; set; }
     public string? PasswordHash { get; set; }
-    public string? DateOfBirth { get; set; }
+    public DateTime? DateOfBirth { get; set; }      // ← DateTime? (SQL TEXT)
     public string? Phone { get; set; }
     public string? Email { get; set; }
     public string? Address { get; set; }
-    public string UserType { get; set; } = string.Empty;
+    public UserType UserType { get; set; } 
     public int? MaxActiveCopies { get; set; }
     public string Status { get; set; } = "Active";
-    public DateTime CreatedAt { get; set; } 
-    public DateTime UpdatedAt { get; set; } 
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
 
-    // Navigation Properties (Chỉ giữ lại phần của Reader khớp với SQL)
+    // Navigation
     public ICollection<ReaderCards> ReaderCards { get; set; } = new List<ReaderCards>();
     public ICollection<Loans> BorrowedLoans { get; set; } = new List<Loans>();
     public ICollection<Reservations> Reservations { get; set; } = new List<Reservations>();

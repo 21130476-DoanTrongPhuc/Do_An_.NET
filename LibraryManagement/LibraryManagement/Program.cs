@@ -40,6 +40,9 @@ internal static class Program
 
             services.AddTransient<ManageOverdueBookRepository, ManageOverdueRepositoryImpl>();
             services.AddTransient<ManageOverdueServiceImpl>();
+
+            services.AddTransient<FineRepository, FineRepositoryImpl>();
+            services.AddTransient<FineService>();
             
             services.AddTransient<LoginForm>();
             services.AddTransient<BookFormReturn>();
