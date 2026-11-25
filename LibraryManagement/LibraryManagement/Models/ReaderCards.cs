@@ -1,4 +1,6 @@
-﻿namespace LibraryManagement.Models;
+﻿using LibraryManagement.Enums;
+
+namespace LibraryManagement.Models;
 
 public class ReaderCards
 {
@@ -7,8 +9,8 @@ public class ReaderCards
     public string CardCode { get; set; } = string.Empty;
     public DateTime IssuedAt { get; set; }
     public DateTime ExpiresAt { get; set; }
-    public string Status { get; set; } = "Active";
-    public string? Note { get; set; }               // ← nullable
+    public ReaderCardStatus Status { get; set; } = ReaderCardStatus.Active;
+    public string? Note { get; set; }
 
     // Navigation
     public Users Reader { get; set; } = null!;

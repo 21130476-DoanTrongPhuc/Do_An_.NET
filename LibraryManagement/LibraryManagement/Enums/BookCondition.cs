@@ -2,8 +2,5 @@
 
 public enum BookCondition
 {
-    Good,
-    MinorDamage,
-    MajorDamage,
-    Lost
+    New, Good, Worn, Damaged, Lost
 }

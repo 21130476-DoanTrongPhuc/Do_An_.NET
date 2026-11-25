@@ -4,6 +4,7 @@ using LibraryManagement.Enums;
 using LibraryManagement.Filters;
 using LibraryManagement.Services;
 using System.Drawing.Drawing2D;
+using System.Drawing.Printing;
 
 namespace LibraryManagement.Forms.BookFormReturn;
 
@@ -66,6 +67,13 @@ public partial class BookFormReturn : UserControl
     private int _totalPages = 1;
     private List<DataGridViewRow> _allRowsBuffer = new();
     private List<ReturnedBookInfor> _allBooks = new();
+    private sealed record ReturnReceiptLine(
+        string CopyCode,
+        string Title,
+        string DueDate,
+        string ConditionAfter,
+        decimal LateFee,
+        decimal DamageFee);
 
     public event EventHandler? CloseRequested;
 
@@ -841,11 +849,12 @@ public partial class BookFormReturn : UserControl
     // =========================================================
     // NGHIỆP VỤ
     // =========================================================
-    private static BookCondition ConvertCondition(string condition) => condition switch
+    private static BookCondition ConvertCondition(string condition) => condition?.Trim() switch
     {
+        "Mới" => BookCondition.New,
         "Bình thường" => BookCondition.Good,
-        "Hư hỏng nhẹ" => BookCondition.MinorDamage,
-        "Hư hỏng nặng" => BookCondition.MajorDamage,
+        "Cũ" or "Hư hỏng nhẹ" => BookCondition.Worn,
+        "Hư hỏng" or "Hư hỏng nặng" => BookCondition.Damaged,
         "Mất sách" => BookCondition.Lost,
         _ => BookCondition.Good
     };
@@ -861,6 +870,14 @@ public partial class BookFormReturn : UserControl
             MessageBox.Show("Vui lòng chọn ít nhất một cuốn sách.");
             return;
         }
+
+        var receiptLines = checkedRows.Select(row => new ReturnReceiptLine(
+            row.Cells["colCopyCode"].Value?.ToString() ?? "",
+            row.Cells["colTitle"].Value?.ToString() ?? "",
+            row.Cells["colDue"].Value?.ToString() ?? "",
+            row.Cells["colCondReturn"].Value?.ToString() ?? "Bình thường",
+            ParseMoney(row.Cells["colLateFee"].Value),
+            ParseMoney(row.Cells["colDamageFee"].Value))).ToList();
 
         decimal total = checkedRows.Sum(row =>
             ParseMoney(row.Cells["colLateFee"].Value) +
@@ -890,7 +907,19 @@ public partial class BookFormReturn : UserControl
             MessageBox.Show("Đã xác nhận trả sách thành công.",
                 "LIBRA", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
-            if (print) { /* TODO: in phiếu trả sách */ }
+            if (print)
+            {
+                try
+                {
+                    ShowReturnPrintPreview(receiptLines, total, payMode, _currentReader);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(
+                        $"Sách đã được trả thành công nhưng không thể mở bản in: {ex.Message}",
+                        "Không thể in phiếu", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+            }
 
             await SearchCurrentReaderAsync();
         }
@@ -899,6 +928,127 @@ public partial class BookFormReturn : UserControl
             MessageBox.Show($"Không thể trả sách: {ex.Message}",
                 "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
+    }
+
+    private void ShowReturnPrintPreview(
+        IReadOnlyList<ReturnReceiptLine> items,
+        decimal total,
+        string paymentStatus,
+        ReturnedBookReaderInfor? reader)
+    {
+        using var document = new PrintDocument
+        {
+            DocumentName = $"PhieuTra_{reader?.UserCode ?? "DG"}_{DateTime.Now:yyyyMMddHHmmss}"
+        };
+        document.DefaultPageSettings.PaperSize = new PaperSize("A4", 827, 1169);
+        document.DefaultPageSettings.Margins = new Margins(55, 55, 55, 55);
+
+        int nextItem = 0;
+        document.BeginPrint += (_, _) => nextItem = 0;
+        document.PrintPage += (_, e) =>
+        {
+            var g = e.Graphics!;
+            using var fontHeader = new Font("Segoe UI", 10F, FontStyle.Bold);
+            using var fontTitle = new Font("Segoe UI", 16F, FontStyle.Bold);
+            using var fontBody = new Font("Segoe UI", 9F);
+            using var fontBold = new Font("Segoe UI", 9F, FontStyle.Bold);
+            using var pen = new Pen(Color.FromArgb(180, 185, 190));
+
+            int x = e.MarginBounds.Left;
+            int y = e.MarginBounds.Top;
+            int width = e.MarginBounds.Width;
+
+            TextRenderer.DrawText(g, "THƯ VIỆN LIBRA", fontHeader,
+                new Rectangle(x, y, width, 22), Primary, TextFormatFlags.Left);
+            y += 28;
+            TextRenderer.DrawText(g, "PHIẾU TRẢ SÁCH", fontTitle,
+                new Rectangle(x, y, width, 32), Color.Black, TextFormatFlags.HorizontalCenter);
+            y += 38;
+            TextRenderer.DrawText(g, $"Ngày trả: {DateTime.Now:dd/MM/yyyy HH:mm}    Hình thức phạt: {paymentStatus}",
+                fontBody, new Rectangle(x, y, width, 22), Color.Black, TextFormatFlags.Left);
+            y += 24;
+            TextRenderer.DrawText(g, $"Độc giả: {reader?.FullName ?? "Không rõ"} ({reader?.UserCode ?? "-"})",
+                fontBody, new Rectangle(x, y, width / 2, 22), Color.Black, TextFormatFlags.Left);
+            TextRenderer.DrawText(g, $"Điện thoại: {reader?.Phone ?? "-"}",
+                fontBody, new Rectangle(x + width / 2, y, width / 2, 22), Color.Black, TextFormatFlags.Left);
+            y += 30;
+            g.DrawLine(pen, x, y, x + width, y);
+            y += 12;
+
+            int[] weights = [6, 12, 27, 13, 13, 14, 15];
+            int[] columnWidths = weights.Select(weight => width * weight / 100).ToArray();
+            columnWidths[^1] = width - columnWidths.Take(columnWidths.Length - 1).Sum();
+            string[] headings = ["STT", "Mã bản", "Tên sách", "Tình trạng trả", "Hạn trả", "Phạt trễ", "Phạt hỏng/mất"];
+
+            void DrawRow(IReadOnlyList<string> cells, int rowHeight, bool isHeader)
+            {
+                if (isHeader)
+                {
+                    using var brush = new SolidBrush(Color.FromArgb(240, 242, 245));
+                    g.FillRectangle(brush, x, y, width, rowHeight);
+                }
+
+                g.DrawRectangle(pen, x, y, width, rowHeight);
+                int cellX = x;
+                for (int i = 0; i < cells.Count; i++)
+                {
+                    TextRenderer.DrawText(g, cells[i], isHeader ? fontBold : fontBody,
+                        new Rectangle(cellX + 3, y + 3, columnWidths[i] - 6, rowHeight - 6),
+                        Color.Black,
+                        TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+                    cellX += columnWidths[i];
+                    if (i < cells.Count - 1)
+                    {
+                        g.DrawLine(pen, cellX, y, cellX, y + rowHeight);
+                    }
+                }
+
+                y += rowHeight;
+            }
+
+            DrawRow(headings, 30, true);
+            while (nextItem < items.Count && y + 26 <= e.MarginBounds.Bottom - 95)
+            {
+                var item = items[nextItem];
+                DrawRow(
+                    [
+                        (nextItem + 1).ToString(),
+                        item.CopyCode,
+                        item.Title,
+                        item.ConditionAfter,
+                        item.DueDate,
+                        $"{item.LateFee:N0} đ",
+                        $"{item.DamageFee:N0} đ"
+                    ],
+                    26,
+                    false);
+                nextItem++;
+            }
+
+            if (nextItem < items.Count)
+            {
+                e.HasMorePages = true;
+                return;
+            }
+
+            y += 14;
+            TextRenderer.DrawText(g, $"Tổng số sách trả: {items.Count}    Tổng tiền phạt: {total:N0} đ",
+                fontBold, new Rectangle(x, y, width, 24), Color.Black, TextFormatFlags.Left);
+            y += 42;
+            TextRenderer.DrawText(g, "Độc giả ký nhận", fontBold,
+                new Rectangle(x, y, width / 2, 22), Color.Black, TextFormatFlags.HorizontalCenter);
+            TextRenderer.DrawText(g, "Thủ thư xác nhận", fontBold,
+                new Rectangle(x + width / 2, y, width / 2, 22), Color.Black, TextFormatFlags.HorizontalCenter);
+        };
+
+        using var preview = new PrintPreviewDialog
+        {
+            Document = document,
+            Width = 1000,
+            Height = 760,
+            StartPosition = FormStartPosition.CenterParent
+        };
+        preview.ShowDialog(FindForm());
     }
 
     private async Task SearchCurrentReaderAsync()

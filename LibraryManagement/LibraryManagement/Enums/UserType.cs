@@ -3,6 +3,5 @@
 public enum UserType
 {
     Reader,
-    Librarian,
-    Admin
+    Librarian
 }

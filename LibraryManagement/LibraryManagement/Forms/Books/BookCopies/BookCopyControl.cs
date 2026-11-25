@@ -1,4 +1,5 @@
 ﻿using System.Text;
+using LibraryManagement.Enums;
 using LibraryManagement.Models;
 using LibraryManagement.Services;
 
@@ -23,6 +24,9 @@ public partial class BookCopyControl : UserControl
         LoadBookCopies();
     }
 
+    // ============================================================
+    //  WIRE EVENTS
+    // ============================================================
     private void WireEvents()
     {
         txtKeyword.TextChanged += (_, _) => LoadBookCopies();
@@ -40,15 +44,30 @@ public partial class BookCopyControl : UserControl
             if (GetSelectedCopy() is { } c) OpenCopyDialog(c);
         };
         btnDetail.Click += (_, _) => ShowCopyDetail();
-        btnRepair.Click += (_, _) => ChangeStatus("Maintenance", "Damaged", "Chuyển sang trạng thái bảo trì / sửa chữa");
-        btnRepairComplete.Click += (_, _) => ChangeStatus("Available", "Good", "Hoàn tất sửa chữa, đưa trở lại lưu thông");
-        btnLost.Click += (_, _) => ChangeStatus("Lost", null, "Báo mất bản sách");
+
+        btnRepair.Click += (_, _) => ChangeStatus(
+            CirculationStatus.Maintenance,
+            BookCondition.Damaged,
+            "Chuyển sang trạng thái bảo trì / sửa chữa");
+
+        btnRepairComplete.Click += (_, _) => ChangeStatus(
+            CirculationStatus.Available,
+            BookCondition.Good,
+            "Hoàn tất sửa chữa, đưa trở lại lưu thông");
+
+        btnLost.Click += (_, _) => ChangeStatus(
+            CirculationStatus.Maintenance,
+            null,
+            "Báo mất bản sách / Đang sửa chưa");
+
         btnHistory.Click += (_, _) => ShowStatusHistory();
         btnExport.Click += (_, _) => ExportCsv();
 
-        // Bổ sung nút Thanh lý và Xóa vào panelActions sẵn có
         var btnDispose = CreateExtraActionButton("Thanh lý", 991);
-        btnDispose.Click += (_, _) => ChangeStatus("Disposed", null, "Thanh lý bản sách không còn đủ điều kiện lưu thông");
+        btnDispose.Click += (_, _) => ChangeStatus(
+            CirculationStatus.Disposed,
+            null,
+            "Thanh lý bản sách không còn đủ điều kiện lưu thông");
 
         var btnDelete = CreateExtraActionButton("Xóa bản sách", 1082);
         btnDelete.ForeColor = Color.FromArgb(200, 40, 40);
@@ -74,6 +93,9 @@ public partial class BookCopyControl : UserControl
         return b;
     }
 
+    // ============================================================
+    //  LOAD DATA
+    // ============================================================
     public void LoadBookCopies()
     {
         var copies = _service.SearchBookCopies(txtKeyword.Text, _filterBookId);
@@ -85,12 +107,12 @@ public partial class BookCopyControl : UserControl
                 c.CopyCode,
                 c.Book?.BookCode ?? "-",
                 c.Book?.Title ?? "-",
-                c.CopyCode, // Mã vạch riêng biệt
+                // c.Barcode ?? "-",                        // ✅ mã vạch riêng, không lặp CopyCode
                 c.ShelfLocation ?? "Chưa xếp kệ",
-                TranslateCondition(c.PhysicalCondition),
-                TranslateStatus(c.CirculationStatus),
+                TranslateCondition(c.PhysicalCondition)!, // ✅ enum
+                TranslateStatus(c.CirculationStatus)!,    // ✅ enum
                 c.ReceivedAt,
-                $"{c.PurchasePrice:N0} đ"
+                $"{c.PurchasePriceVnd:N0} đ"
             );
             dgvBookCopies.Rows[idx].Tag = c;
         }
@@ -101,7 +123,8 @@ public partial class BookCopyControl : UserControl
     private BookCopies? GetSelectedCopy()
     {
         if (dgvBookCopies.CurrentRow?.Tag is BookCopies c) return c;
-        MessageBox.Show("Vui lòng chọn một bản sách trong bảng.", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        MessageBox.Show("Vui lòng chọn một bản sách trong bảng.", "Thông báo",
+            MessageBoxButtons.OK, MessageBoxIcon.Information);
         return null;
     }
 
@@ -112,15 +135,28 @@ public partial class BookCopyControl : UserControl
             LoadBookCopies();
     }
 
-    private void ChangeStatus(string newStatus, string? newCond, string defaultReason)
+    // ============================================================
+    //  ĐỔI TRẠNG THÁI
+    // ============================================================
+    private void ChangeStatus(CirculationStatus newStatus, BookCondition? newCond, string defaultReason)
     {
         var copy = GetSelectedCopy();
         if (copy == null) return;
 
+        // Chặn thanh lý khi sách đang được mượn
+        if (newStatus == CirculationStatus.Disposed
+            && copy.CirculationStatus == CirculationStatus.Borrowed)
+        {
+            MessageBox.Show("Không thể thanh lý bản sách đang được mượn.", "Không hợp lệ",
+                MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+
         try
         {
             _service.ChangeCopyStatus(copy.Id, newStatus, newCond, defaultReason);
-            MessageBox.Show($"Đã cập nhật trạng thái bản sách '{copy.CopyCode}' thành {TranslateStatus(newStatus)}.",
+            MessageBox.Show(
+                $"Đã cập nhật trạng thái bản sách '{copy.CopyCode}' thành {TranslateStatus(newStatus)}.",
                 "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
             LoadBookCopies();
         }
@@ -141,32 +177,39 @@ public partial class BookCopyControl : UserControl
         try
         {
             _service.DeleteBookCopy(copy.Id);
-            MessageBox.Show("Đã xóa bản sách.", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show("Đã xóa bản sách.", "Thông báo",
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
             LoadBookCopies();
         }
         catch (Exception ex)
         {
-            MessageBox.Show(ex.Message, "Không thể xóa bản sách", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(ex.Message, "Không thể xóa bản sách",
+                MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 
+    // ============================================================
+    //  CHI TIẾT / LỊCH SỬ
+    // ============================================================
     private void ShowCopyDetail()
     {
         var c = GetSelectedCopy();
         if (c == null) return;
 
         string info =
-            $"Mã bản sách / Mã vạch: {c.CopyCode}\n" +
+            $"Mã bản sách: {c.CopyCode}\n" +
+            // $"Mã vạch: {c.Barcode ?? "Chưa gán"}\n" +
             $"Đầu sách: {c.Book?.Title} ({c.Book?.BookCode})\n" +
             $"Vị trí kệ: {c.ShelfLocation ?? "Chưa gán"}\n" +
             $"Tình trạng vật lý: {TranslateCondition(c.PhysicalCondition)}\n" +
             $"Trạng thái lưu thông: {TranslateStatus(c.CirculationStatus)}\n" +
             $"Ngày nhập: {c.ReceivedAt}\n" +
-            $"Giá nhập: {c.PurchasePrice:N0} đ\n" +
+            $"Giá nhập: {c.PurchasePriceVnd:N0} đ\n" +
             $"Nguồn nhập: {c.Source ?? "Không rõ"}\n" +
             $"Ghi chú: {c.Notes ?? "Không có"}";
 
-        MessageBox.Show(info, $"Chi tiết bản sách {c.CopyCode}", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        MessageBox.Show(info, $"Chi tiết bản sách {c.CopyCode}",
+            MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
     private void ShowStatusHistory()
@@ -177,7 +220,8 @@ public partial class BookCopyControl : UserControl
         var histories = _service.GetCopyHistories(c.Id);
         if (histories.Count == 0)
         {
-            MessageBox.Show("Bản sách này chưa có lịch sử thay đổi trạng thái.", "Lịch sử trạng thái", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show("Bản sách này chưa có lịch sử thay đổi trạng thái.",
+                "Lịch sử trạng thái", MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
 
@@ -185,55 +229,94 @@ public partial class BookCopyControl : UserControl
         foreach (var h in histories)
         {
             sb.AppendLine($"[{h.ChangedAt}] {h.ActionType}");
+
+            // Nếu OldStatus/NewStatus là enum không nullable:
             if (h.OldStatus != h.NewStatus)
-                sb.AppendLine($"   - Trạng thái: {h.OldStatus ?? "N/A"} -> {h.NewStatus}");
+                sb.AppendLine($"   - Trạng thái: {TranslateStatus(h.OldStatus)} -> {TranslateStatus(h.NewStatus)}");
+
             if (h.OldCondition != h.NewCondition)
-                sb.AppendLine($"   - Tình trạng: {h.OldCondition ?? "N/A"} -> {h.NewCondition}");
+                sb.AppendLine($"   - Tình trạng: {TranslateCondition(h.OldCondition)} -> {TranslateCondition(h.NewCondition)}");
+
             if (!string.IsNullOrWhiteSpace(h.Note))
                 sb.AppendLine($"   - Ghi chú: {h.Note}");
             sb.AppendLine();
         }
 
-        MessageBox.Show(sb.ToString(), $"Lịch sử thay đổi trạng thái - {c.CopyCode}", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        MessageBox.Show(sb.ToString(), $"Lịch sử thay đổi trạng thái - {c.CopyCode}",
+            MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
+    // ============================================================
+    //  XUẤT CSV — lấy dữ liệu thô từ entity, không phụ thuộc hiển thị
+    // ============================================================
     private void ExportCsv()
     {
-        using var sfd = new SaveFileDialog { Filter = "CSV File|*.csv", FileName = $"DanhSachBanSach_{DateTime.Now:yyyyMMdd}.csv" };
+        using var sfd = new SaveFileDialog
+        {
+            Filter = "CSV File|*.csv",
+            FileName = $"DanhSachBanSach_{DateTime.Now:yyyyMMdd}.csv"
+        };
         if (sfd.ShowDialog() != DialogResult.OK) return;
 
         var sb = new StringBuilder();
-        sb.AppendLine("MaBanSach,MaDauSach,TenSach,ViTriKe,TinhTrangVatLy,TrangThaiLuuThong,NgayNhap,GiaNhap");
+        sb.AppendLine("MaBanSach,MaVach,MaDauSach,TenSach,ViTriKe,TinhTrangVatLy,TrangThaiLuuThong,NgayNhap,GiaNhap");
+
         foreach (DataGridViewRow row in dgvBookCopies.Rows)
         {
-            var vals = row.Cells.Cast<DataGridViewCell>().Select(c => $"\"{c.Value}\"");
-            sb.AppendLine(string.Join(",", vals));
+            if (row.Tag is not BookCopies c) continue;
+
+            string[] cells =
+            [
+                c.CopyCode,
+                // c.Barcode ?? "",
+                c.Book?.BookCode ?? "",
+                c.Book?.Title ?? "",
+                c.ShelfLocation ?? "",
+                TranslateCondition(c.PhysicalCondition),
+                TranslateStatus(c.CirculationStatus),
+                c.ReceivedAt,
+                c.PurchasePriceVnd.ToString("N0")
+            ];
+
+            sb.AppendLine(string.Join(",", cells.Select(EscapeCsv)));
         }
+
         File.WriteAllText(sfd.FileName, sb.ToString(), Encoding.UTF8);
-        MessageBox.Show("Xuất file CSV thành công!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        MessageBox.Show("Xuất file CSV thành công!", "Thông báo",
+            MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
-    private static string TranslateCondition(string cond) => cond switch
+    private static string EscapeCsv(string value) =>
+        $"\"{value.Replace("\"", "\"\"")}\"";
+
+    // ============================================================
+    //  TRANSLATE — nhận enum, không nhận string
+    // ============================================================
+    private static string? TranslateCondition(BookCondition? cond) => cond switch
     {
-        "New" => "Mới",
-        "Good" => "Tốt",
-        "Worn" => "Cũ",
-        "Damaged" => "Hư hỏng / Cần sửa chữa",
-        _ => cond
+        BookCondition.New     => "Mới",
+        BookCondition.Good    => "Tốt",
+        BookCondition.Worn    => "Cũ",
+        BookCondition.Damaged => "Hư hỏng / Cần sửa chữa",
+        BookCondition.Lost    => "Bị mất",
+        _                     => cond.ToString()
     };
 
-    private static string TranslateStatus(string st) => st switch
+    private static string? TranslateStatus(CirculationStatus? st) => st switch
     {
-        "Available" => "Có sẵn",
-        "Borrowed" => "Đang mượn",
-        "Reserved" => "Đang giữ chỗ",
-        "Maintenance" => "Đang bảo trì",
-        "Lost" => "Bị mất",
-        "Disposed" => "Thanh lý",
-        _ => st
+        CirculationStatus.Available   => "Có sẵn",
+        CirculationStatus.Borrowed    => "Đang mượn",
+        CirculationStatus.Reserved    => "Đang giữ chỗ",
+        CirculationStatus.Maintenance => "Đang bảo trì",
+        // CirculationStatus.Lost        => "Bị mất",
+        CirculationStatus.Disposed    => "Thanh lý",
+        _                             => st.ToString()
     };
 }
 
+// ================================================================
+//  DIALOG THÊM / SỬA BẢN SÁCH — dùng enum xuyên suốt
+// ================================================================
 public class BookCopyEditDialog : Form
 {
     private readonly CatalogManagementService _service = new();
@@ -241,6 +324,7 @@ public class BookCopyEditDialog : Form
 
     private ComboBox _cboBook = null!;
     private TextBox _txtCopyCode = null!;
+    private TextBox _txtBarcode = null!;
     private TextBox _txtShelf = null!;
     private DateTimePicker _dtpReceived = null!;
     private NumericUpDown _numPrice = null!;
@@ -255,12 +339,12 @@ public class BookCopyEditDialog : Form
         {
             IdBook = defaultBookId ?? 0,
             ReceivedAt = DateTime.Today.ToString("yyyy-MM-dd"),
-            PhysicalCondition = "New",
-            CirculationStatus = "Available"
+            PhysicalCondition = BookCondition.New,          // ✅ enum
+            CirculationStatus = CirculationStatus.Available // ✅ enum
         };
 
         Text = copy == null ? "Thêm mới bản sách vật lý" : $"Cập nhật bản sách - {copy.CopyCode}";
-        Size = new Size(520, 470);
+        Size = new Size(520, 500);
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
@@ -272,38 +356,63 @@ public class BookCopyEditDialog : Form
 
     private void BuildUi()
     {
-        var tbl = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, Padding = new Padding(16) };
+        var tbl = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill, ColumnCount = 2, Padding = new Padding(16)
+        };
         tbl.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 155));
         tbl.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
 
-        _cboBook = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
-        _txtCopyCode = new TextBox { Dock = DockStyle.Fill };
-        _txtShelf = new TextBox { Dock = DockStyle.Fill, PlaceholderText = "VD: Kệ A2 - Tầng 3" };
-        _dtpReceived = new DateTimePicker { Dock = DockStyle.Fill, Format = DateTimePickerFormat.Short };
-        _numPrice = new NumericUpDown { Dock = DockStyle.Fill, Maximum = 100_000_000, Increment = 5000 };
-        _txtSource = new TextBox { Dock = DockStyle.Fill, PlaceholderText = "VD: NXB Trẻ / Mua mới / Biếu tặng" };
+        _cboBook      = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
+        _txtCopyCode  = new TextBox  { Dock = DockStyle.Fill };
+        _txtBarcode   = new TextBox  { Dock = DockStyle.Fill, PlaceholderText = "Quét hoặc nhập mã vạch" };
+        _txtShelf     = new TextBox  { Dock = DockStyle.Fill, PlaceholderText = "VD: Kệ A2 - Tầng 3" };
+        _dtpReceived  = new DateTimePicker { Dock = DockStyle.Fill, Format = DateTimePickerFormat.Short };
+        _numPrice     = new NumericUpDown { Dock = DockStyle.Fill, Maximum = 100_000_000, Increment = 5000 };
+        _txtSource    = new TextBox  { Dock = DockStyle.Fill, PlaceholderText = "VD: NXB Trẻ / Mua mới / Biếu tặng" };
+        _txtNote      = new TextBox  { Dock = DockStyle.Fill };
 
+        // ✅ ComboBox chứa enum trực tiếp
         _cboCondition = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
-        _cboCondition.Items.AddRange(["New", "Good", "Worn", "Damaged"]);
+        _cboCondition.Items.AddRange(new object[]
+        {
+            BookCondition.New, BookCondition.Good, BookCondition.Worn,
+            BookCondition.Damaged, BookCondition.Lost
+        });
 
         _cboStatus = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
-        _cboStatus.Items.AddRange(["Available", "Borrowed", "Reserved", "Maintenance", "Lost", "Disposed"]);
-
-        _txtNote = new TextBox { Dock = DockStyle.Fill };
+        _cboStatus.Items.AddRange(new object[]
+        {
+            CirculationStatus.Available, 
+            CirculationStatus.Borrowed,
+            CirculationStatus.Reserved, 
+            CirculationStatus.Maintenance,
+            // CirculationStatus.Lost, 
+            CirculationStatus.Disposed
+        });
 
         AddRow(tbl, 0, "Đầu sách (*):", _cboBook);
-        AddRow(tbl, 1, "Mã bản sách / Barcode:", _txtCopyCode);
-        AddRow(tbl, 2, "Vị trí kệ sách:", _txtShelf);
-        AddRow(tbl, 3, "Ngày nhập sách:", _dtpReceived);
-        AddRow(tbl, 4, "Giá nhập (VNĐ):", _numPrice);
-        AddRow(tbl, 5, "Nguồn nhập:", _txtSource);
-        AddRow(tbl, 6, "Tình trạng vật lý:", _cboCondition);
-        AddRow(tbl, 7, "Trạng thái lưu thông:", _cboStatus);
-        AddRow(tbl, 8, "Ghi chú:", _txtNote);
+        AddRow(tbl, 1, "Mã bản sách:", _txtCopyCode);
+        AddRow(tbl, 2, "Mã vạch / Barcode:", _txtBarcode);
+        AddRow(tbl, 3, "Vị trí kệ sách:", _txtShelf);
+        AddRow(tbl, 4, "Ngày nhập sách:", _dtpReceived);
+        AddRow(tbl, 5, "Giá nhập (VNĐ):", _numPrice);
+        AddRow(tbl, 6, "Nguồn nhập:", _txtSource);
+        AddRow(tbl, 7, "Tình trạng vật lý:", _cboCondition);
+        AddRow(tbl, 8, "Trạng thái lưu thông:", _cboStatus);
+        AddRow(tbl, 9, "Ghi chú:", _txtNote);
 
-        var pnlBottom = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 46, FlowDirection = FlowDirection.RightToLeft, Padding = new Padding(16, 6, 16, 6) };
+        var pnlBottom = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Bottom, Height = 46,
+            FlowDirection = FlowDirection.RightToLeft, Padding = new Padding(16, 6, 16, 6)
+        };
         var btnCancel = new Button { Text = "Hủy", Width = 85, Height = 32 };
-        var btnSave = new Button { Text = "Lưu bản sách", Width = 115, Height = 32, BackColor = Color.FromArgb(19, 98, 160), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+        var btnSave = new Button
+        {
+            Text = "Lưu bản sách", Width = 115, Height = 32,
+            BackColor = Color.FromArgb(19, 98, 160), ForeColor = Color.White, FlatStyle = FlatStyle.Flat
+        };
         btnCancel.Click += (_, _) => DialogResult = DialogResult.Cancel;
         btnSave.Click += BtnSave_Click;
 
@@ -317,7 +426,10 @@ public class BookCopyEditDialog : Form
     private static void AddRow(TableLayoutPanel tbl, int row, string label, Control c)
     {
         tbl.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
-        tbl.Controls.Add(new Label { Text = label, TextAlign = ContentAlignment.MiddleLeft, Dock = DockStyle.Fill }, 0, row);
+        tbl.Controls.Add(new Label
+        {
+            Text = label, TextAlign = ContentAlignment.MiddleLeft, Dock = DockStyle.Fill
+        }, 0, row);
         tbl.Controls.Add(c, 1, row);
     }
 
@@ -343,10 +455,13 @@ public class BookCopyEditDialog : Form
         else
             _txtCopyCode.Text = _copy.CopyCode;
 
+        // _txtBarcode.Text = _copy.Barcode;
         _txtShelf.Text = _copy.ShelfLocation;
         if (DateTime.TryParse(_copy.ReceivedAt, out var dt)) _dtpReceived.Value = dt;
-        _numPrice.Value = _copy.PurchasePrice;
+        _numPrice.Value = _copy.PurchasePriceVnd;
         _txtSource.Text = _copy.Source;
+
+        // ✅ SelectedItem là enum, gán trực tiếp
         _cboCondition.SelectedItem = _copy.PhysicalCondition;
         _cboStatus.SelectedItem = _copy.CirculationStatus;
         _txtNote.Text = _copy.Notes;
@@ -357,13 +472,19 @@ public class BookCopyEditDialog : Form
         try
         {
             _copy.IdBook = _cboBook.SelectedValue is int id ? id : 0;
-            _copy.CopyCode = _txtCopyCode.Text;
+            _copy.CopyCode = _txtCopyCode.Text.Trim();
+            // _copy.Barcode = string.IsNullOrWhiteSpace(_txtBarcode.Text) ? null : _txtBarcode.Text.Trim();
             _copy.ShelfLocation = _txtShelf.Text;
             _copy.ReceivedAt = _dtpReceived.Value.ToString("yyyy-MM-dd");
-            _copy.PurchasePrice = (int)_numPrice.Value;
+            _copy.PurchasePriceVnd = (int)_numPrice.Value;
             _copy.Source = _txtSource.Text;
-            _copy.PhysicalCondition = _cboCondition.SelectedItem?.ToString() ?? "Good";
-            _copy.CirculationStatus = _cboStatus.SelectedItem?.ToString() ?? "Available";
+
+            // ✅ Cast enum an toàn, fallback khi SelectedItem null
+            _copy.PhysicalCondition = _cboCondition.SelectedItem is BookCondition cond
+                ? cond : BookCondition.Good;
+            _copy.CirculationStatus = _cboStatus.SelectedItem is CirculationStatus st
+                ? st : CirculationStatus.Available;
+
             _copy.Notes = _txtNote.Text;
 
             _service.SaveBookCopy(_copy);
@@ -371,7 +492,8 @@ public class BookCopyEditDialog : Form
         }
         catch (Exception ex)
         {
-            MessageBox.Show(ex.Message, "Lỗi nhập liệu", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show(ex.Message, "Lỗi nhập liệu",
+                MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
     }
 }

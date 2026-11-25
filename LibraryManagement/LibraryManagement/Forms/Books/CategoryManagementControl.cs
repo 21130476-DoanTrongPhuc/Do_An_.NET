@@ -1,4 +1,5 @@
-﻿using LibraryManagement.Models;
+﻿using LibraryManagement.Enums;
+using LibraryManagement.Models;
 using LibraryManagement.Services;
 
 namespace LibraryManagement.Forms.Books;
@@ -179,7 +180,7 @@ public class CategoryManagementControl : UserControl
 
         void AddNodes(int? parentId, TreeNodeCollection nodes)
         {
-            var children = _categories.Where(c => c.IdParentCategory == parentId).ToList();
+            var children = _categories.Where(c => c.IdParent == parentId).ToList();
             foreach (var cat in children)
             {
                 int totalBooks = _service.CountBooksInCategoryTree(cat.Id, _categories);
@@ -211,8 +212,8 @@ public class CategoryManagementControl : UserControl
 
         _txtCode.Text = cat.CategoryCode;
         _txtName.Text = cat.CategoryName;
-        _cboParent.SelectedValue = (object?)cat.IdParentCategory ?? DBNull.Value;
-        if (cat.IdParentCategory == null) _cboParent.SelectedIndex = 0;
+        _cboParent.SelectedValue = (object?)cat.IdParent ?? DBNull.Value;
+        if (cat.IdParent == null) _cboParent.SelectedIndex = 0;
         _numMaxDays.Value = Math.Clamp(cat.MaxLoanDays, 1, 90);
         _numMaxRenewals.Value = Math.Clamp(cat.MaxRenewals, 0, 10);
         _cboStatus.SelectedItem = cat.Status;
@@ -246,10 +247,12 @@ public class CategoryManagementControl : UserControl
                 Id = _selectedCategory?.Id ?? 0,
                 CategoryCode = _txtCode.Text,
                 CategoryName = _txtName.Text,
-                IdParentCategory = parentId,
+                IdParent = parentId,
                 MaxLoanDays = (int)_numMaxDays.Value,
                 MaxRenewals = (int)_numMaxRenewals.Value,
-                Status = _cboStatus.SelectedItem?.ToString() ?? "Active"
+                Status = _cboStatus.SelectedItem is BookCategoryStatus status 
+                    ? status 
+                    : BookCategoryStatus.Active,
             };
 
             _service.SaveCategory(model);

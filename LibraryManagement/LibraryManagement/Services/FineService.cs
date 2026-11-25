@@ -173,7 +173,7 @@ public class FineService
                 AfterAmount  = debtAfter,
                 Reason       = $"Thu tiền ({paymentMethod}): {amount:N0} đ" +
                                (string.IsNullOrWhiteSpace(note) ? "" : $" — {note.Trim()}"),
-                ActorUserId  = librarianId,
+                // ActorUserId  = librarianId,
                 At           = DateTime.Now
             });
 

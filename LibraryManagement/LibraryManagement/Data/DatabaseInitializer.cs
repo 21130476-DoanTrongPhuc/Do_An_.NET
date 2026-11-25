@@ -73,7 +73,7 @@ public class DatabaseInitializer
             }
         }
 
-        EnsureAdminAccount(connection);
+        // EnsureAdminAccount(connection);
     }
 
     private static void CreateMigrationHistoryTable(SqliteConnection connection)
@@ -125,52 +125,127 @@ public class DatabaseInitializer
         string sql = File.ReadAllText(migrationFilePath);
 
         if (string.IsNullOrWhiteSpace(sql))
-        {
-            throw new InvalidOperationException($"Migration rỗng: {migrationName}");
-        }
+            return;
 
-        using var transaction = connection.BeginTransaction();
+        bool disableForeignKeys = sql.TrimStart().StartsWith(
+            "PRAGMA foreign_keys = OFF;",
+            StringComparison.OrdinalIgnoreCase);
+
+        if (disableForeignKeys)
+            SetForeignKeysEnabled(connection, false);
 
         try
         {
-            using (var command = connection.CreateCommand())
-            {
-                command.Transaction = transaction;
-                command.CommandText = sql;
-                command.ExecuteNonQuery();
-            }
+            using var transaction = connection.BeginTransaction();
 
-            using (var historyCommand = connection.CreateCommand())
+            try
             {
-                historyCommand.Transaction = transaction;
-                historyCommand.CommandText = @"
-                    INSERT INTO SchemaMigrations (Version, MigrationName)
-                    VALUES ($version, $name)";
-                historyCommand.Parameters.AddWithValue("$version", version);
-                historyCommand.Parameters.AddWithValue("$name", migrationName);
-                historyCommand.ExecuteNonQuery();
-            }
+                // Microsoft.Data.Sqlite hỗ trợ thực thi nhiều câu SQL
+                // trong cùng một CommandText.
+                // Không cần tự tách bằng SplitSqlStatements().
+                using (var command = connection.CreateCommand())
+                {
+                    command.Transaction = transaction;
+                    command.CommandText = sql;
 
-            transaction.Commit();
+                    try
+                    {
+                        command.ExecuteNonQuery();
+                    }
+                    catch (SqliteException ex)
+                    {
+                        throw new InvalidOperationException(
+                            $"Lỗi khi thực thi migration!\n\n" +
+                            $"Migration: {migrationName}\n" +
+                            $"Version: {version}\n" +
+                            $"File: {migrationFilePath}\n" +
+                            $"SQLite Error: {ex.Message}\n\n" +
+                            $"Nội dung SQL:\n{sql}",
+                            ex);
+                    }
+                }
+
+                if (disableForeignKeys)
+                    EnsureForeignKeysAreValid(connection, transaction);
+
+                // Lưu lịch sử migration
+                using (var historyCommand = connection.CreateCommand())
+                {
+                    historyCommand.Transaction = transaction;
+
+                    historyCommand.CommandText = @"
+                        INSERT INTO SchemaMigrations
+                            (Version, MigrationName)
+                        VALUES
+                            ($version, $name);";
+
+                    historyCommand.Parameters.AddWithValue("$version", version);
+                    historyCommand.Parameters.AddWithValue("$name", migrationName);
+
+                    historyCommand.ExecuteNonQuery();
+                }
+
+                transaction.Commit();
+            }
+            catch
+            {
+                transaction.Rollback();
+                throw;
+            }
         }
-        catch
+        finally
         {
-            transaction.Rollback();
-            throw;
+            if (disableForeignKeys)
+                SetForeignKeysEnabled(connection, true);
         }
     }
 
-    private static void EnsureAdminAccount(SqliteConnection connection)
+    private static void SetForeignKeysEnabled(SqliteConnection connection, bool enabled)
     {
         using var command = connection.CreateCommand();
+        command.CommandText = enabled
+            ? "PRAGMA foreign_keys = ON;"
+            : "PRAGMA foreign_keys = OFF;";
+        command.ExecuteNonQuery();
+    }
 
-        command.CommandText = @"
+    private static void EnsureForeignKeysAreValid(
+        SqliteConnection connection,
+        SqliteTransaction transaction)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "PRAGMA foreign_key_check;";
+
+        using var reader = command.ExecuteReader();
+        if (reader.Read())
+        {
+            throw new InvalidOperationException(
+                $"Migration tạo vi phạm khóa ngoại tại bảng '{reader.GetString(0)}'.");
+        }
+    }
+
+    /*private static void EnsureAdminAccount(SqliteConnection connection)
+    {
+        // Câu lệnh 1: Chèn nếu chưa có
+        using (var insertCommand = connection.CreateCommand())
+        {
+            insertCommand.CommandText = @"
             INSERT OR IGNORE INTO ""Users""
                 (""UserCode"", ""Username"", ""PasswordHash"", ""FullName"", ""UserType"", ""MaxActiveCopies"", ""Status"")
             VALUES
-                ('NV000', 'admin', '123456', 'Quản trị viên', 'Admin', NULL, 'Active');
-            UPDATE ""Users"" SET ""PasswordHash"" = '123456', ""Status"" = 'Active' WHERE ""Username"" = 'admin';";
+                ('NV000', 'admin', '123456', 'Quản trị viên', 'Librarian', NULL, 'Active');";
+            insertCommand.ExecuteNonQuery();
+        }
 
-        command.ExecuteNonQuery();
-    }
+        // Câu lệnh 2: Cập nhật thông tin (nếu cần)
+        using (var updateCommand = connection.CreateCommand())
+        {
+            updateCommand.CommandText = @"
+            UPDATE ""Users"" 
+            SET ""PasswordHash"" = '123456', ""Status"" = 'Active' 
+            WHERE ""Username"" = 'admin';";
+            updateCommand.ExecuteNonQuery();
+        }
+    }*/
 }

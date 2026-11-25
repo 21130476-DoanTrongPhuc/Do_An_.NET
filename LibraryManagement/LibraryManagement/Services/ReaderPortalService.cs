@@ -1,4 +1,5 @@
 ﻿using LibraryManagement.Data;
+using LibraryManagement.Enums;
 using LibraryManagement.Helpers;
 using LibraryManagement.Models;
 using Microsoft.EntityFrameworkCore;
@@ -13,7 +14,7 @@ public class BookSearchItemDto
     public string Title { get; set; } = string.Empty;
     public string Author { get; set; } = string.Empty;
     public string Publisher { get; set; } = string.Empty;
-    public string PublishedYear { get; set; } = string.Empty;
+    public int PublishedYear { get; set; } 
     public int CategoryId { get; set; }
     public string CategoryName { get; set; } = string.Empty;
     public int MaxLoanDays { get; set; } = 14;
@@ -54,8 +55,8 @@ public class HistoryLoanItemDto
     public DateTime BorrowedAt { get; set; }
     public DateTime DueAt { get; set; }
     public DateTime? ReturnedAt { get; set; }
-    public string ConditionBefore { get; set; } = string.Empty;
-    public string ConditionAfter { get; set; } = string.Empty;
+    public BookCondition ConditionBefore { get; set; }
+    public BookCondition ConditionAfter { get; set; } 
     public int FineAmountVnd { get; set; }
     public int PaidAmountVnd { get; set; }
     public string StatusText { get; set; } = string.Empty;
@@ -71,7 +72,7 @@ public class ReaderPortalService
     {
         if (Session.CurrentReaderId > 0) return Session.CurrentReaderId;
         using var db = new LibraryDbContext();
-        var firstReader = db.Users.FirstOrDefault(u => u.UserType == "Reader");
+        var firstReader = db.Users.FirstOrDefault(u => u.UserType == UserType.Reader);
         if (firstReader != null) Session.CurrentReaderId = firstReader.Id;
         return Session.CurrentReaderId;
     }
@@ -90,7 +91,7 @@ public class ReaderPortalService
         using var db = new LibraryDbContext();
         return db.ReaderCards
             .Where(c => c.IdReader == readerId)
-            .OrderByDescending(c => c.Status == "Active")
+            .OrderByDescending(c => c.Status == ReaderCardStatus.Active)
             .ThenByDescending(c => c.ExpiresAt)
             .FirstOrDefault();
     }
@@ -99,8 +100,8 @@ public class ReaderPortalService
     {
         using var db = new LibraryDbContext();
         return db.BookCategories
-            .Where(c => c.Status == "Active")
-            .OrderBy(c => c.IdParentCategory)
+            .Where(c => c.Status == BookCategoryStatus.Active)
+            .OrderBy(c => c.IdParent)
             .ThenBy(c => c.CategoryName)
             .ToList();
     }
@@ -138,22 +139,22 @@ public class ReaderPortalService
                 b.Title.ToLower().Contains(kw) ||
                 b.Author.ToLower().Contains(kw) ||
                 b.BookCode.ToLower().Contains(kw) ||
-                (b.ISBN != null && b.ISBN.ToLower().Contains(kw)));
+                (b.Isbn != null && b.Isbn.ToLower().Contains(kw)));
         }
 
         var list = query.OrderBy(b => b.Title).ToList().Select(b =>
         {
             int total = b.Copies.Count;
-            int avail = b.Copies.Count(c => c.CirculationStatus == "Available");
+            int avail = b.Copies.Count(c => c.CirculationStatus == CirculationStatus.Available);
             return new BookSearchItemDto
             {
                 BookId = b.Id,
                 BookCode = b.BookCode,
-                Isbn = b.ISBN ?? "N/A",
+                Isbn = b.Isbn ?? "N/A",
                 Title = b.Title,
                 Author = b.Author,
                 Publisher = b.Publisher ?? "Chưa cập nhật",
-                PublishedYear = b.PublishedYear ?? "N/A",
+                PublishedYear = b.PublishedYear,
                 CategoryId = b.IdCategory,
                 CategoryName = b.Category?.CategoryName ?? "Chưa phân loại",
                 MaxLoanDays = b.Category?.MaxLoanDays ?? DefaultLoanDays,
@@ -180,7 +181,7 @@ public class ReaderPortalService
             added = false;
             foreach (var c in all)
             {
-                if (c.IdParentCategory.HasValue && result.Contains(c.IdParentCategory.Value) && result.Add(c.Id))
+                if (c.IdParent.HasValue && result.Contains(c.IdParent.Value) && result.Add(c.Id))
                     added = true;
             }
         } while (added);
@@ -273,22 +274,22 @@ public class ReaderPortalService
         if (reader == null)
             return (false, "Không tìm thấy thông tin độc giả.");
 
-        if (!reader.Status.Equals("Active", StringComparison.OrdinalIgnoreCase))
+        if (reader.Status != UserStatus.Active)
             return (false, "Tài khoản độc giả đang bị vô hiệu hóa.");
 
         var card = db.ReaderCards
             .Where(c => c.IdReader == readerId)
-            .OrderByDescending(c => c.Status == "Active")
+            .OrderByDescending(c => c.Status == ReaderCardStatus.Active)
             .ThenByDescending(c => c.ExpiresAt)
             .FirstOrDefault();
 
         if (card == null)
             return (false, "Độc giả chưa được cấp thẻ thư viện.");
 
-        if (card.Status.Equals("Locked", StringComparison.OrdinalIgnoreCase))
+        if (card.Status == ReaderCardStatus.Locked)
             return (false, $"Thẻ thư viện ({card.CardCode}) đang bị KHÓA. Vui lòng liên hệ thủ thư.");
 
-        if (card.Status.Equals("Expired", StringComparison.OrdinalIgnoreCase) || card.ExpiresAt.Date < DateTime.Today)
+        if (card.Status == ReaderCardStatus.Expired || card.ExpiresAt.Date < DateTime.Today)
             return (false, $"Thẻ thư viện ({card.CardCode}) đã HẾT HẠN ngày {card.ExpiresAt:dd/MM/yyyy}.");
 
         int unpaidFines = GetUnpaidFineTotal(readerId);
@@ -317,7 +318,7 @@ public class ReaderPortalService
         bool alreadyReserved = db.Reservations.Any(r =>
             r.IdReader == readerId &&
             r.IdBook == bookId &&
-            (r.Status == "Pending" || r.Status == "ReadyForPickup"));
+            (r.Status == ReservationStatus.Pending || r.Status == ReservationStatus.ReadyForPickup));
 
         if (alreadyReserved)
             return (false, "Bạn đã đặt trước đầu sách này và đang chờ xử lý.");
@@ -338,7 +339,7 @@ public class ReaderPortalService
             IdBook = bookId,
             ReservedAt = DateTime.Now,
             ExpiresAt = DateTime.Now.AddDays(3),
-            Status = "Pending",
+            Status = ReservationStatus.Pending,
             Note = "Độc giả đặt trước qua Cổng độc giả"
         };
 
@@ -405,7 +406,7 @@ public class ReaderPortalService
         bool hasPendingReservation = db.Reservations.Any(r =>
             r.IdBook == detail.BookCopy.IdBook &&
             r.IdReader != readerId &&
-            (r.Status == "Pending" || r.Status == "ReadyForPickup"));
+            (r.Status == ReservationStatus.Pending || r.Status == ReservationStatus.ReadyForPickup));
 
         if (hasPendingReservation)
             return (false, "Không thể gia hạn vì đang có độc giả khác đặt trước đầu sách này.");
@@ -460,7 +461,7 @@ public class ReaderPortalService
                 DueAt = d.DueAt,
                 ReturnedAt = d.ReturnedAt,
                 ConditionBefore = d.PhysicalConditionBefore,
-                ConditionAfter = d.PhysicalConditionAfter ?? "-",
+                ConditionAfter = d.PhysicalConditionAfter ?? BookCondition.Good,
                 FineAmountVnd = totalFine,
                 PaidAmountVnd = paid,
                 StatusText = status
@@ -482,7 +483,7 @@ public class ReaderPortalService
         return rows.ToList();
     }
 
-    public (bool Success, string Message) UpdateProfile(string fullName, string phone, string email, string address, string dob)
+    public (bool Success, string Message) UpdateProfile(string fullName, string phone, string email, string address, DateTime? dob)
     {
         int readerId = ResolveReaderId();
         using var db = new LibraryDbContext();
@@ -497,8 +498,8 @@ public class ReaderPortalService
         user.Phone = phone.Trim();
         user.Email = email.Trim();
         user.Address = address.Trim();
-        user.DateOfBirth = dob.Trim();
-        user.UpdatedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+        user.DateOfBirth = dob;
+        user.UpdatedAt = Convert.ToDateTime(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
         db.SaveChanges();
         return (true, "Cập nhật thông tin cá nhân thành công!");
     }
@@ -514,7 +515,7 @@ public class ReaderPortalService
             return (false, "Mật khẩu hiện tại không chính xác!");
 
         user.PasswordHash = newPass;
-        user.UpdatedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+        user.UpdatedAt = Convert.ToDateTime(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
         db.SaveChanges();
         return (true, "Đổi mật khẩu thành công!");
     }

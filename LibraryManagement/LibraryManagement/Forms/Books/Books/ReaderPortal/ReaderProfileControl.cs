@@ -1,5 +1,6 @@
 ﻿using System.Drawing.Drawing2D;
 using LibraryManagement.Data;
+using LibraryManagement.Enums;
 using LibraryManagement.Helpers;
 
 namespace LibraryManagement.Forms.Books.ReaderPortal;
@@ -301,7 +302,7 @@ public class ReaderProfileControl : UserControl
             _txtUserCode.Text = user.UserCode;
             _txtUsername.Text = user.Username ?? "";
             _txtFullName.Text = user.FullName;
-            _txtDateOfBirth.Text = user.DateOfBirth ?? "";
+            _txtDateOfBirth.Text = user.DateOfBirth?.ToString("yyyy-MM-dd") ?? "";
             _txtPhone.Text = user.Phone ?? "";
             _txtEmail.Text = user.Email ?? "";
             _txtAddress.Text = user.Address ?? "";
@@ -315,7 +316,7 @@ public class ReaderProfileControl : UserControl
             {
                 _lblCardCode.Text = $"THẺ ĐỘC GIẢ: {card.CardCode}";
                 _lblCardDates.Text = $"Ngày cấp: {card.IssuedAt:dd/MM/yyyy}   |   Hết hạn: {card.ExpiresAt:dd/MM/yyyy}";
-                bool isValid = card.Status == "Active" && card.ExpiresAt.Date >= DateTime.Today;
+                bool isValid = card.Status == ReaderCardStatus.Active && card.ExpiresAt.Date >= DateTime.Today;
                 _lblCardStatus.Text = isValid
                     ? "● Đang hoạt động"
                     : $"● {FormatCardStatus(card.Status)}";
@@ -367,11 +368,11 @@ public class ReaderProfileControl : UserControl
             if (user == null) return;
 
             user.FullName = fullName;
-            user.DateOfBirth = string.IsNullOrEmpty(dob) ? null : dob;
+            user.DateOfBirth = string.IsNullOrEmpty(dob) ? null : Convert.ToDateTime(dob);
             user.Phone = string.IsNullOrWhiteSpace(_txtPhone.Text) ? null : _txtPhone.Text.Trim();
             user.Email = string.IsNullOrWhiteSpace(_txtEmail.Text) ? null : _txtEmail.Text.Trim();
             user.Address = string.IsNullOrWhiteSpace(_txtAddress.Text) ? null : _txtAddress.Text.Trim();
-            user.UpdatedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+            user.UpdatedAt = Convert.ToDateTime(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
 
             context.SaveChanges();
 
@@ -434,7 +435,7 @@ public class ReaderProfileControl : UserControl
             }
 
             user.PasswordHash = newPass;
-            user.UpdatedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+            user.UpdatedAt = Convert.ToDateTime(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
             context.SaveChanges();
 
             _txtCurrentPass.Clear();
@@ -504,11 +505,13 @@ public class ReaderProfileControl : UserControl
         return txt;
     }
 
-    private static string FormatCardStatus(string status) => status switch
+    private static string FormatCardStatus(ReaderCardStatus status) => status switch
     {
-        "Expired" => "Thẻ đã hết hạn",
-        "Locked" => "Thẻ đang bị khóa",
-        _ => status
+        ReaderCardStatus.Active => "Đang hoạt động",
+        ReaderCardStatus.Expired => "Thẻ đã hết hạn",
+        ReaderCardStatus.Locked => "Thẻ đang bị khóa",
+        ReaderCardStatus.Missing => "Thẻ bị mất",
+        _ => status.ToString()
     };
 
     private static string GetInitials(string name)

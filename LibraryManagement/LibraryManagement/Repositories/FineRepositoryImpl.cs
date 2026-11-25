@@ -11,31 +11,17 @@ namespace LibraryManagement.Repositories;
 
 public class FineRepositoryImpl : FineRepository
 {
-    // ==================== HELPER ====================
-
-    private static async Task<int> GetLibrarianIdAsync(LibraryDbContext context)
-    {
-        var librarian = await context.Users
-            .AsNoTracking()
-            .FirstOrDefaultAsync(u => u.UserType == UserType.Librarian);
-
-        if (librarian == null)
-            throw new InvalidOperationException("Không tìm thấy thủ thư trong hệ thống.");
-
-        return librarian.Id;
-    }
-
     // ==================== ADD ====================
 
     public async Task Add(LibraryDbContext context, CreateFineManagementRequest request)
     {
         if (request == null) throw new ArgumentNullException(nameof(request));
         if (request.LoanDetailId <= 0)
-            throw new ArgumentOutOfRangeException(nameof(request.LoanDetailId), "LoanDetailId không hợp lệ.");
+            throw new ArgumentOutOfRangeException(nameof(request.LoanDetailId), @"LoanDetailId không hợp lệ.");
         if (request.FineAmount <= 0)
-            throw new ArgumentException("Số tiền phạt phải lớn hơn 0.", nameof(request));
+            throw new ArgumentException(@"Số tiền phạt phải lớn hơn 0.", nameof(request));
         if (!Enum.IsDefined(request.ViolationType))
-            throw new ArgumentException("Loại vi phạm không hợp lệ.", nameof(request));
+            throw new ArgumentException(@"Loại vi phạm không hợp lệ.", nameof(request));
 
         await using var transaction = await context.Database.BeginTransactionAsync();
         try
@@ -53,8 +39,6 @@ public class FineRepositoryImpl : FineRepository
                 f.Status != FineStatus.Cancelled);
             if (alreadyExists)
                 throw new InvalidOperationException("Đã tồn tại phiếu phạt cùng loại cho phiếu mượn này.");
-
-            int librarianId = await GetLibrarianIdAsync(context);
 
             // Insert mã tạm → cập nhật mã chính thức trong cùng transaction
             var fine = new Fines
@@ -79,7 +63,6 @@ public class FineRepositoryImpl : FineRepository
                 BeforeAmount = 0,
                 AfterAmount  = request.FineAmount,
                 Reason       = request.Note?.Trim(),
-                ActorUserId  = librarianId,
                 At           = DateTime.Now
             });
 
@@ -99,15 +82,15 @@ public class FineRepositoryImpl : FineRepository
     {
         if (request == null) throw new ArgumentNullException(nameof(request));
         if (request.Id <= 0)
-            throw new ArgumentException("Id phiếu phạt không hợp lệ.", nameof(request));
+            throw new ArgumentException(@"Id phiếu phạt không hợp lệ.", nameof(request));
         if (request.LoanDetailId <= 0)
-            throw new ArgumentException("LoanDetailId không hợp lệ.", nameof(request));
+            throw new ArgumentException(@"LoanDetailId không hợp lệ.", nameof(request));
         if (request.FineAmount <= 0)
-            throw new ArgumentException("Số tiền phạt phải > 0.", nameof(request));
+            throw new ArgumentException(@"Số tiền phạt phải > 0.", nameof(request));
         if (string.IsNullOrWhiteSpace(request.Note))
-            throw new ArgumentException("Lý do không được rỗng.", nameof(request));
+            throw new ArgumentException(@"Lý do không được rỗng.", nameof(request));
         if (!Enum.IsDefined(request.ViolationType))
-            throw new ArgumentException("Loại vi phạm không hợp lệ.", nameof(request));
+            throw new ArgumentException(@"Loại vi phạm không hợp lệ.", nameof(request));
 
         await using var transaction = await context.Database.BeginTransactionAsync();
         try
@@ -142,8 +125,6 @@ public class FineRepositoryImpl : FineRepository
             if (duplicated)
                 throw new InvalidOperationException(
                     "Đã tồn tại phiếu phạt cùng loại cho phiếu mượn này.");
-
-            int librarianId = await GetLibrarianIdAsync(context);
 
             int paidVnd = fine.FinePayments.Sum(p => p.AmountVnd);
             int newAmount = request.FineAmount;
@@ -184,7 +165,6 @@ public class FineRepositoryImpl : FineRepository
                 Reason       = changes.Count > 0
                                  ? string.Join("; ", changes)
                                  : "Chỉnh sửa thông tin phiếu phạt",
-                ActorUserId  = librarianId,
                 At           = DateTime.Now
             });
 
@@ -207,11 +187,11 @@ public class FineRepositoryImpl : FineRepository
         string note)
     {
         if (fineId <= 0)
-            throw new ArgumentException("Id phiếu phạt không hợp lệ.", nameof(fineId));
+            throw new ArgumentException(@"Id phiếu phạt không hợp lệ.", nameof(fineId));
         if (fineAmount <= 0)
-            throw new ArgumentException("Số tiền phạt phải lớn hơn 0.", nameof(fineAmount));
+            throw new ArgumentException(@"Số tiền phạt phải lớn hơn 0.", nameof(fineAmount));
         if (string.IsNullOrWhiteSpace(note))
-            throw new ArgumentException("Lý do điều chỉnh không được rỗng.", nameof(note));
+            throw new ArgumentException(@"Lý do điều chỉnh không được rỗng.", nameof(note));
 
         await using var transaction = await context.Database.BeginTransactionAsync();
         try
@@ -236,9 +216,7 @@ public class FineRepositoryImpl : FineRepository
 
             if (newAmount == fine.AmountVnd)
                 throw new InvalidOperationException("Mức phạt mới phải khác mức hiện tại.");
-
-            int librarianId = await GetLibrarianIdAsync(context);
-
+            
             int oldAmount = fine.AmountVnd;
             fine.AmountVnd = newAmount;
 
@@ -252,7 +230,6 @@ public class FineRepositoryImpl : FineRepository
                 BeforeAmount = oldAmount,
                 AfterAmount  = newAmount,
                 Reason       = note.Trim(),
-                ActorUserId  = librarianId,
                 At           = DateTime.Now
             });
 
@@ -271,9 +248,9 @@ public class FineRepositoryImpl : FineRepository
     public async Task Delete(LibraryDbContext context, int fineId, string note)
     {
         if (fineId <= 0)
-            throw new ArgumentException("Id không hợp lệ.", nameof(fineId));
+            throw new ArgumentException(@"Id không hợp lệ.", nameof(fineId));
         if (string.IsNullOrWhiteSpace(note))
-            throw new ArgumentException("Lý do không được rỗng.", nameof(note));
+            throw new ArgumentException(@"Lý do không được rỗng.", nameof(note));
 
         await using var transaction = await context.Database.BeginTransactionAsync();
         try
@@ -289,9 +266,7 @@ public class FineRepositoryImpl : FineRepository
             if (fine.FinePayments.Any())
                 throw new InvalidOperationException(
                     "Không thể hủy phiếu đã có thanh toán. Hãy hoàn tiền trước.");
-
-            int librarianId = await GetLibrarianIdAsync(context);
-
+            
             int oldAmount = fine.AmountVnd;
             fine.Status = FineStatus.Cancelled;
             // ⭐ KHÔNG zero hóa AmountVnd — giữ dấu vết số tiền gốc
@@ -301,9 +276,8 @@ public class FineRepositoryImpl : FineRepository
                 IdFine       = fine.Id,
                 Action       = FineAuditAction.Cancelled,
                 BeforeAmount = oldAmount,
-                AfterAmount  = 0,          // ngữ nghĩa: nợ còn lại sau hủy = 0
+                AfterAmount  = 0,         
                 Reason       = note.Trim(),
-                ActorUserId  = librarianId,
                 At           = DateTime.Now
             });
 
@@ -388,7 +362,6 @@ public class FineRepositoryImpl : FineRepository
             .AsNoTracking()
             .Include(f => f.FinePayments)
             .Include(f => f.AuditLogs)
-                .ThenInclude(a => a.Actor)
             .FirstOrDefaultAsync(f => f.Id == fineId);
 
         if (fine == null) return null;
@@ -418,7 +391,6 @@ public class FineRepositoryImpl : FineRepository
                     BeforeAmount = a.BeforeAmount,
                     AfterAmount  = a.AfterAmount,
                     Reason       = a.Reason,
-                    ActorName    = a.Actor != null ? a.Actor.FullName : null
                 }).ToList()
         };
     }

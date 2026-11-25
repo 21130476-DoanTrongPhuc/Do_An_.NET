@@ -6,16 +6,16 @@ public class Users
 {
     public int Id { get; set; }
     public string UserCode { get; set; } = string.Empty;
-    public string FullName { get; set; } = string.Empty;
     public string? Username { get; set; }
     public string? PasswordHash { get; set; }
-    public DateTime? DateOfBirth { get; set; }      // ← DateTime? (SQL TEXT)
+    public string FullName { get; set; } = string.Empty;
+    public DateTime? DateOfBirth { get; set; }
     public string? Phone { get; set; }
     public string? Email { get; set; }
     public string? Address { get; set; }
     public UserType UserType { get; set; } 
     public int? MaxActiveCopies { get; set; }
-    public string Status { get; set; } = "Active";
+    public UserStatus Status { get; set; } = UserStatus.Active;
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 

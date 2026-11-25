@@ -1,4 +1,5 @@
 ﻿using LibraryManagement.Data;
+using LibraryManagement.Enums;
 using LibraryManagement.Helpers;
 
 namespace LibraryManagement.Forms.Books.ReaderPortal;
@@ -60,7 +61,7 @@ public class FavoriteBooksControl : UserControl
 
             int selectedCategoryId = (_cboCategory.SelectedItem as CategoryOption)?.Id ?? 0;
             var categories = context.BookCategories
-                .Where(c => c.Status == "Active")
+                .Where(c => c.Status == BookCategoryStatus.Active)
                 .OrderBy(c => c.CategoryName)
                 .Select(c => new CategoryOption { Id = c.Id, Name = c.CategoryName })
                 .ToList();
@@ -80,17 +81,17 @@ public class FavoriteBooksControl : UserControl
                              {
                                  BookId = book.Id,
                                  BookCode = book.BookCode,
-                                 Isbn = book.ISBN ?? "Chưa cập nhật",
+                                 Isbn = book.Isbn ?? "Chưa cập nhật",
                                  Title = book.Title,
                                  Author = book.Author,
                                  Publisher = book.Publisher ?? "Chưa rõ",
-                                 PublishedYear = book.PublishedYear ?? "",
+                                 PublishedYear = book.PublishedYear.ToString() ?? "",
                                  CategoryId = cat.Id,
                                  CategoryName = cat.CategoryName,
                                  AddedDate = fav.AddedDate,
                                  TotalCopies = context.BookCopies.Count(cp => cp.IdBook == book.Id),
                                  AvailableCopies = context.BookCopies.Count(cp =>
-                                     cp.IdBook == book.Id && cp.CirculationStatus == "Available"),
+                                     cp.IdBook == book.Id && cp.CirculationStatus == CirculationStatus.Available),
                                  ShelfLocation = context.BookCopies
                                      .Where(cp => cp.IdBook == book.Id && cp.ShelfLocation != null)
                                      .Select(cp => cp.ShelfLocation!)

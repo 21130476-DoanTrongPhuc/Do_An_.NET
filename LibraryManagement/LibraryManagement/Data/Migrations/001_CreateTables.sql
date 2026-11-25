@@ -1,15 +1,15 @@
 ﻿-- =============================================================
 -- LIBRARY MANAGEMENT SYSTEM
--- File: 001_CreateCoreTables.sql
+-- File: 001_CreateTables.sql
 -- Database: SQLite
--- Run this file first, then run 002_SeedSampleData.sql.
+-- Run order: 001 -> 002 -> 003 -> 999
 -- =============================================================
 
 PRAGMA foreign_keys = ON;
 
 -- =============================================================
 -- 1. USERS
--- Reader, Librarian, Admin
+-- Reader, Librarian
 -- =============================================================
 CREATE TABLE IF NOT EXISTS "Users" (
                                        "Id"              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -27,14 +27,14 @@ CREATE TABLE IF NOT EXISTS "Users" (
                                        "CreatedAt"       TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                                        "UpdatedAt"       TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-                                       CHECK ("UserType" IN ('Reader', 'Librarian', 'Admin')),
+                                       CHECK ("UserType" IN ('Reader', 'Librarian')),
                                        CHECK ("Status" IN ('Active', 'Inactive')),
                                        CHECK (
                                            ("UserType" = 'Reader'
                                                AND "MaxActiveCopies" IS NOT NULL
                                                AND "MaxActiveCopies" > 0)
                                                OR
-                                           ("UserType" IN ('Librarian', 'Admin')
+                                           ("UserType" IN ('Librarian')
                                                AND "MaxActiveCopies" IS NULL)
                                            ),
                                        CHECK (
@@ -126,23 +126,27 @@ END;
 -- 3. BOOKS
 -- =============================================================
 CREATE TABLE IF NOT EXISTS "Books" (
-                                       "Id"            INTEGER PRIMARY KEY AUTOINCREMENT,
-                                       "IdCategory"    INTEGER NOT NULL,
-                                       "BookCode"      TEXT NOT NULL UNIQUE,
-                                       "Isbn"          TEXT UNIQUE,
-                                       "Title"         TEXT NOT NULL,
-                                       "Author"        TEXT NOT NULL,
-                                       "Publisher"     TEXT,
-                                       "PublishedYear" INTEGER,
-                                       "Description"   TEXT,
-                                       "CreatedAt"     TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                                       "UpdatedAt"     TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                       "Id"             INTEGER PRIMARY KEY AUTOINCREMENT,
+                                       "IdCategory"     INTEGER NOT NULL,
+                                       "BookCode"       TEXT NOT NULL UNIQUE,
+                                       "Isbn"           TEXT UNIQUE,
+                                       "Title"          TEXT NOT NULL,
+                                       "Author"         TEXT NOT NULL,
+                                       "Publisher"      TEXT,
+                                       "PublishedYear"  INTEGER,
+                                       "Language"       TEXT,
+                                       "CoverImagePath" TEXT,
+                                       "Status"         TEXT NOT NULL DEFAULT 'Active',
+                                       "Description"    TEXT,
+                                       "CreatedAt"      TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                       "UpdatedAt"      TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
                                        FOREIGN KEY ("IdCategory")
                                            REFERENCES "BookCategories"("Id")
                                            ON UPDATE CASCADE
                                            ON DELETE RESTRICT,
 
+                                       CHECK ("Status" IN ('Active', 'Inactive')),
                                        CHECK ("PublishedYear" IS NULL OR "PublishedYear" BETWEEN 1000 AND 9999)
 );
 
@@ -165,6 +169,7 @@ CREATE TABLE IF NOT EXISTS "BookCopies" (
                                             "PhysicalCondition" TEXT NOT NULL DEFAULT 'Good',
                                             "CirculationStatus" TEXT NOT NULL DEFAULT 'Available',
                                             "Note"              TEXT,
+                                            "Source"            TEXT,
                                             "CreatedAt"         TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                                             "UpdatedAt"         TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -177,8 +182,8 @@ CREATE TABLE IF NOT EXISTS "BookCopies" (
                                             UNIQUE ("Id", "IdBook"),
 
                                             CHECK ("PurchasePriceVnd" >= 0),
-                                            CHECK ("PhysicalCondition" IN ('Good', 'MinorDamage', 'MajorDamage', 'Lost')),
-                                            CHECK ("CirculationStatus" IN ('Available', 'Borrowed', 'Reserved', 'Lost', 'Damaged'))
+                                            CHECK ("PhysicalCondition" IN ('New', 'Good', 'Worn', 'Damaged', 'Lost')),
+                                            CHECK ("CirculationStatus" IN ('Available', 'Borrowed', 'Reserved', 'Disposed', 'Maintenance'))
 );
 
 CREATE INDEX IF NOT EXISTS "IX_BookCopies_IdBook"
@@ -191,13 +196,13 @@ CREATE INDEX IF NOT EXISTS "IX_BookCopies_Status"
 -- 5. READER CARDS
 -- =============================================================
 CREATE TABLE IF NOT EXISTS "ReaderCards" (
-                                             "Id"       INTEGER PRIMARY KEY AUTOINCREMENT,
-                                             "IdReader" INTEGER NOT NULL,
-                                             "CardCode" TEXT NOT NULL UNIQUE,
-                                             "IssuedAt" TEXT NOT NULL,
+                                             "Id"        INTEGER PRIMARY KEY AUTOINCREMENT,
+                                             "IdReader"  INTEGER NOT NULL,
+                                             "CardCode"  TEXT NOT NULL UNIQUE,
+                                             "IssuedAt"  TEXT NOT NULL,
                                              "ExpiresAt" TEXT NOT NULL,
-                                             "Status"   TEXT NOT NULL DEFAULT 'Active',
-                                             "Note"     TEXT,
+                                             "Status"    TEXT NOT NULL DEFAULT 'Active',
+                                             "Note"      TEXT,
 
                                              FOREIGN KEY ("IdReader")
                                                  REFERENCES "Users"("Id")
@@ -205,7 +210,7 @@ CREATE TABLE IF NOT EXISTS "ReaderCards" (
                                                  ON DELETE RESTRICT,
 
                                              CHECK ("ExpiresAt" >= "IssuedAt"),
-                                             CHECK ("Status" IN ('Active', 'Expired', 'Locked'))
+                                             CHECK ("Status" IN ('Active', 'Expired', 'Locked', 'Missing'))
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS "UX_ReaderCards_OneActive"
@@ -312,10 +317,10 @@ CREATE TABLE IF NOT EXISTS "LoanDetails" (
                                                  ON DELETE RESTRICT,
 
                                              CHECK ("RenewalCount" >= 0),
-                                             CHECK ("PhysicalConditionBefore" IN ('Good', 'MinorDamage', 'MajorDamage', 'Lost')),
+                                             CHECK ("PhysicalConditionBefore" IN ('New', 'Good', 'Worn', 'Damaged', 'Lost')),
                                              CHECK (
                                                  "PhysicalConditionAfter" IS NULL
-                                                     OR "PhysicalConditionAfter" IN ('Good', 'MinorDamage', 'MajorDamage', 'Lost')
+                                                     OR "PhysicalConditionAfter" IN ('New', 'Good', 'Worn', 'Damaged', 'Lost')
                                                  ),
                                              CHECK ("ReturnedAt" IS NULL OR "ReturnedAt" >= '')
 );
@@ -415,18 +420,17 @@ END;
 -- 9. FINES
 -- =============================================================
 CREATE TABLE IF NOT EXISTS "Fines" (
-                                       "Id"           INTEGER PRIMARY KEY AUTOINCREMENT,
-                                       "FineCode"     TEXT NOT NULL UNIQUE,
-                                       "IdLoanDetail" INTEGER,
-                                       "CreatedAt"    TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                       "Id"            INTEGER PRIMARY KEY AUTOINCREMENT,
+                                       "FineCode"      TEXT NOT NULL UNIQUE,
+                                       "IdLoanDetail"  INTEGER,
+                                       "CreatedAt"     TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                                        "ViolationType" TEXT NOT NULL,
-                                       "AmountVnd"    INTEGER NOT NULL,
-                                       "Description"  TEXT,
-                                       "Status"       TEXT NOT NULL DEFAULT 'Unpaid',
-                                       "CancelledAt"  TEXT,
-                                       "CancelReason" TEXT,
-                                       "UpdatedAt"    TEXT,
-                                       "Version"      INTEGER NOT NULL DEFAULT 1,
+                                       "AmountVnd"     INTEGER NOT NULL,
+                                       "Description"   TEXT,
+                                       "Status"        TEXT NOT NULL DEFAULT 'Unpaid',
+                                       "CancelledAt"   TEXT,
+                                       "CancelReason"  TEXT,
+                                       "UpdatedAt"     TEXT,
 
                                        FOREIGN KEY ("IdLoanDetail")
                                            REFERENCES "LoanDetails"("Id")
@@ -436,7 +440,6 @@ CREATE TABLE IF NOT EXISTS "Fines" (
                                        CHECK ("AmountVnd" > 0),
                                        CHECK ("Status" IN ('Unpaid', 'Partial', 'Paid', 'Cancelled')),
                                        CHECK ("ViolationType" IN ('Overdue', 'Damaged', 'Lost', 'Other')),
-                                       CHECK ("Version" > 0),
                                        CHECK (
                                            ("Status" = 'Cancelled' AND "CancelledAt" IS NOT NULL)
                                                OR "Status" <> 'Cancelled'
@@ -514,7 +517,7 @@ BEGIN
                END;
 END;
 
--- Tự đồng bộ Unpaid / Partial / Paid sau khi thêm thanh toán.
+-- Tự đồng bộ Unpaid / Partial / Paid sau khi thêm / sửa / xóa thanh toán.
 CREATE TRIGGER IF NOT EXISTS "TR_FinePayments_AfterInsert"
     AFTER INSERT ON "FinePayments"
 BEGIN
@@ -528,8 +531,7 @@ BEGIN
                            THEN 'Partial'
                        ELSE 'Paid'
         END,
-        "UpdatedAt" = CURRENT_TIMESTAMP,
-        "Version" = "Version" + 1
+        "UpdatedAt" = CURRENT_TIMESTAMP
     WHERE "Id" = NEW."IdFine" AND "Status" <> 'Cancelled';
 END;
 
@@ -544,8 +546,7 @@ BEGIN
                              WHERE "IdFine" = OLD."IdFine") < "AmountVnd" THEN 'Partial'
                        ELSE 'Paid'
         END,
-        "UpdatedAt" = CURRENT_TIMESTAMP,
-        "Version" = "Version" + 1
+        "UpdatedAt" = CURRENT_TIMESTAMP
     WHERE "Id" = OLD."IdFine" AND "Status" <> 'Cancelled';
 
     UPDATE "Fines"
@@ -556,8 +557,7 @@ BEGIN
                              WHERE "IdFine" = NEW."IdFine") < "AmountVnd" THEN 'Partial'
                        ELSE 'Paid'
         END,
-        "UpdatedAt" = CURRENT_TIMESTAMP,
-        "Version" = "Version" + 1
+        "UpdatedAt" = CURRENT_TIMESTAMP
     WHERE "Id" = NEW."IdFine" AND "Status" <> 'Cancelled';
 END;
 
@@ -572,8 +572,7 @@ BEGIN
                              WHERE "IdFine" = OLD."IdFine") < "AmountVnd" THEN 'Partial'
                        ELSE 'Paid'
         END,
-        "UpdatedAt" = CURRENT_TIMESTAMP,
-        "Version" = "Version" + 1
+        "UpdatedAt" = CURRENT_TIMESTAMP
     WHERE "Id" = OLD."IdFine" AND "Status" <> 'Cancelled';
 END;
 
@@ -587,18 +586,12 @@ CREATE TABLE IF NOT EXISTS "FineAuditLogs" (
                                                "BeforeAmount" INTEGER NOT NULL DEFAULT 0,
                                                "AfterAmount"  INTEGER NOT NULL DEFAULT 0,
                                                "Reason"       TEXT,
-                                               "ActorUserId"  INTEGER NOT NULL,
                                                "At"           TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
                                                FOREIGN KEY ("IdFine")
                                                    REFERENCES "Fines"("Id")
                                                    ON UPDATE CASCADE
                                                    ON DELETE CASCADE,
-
-                                               FOREIGN KEY ("ActorUserId")
-                                                   REFERENCES "Users"("Id")
-                                                   ON UPDATE CASCADE
-                                                   ON DELETE RESTRICT,
 
                                                CHECK ("Action" IN ('Created', 'Adjusted', 'Cancelled', 'Paid')),
                                                CHECK ("BeforeAmount" >= 0),

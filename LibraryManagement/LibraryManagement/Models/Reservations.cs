@@ -1,4 +1,6 @@
-﻿namespace LibraryManagement.Models;
+﻿using LibraryManagement.Enums;
+
+namespace LibraryManagement.Models;
 
 public class Reservations
 {
@@ -13,8 +15,8 @@ public class Reservations
     public DateTime? AssignedAt { get; set; }
     public DateTime? FulfilledAt { get; set; }
     public DateTime? CancelledAt { get; set; }
-    public string Status { get; set; } = "Pending";
-    public string? Note { get; set; }               // ← nullable
+    public ReservationStatus Status { get; set; } = ReservationStatus.Pending;
+    public string? Note { get; set; }               
 
     // Navigation
     public Users Reader { get; set; } = null!;

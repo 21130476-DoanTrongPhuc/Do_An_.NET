@@ -43,8 +43,8 @@ public class ReturnedBookRepositoryImpl : ReturnedBookRepository
 
         detail.BookCopy.CirculationStatus =
             request.PhysicalConditionAfter == BookCondition.Lost
-                ? BookCopyStatus.Lost
-                : BookCopyStatus.Available;
+                ? CirculationStatus.Maintenance
+                : CirculationStatus.Available;
 
         var daysLate = Math.Max(0, (returnedAt.Date - detail.DueAt.Date).Days);
         if (daysLate > 0)
@@ -96,7 +96,7 @@ public class ReturnedBookRepositoryImpl : ReturnedBookRepository
                     LoanDetailId = ld.Id,          
                     ld.Loan.LoanCode,
                     ld.BookCopy.Book.Title,
-                    ld.BookCopy.Book.Isbn,
+                    ISBN = ld.BookCopy.Book.Isbn,
                     ld.BookCopy.CopyCode,
                     ld.PhysicalConditionBefore,
                     ld.DueAt
@@ -113,7 +113,7 @@ public class ReturnedBookRepositoryImpl : ReturnedBookRepository
                     LoanCode = x.LoanCode,
                     Title = x.Title,
                     CopyCode = x.CopyCode,
-                    ISBN = x.Isbn,
+                    ISBN = x.ISBN,
                     PhysicalConditionBefore = x.PhysicalConditionBefore,
                     DueAt = x.DueAt,
                     ReturnedAt = DateTime.Today,

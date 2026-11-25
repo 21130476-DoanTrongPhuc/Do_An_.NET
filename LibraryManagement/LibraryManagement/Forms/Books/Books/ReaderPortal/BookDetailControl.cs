@@ -1,4 +1,5 @@
 ﻿using LibraryManagement.Data;
+using LibraryManagement.Enums;
 using LibraryManagement.Helpers;
 using LibraryManagement.Models;
 using Microsoft.EntityFrameworkCore;
@@ -397,7 +398,7 @@ public class BookDetailControl : UserControl
             }
 
             int totalCopies = book.Copies.Count;
-            int availableCopies = book.Copies.Count(c => c.CirculationStatus == "Available");
+            int availableCopies = book.Copies.Count(c => c.CirculationStatus == CirculationStatus.Available);
 
             _lblBookCode.Text = book.BookCode;
             _lblCategoryBadge.Text = book.Category?.CategoryName ?? "Chưa phân loại";
@@ -411,9 +412,9 @@ public class BookDetailControl : UserControl
 
             _lblTitle.Text = book.Title;
             _lblAuthor.Text = $"Tác giả: {book.Author}";
-            string yearText = string.IsNullOrWhiteSpace(book.PublishedYear) ? "" : $" · Năm XB: {book.PublishedYear}";
+            string yearText = book.PublishedYear > 0 ? $" · Năm XB: {book.PublishedYear}" : "";
             _lblPublisher.Text = $"Nhà xuất bản: {book.Publisher ?? "Chưa cập nhật"}{yearText}";
-            _lblIsbn.Text = $"Mã ISBN: {book.ISBN ?? "Chưa cập nhật"}";
+            _lblIsbn.Text = $"Mã ISBN: {book.Isbn ?? "Chưa cập nhật"}";
 
             int maxDays = book.Category?.MaxLoanDays ?? 14;
             int maxRenewals = book.Category?.MaxRenewals ?? 1;
@@ -434,7 +435,7 @@ public class BookDetailControl : UserControl
                 ? context.Reservations.FirstOrDefault(r =>
                     r.IdReader == readerId &&
                     r.IdBook == bookId &&
-                    (r.Status == "Pending" || r.Status == "ReadyForPickup"))
+                    (r.Status == ReservationStatus.Pending || r.Status == ReservationStatus.ReadyForPickup))
                 : null;
             UpdateReservationUi();
 
@@ -454,10 +455,13 @@ public class BookDetailControl : UserControl
                 statusCell.Style.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
                 statusCell.Style.ForeColor = cp.CirculationStatus switch
                 {
-                    "Available" => Green,
-                    "Borrowed" => Orange,
-                    "Reserved" => Primary,
-                    _ => Red
+                    CirculationStatus.Available   => Green,
+                    CirculationStatus.Borrowed    => Orange,
+                    CirculationStatus.Reserved    => Primary,
+                    CirculationStatus.Maintenance => Orange,
+                    // CirculationStatus.Lost        => Red,
+                    CirculationStatus.Disposed    => Red,
+                    _                             => Red
                 };
             }
         }
@@ -526,17 +530,17 @@ public class BookDetailControl : UserControl
                 if (confirm != DialogResult.Yes) return;
 
                 var entity = context.Reservations.Find(_activeReservation.Id);
-                if (entity != null && (entity.Status == "Pending" || entity.Status == "ReadyForPickup"))
+                if (entity != null && (entity.Status == ReservationStatus.Pending || entity.Status == ReservationStatus.ReadyForPickup))
                 {
-                    entity.Status = "Cancelled";
+                    entity.Status = ReservationStatus.Cancelled;
                     entity.CancelledAt = DateTime.Now;
 
                     if (entity.IdBookCopy.HasValue)
                     {
                         var copy = context.BookCopies.Find(entity.IdBookCopy.Value);
-                        if (copy != null && copy.CirculationStatus == "Reserved")
+                        if (copy != null && copy.CirculationStatus == CirculationStatus.Reserved)
                         {
-                            copy.CirculationStatus = "Available";
+                            copy.CirculationStatus = CirculationStatus.Available;
                         }
                     }
 
@@ -550,7 +554,7 @@ public class BookDetailControl : UserControl
 
             // Kiểm tra thẻ độc giả hợp lệ
             var activeCard = context.ReaderCards
-                .FirstOrDefault(c => c.IdReader == readerId && c.Status == "Active");
+                .FirstOrDefault(c => c.IdReader == readerId && c.Status == ReaderCardStatus.Active);
             if (activeCard == null || activeCard.ExpiresAt.Date < DateTime.Today)
             {
                 MessageBox.Show("Thẻ độc giả của bạn chưa kích hoạt hoặc đã hết hạn, không thể đặt trước sách!",
@@ -581,7 +585,7 @@ public class BookDetailControl : UserControl
                 IdBook = _currentBookId,
                 ReservedAt = DateTime.Now,
                 ExpiresAt = DateTime.Now.AddDays(3),
-                Status = "Pending",
+                Status = ReservationStatus.Pending,
                 Note = _txtReserveNote.Text.Trim()
             };
 
@@ -625,7 +629,7 @@ public class BookDetailControl : UserControl
             _btnReserve.Text = "Hủy đặt trước";
             _btnReserve.BackColor = Red;
             _txtReserveNote.Enabled = false;
-            string st = _activeReservation.Status == "ReadyForPickup"
+            string st = _activeReservation.Status == ReservationStatus.ReadyForPickup
                 ? "Sẵn sàng nhận tại quầy"
                 : "Đang chờ duyệt";
             _lblReserveStatus.Text = $"Bạn đã đặt trước ({_activeReservation.ReservationCode}) · Trạng thái: {st}";
@@ -640,22 +644,23 @@ public class BookDetailControl : UserControl
         }
     }
 
-    private static string FormatCondition(string condition) => condition switch
+    private static string FormatCondition(BookCondition condition) => condition switch
     {
-        "New" => "Mới",
-        "Good" => "Tốt",
-        "Worn" => "Cũ / Sờn",
-        "Damaged" => "Hư hỏng",
-        _ => condition
+        BookCondition.New     => "Mới",
+        BookCondition.Good    => "Tốt",
+        BookCondition.Worn    => "Cũ / Sờn",
+        BookCondition.Damaged => "Hư hỏng",
+        BookCondition.Lost    => "Bị mất",
+        _                     => condition.ToString()   // ✅ enum → string
     };
-
-    private static string FormatCirculationStatus(string status) => status switch
+    private static string FormatCirculationStatus(CirculationStatus status) => status switch
     {
-        "Available" => "Sẵn sàng cho mượn",
-        "Borrowed" => "Đang được mượn",
-        "Reserved" => "Đã đặt trước",
-        "Maintenance" => "Đang bảo trì",
-        "Lost" => "Báo mất",
-        _ => status
+        CirculationStatus.Available   => "Sẵn sàng cho mượn",
+        CirculationStatus.Borrowed    => "Đang được mượn",
+        CirculationStatus.Reserved    => "Đã đặt trước",
+        CirculationStatus.Maintenance => "Đang bảo trì",
+        // CirculationStatus.Lost        => "Báo mất",
+        CirculationStatus.Disposed    => "Đã thanh lý",
+        _                             => status.ToString()   // ✅ enum → string
     };
 }

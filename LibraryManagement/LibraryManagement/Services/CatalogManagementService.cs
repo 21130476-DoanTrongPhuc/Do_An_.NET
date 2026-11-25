@@ -1,4 +1,5 @@
 ﻿using LibraryManagement.Data;
+using LibraryManagement.Enums;
 using LibraryManagement.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -24,7 +25,7 @@ public class CatalogManagementService
         if (target == null) return 0;
 
         int directCount = target.Books.Count;
-        var children = allCategories.Where(c => c.IdParentCategory == categoryId).ToList();
+        var children = allCategories.Where(c => c.IdParent == categoryId).ToList();
         return directCount + children.Sum(ch => CountBooksInCategoryTree(ch.Id, allCategories));
     }
 
@@ -33,11 +34,11 @@ public class CatalogManagementService
         if (string.IsNullOrWhiteSpace(category.CategoryCode) || string.IsNullOrWhiteSpace(category.CategoryName))
             throw new InvalidOperationException("Mã thể loại và tên thể loại không được để trống.");
 
-        if (category.Id > 0 && category.IdParentCategory == category.Id)
+        if (category.Id > 0 && category.IdParent == category.Id)
             throw new InvalidOperationException("Thể loại cha không thể là chính nó.");
 
         using var db = new LibraryDbContext();
-        string now = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+        DateTime now = Convert.ToDateTime(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
 
         bool duplicateCode = db.BookCategories.Any(c =>
             c.CategoryCode.ToLower() == category.CategoryCode.Trim().ToLower() && c.Id != category.Id);
@@ -48,7 +49,7 @@ public class CatalogManagementService
         {
             category.CategoryCode = category.CategoryCode.Trim().ToUpper();
             category.CategoryName = category.CategoryName.Trim();
-            category.Status = string.IsNullOrWhiteSpace(category.Status) ? "Active" : category.Status;
+            category.Status = category.Status;
             category.CreatedAt = now;
             category.UpdatedAt = now;
             db.BookCategories.Add(category);
@@ -58,7 +59,7 @@ public class CatalogManagementService
             var existing = db.BookCategories.FirstOrDefault(c => c.Id == category.Id)
                 ?? throw new InvalidOperationException("Không tìm thấy thể loại cần cập nhật.");
 
-            existing.IdParentCategory = category.IdParentCategory;
+            existing.IdParent = category.IdParent;
             existing.CategoryCode = category.CategoryCode.Trim().ToUpper();
             existing.CategoryName = category.CategoryName.Trim();
             existing.MaxLoanDays = category.MaxLoanDays;
@@ -116,7 +117,7 @@ public class CatalogManagementService
                 b.Title.ToLower().Contains(kw) ||
                 b.Author.ToLower().Contains(kw) ||
                 b.BookCode.ToLower().Contains(kw) ||
-                (b.ISBN != null && b.ISBN.ToLower().Contains(kw)) ||
+                (b.Isbn != null && b.Isbn.ToLower().Contains(kw)) ||
                 b.Category.CategoryName.ToLower().Contains(kw));
         }
 
@@ -132,7 +133,7 @@ public class CatalogManagementService
         while (queue.Count > 0)
         {
             int current = queue.Dequeue();
-            foreach (var child in all.Where(c => c.IdParentCategory == current))
+            foreach (var child in all.Where(c => c.IdParent == current))
             {
                 if (result.Add(child.Id))
                     queue.Enqueue(child.Id);
@@ -156,13 +157,13 @@ public class CatalogManagementService
             throw new InvalidOperationException("Vui lòng chọn thể loại cho đầu sách.");
 
         using var db = new LibraryDbContext();
-        string now = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+        DateTime now = Convert.ToDateTime(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
 
-        if (!string.IsNullOrWhiteSpace(book.ISBN))
+        if (!string.IsNullOrWhiteSpace(book.Isbn))
         {
-            bool dupIsbn = db.Books.Any(b => b.ISBN == book.ISBN.Trim() && b.Id != book.Id);
+            bool dupIsbn = db.Books.Any(b => b.Isbn == book.Isbn.Trim() && b.Id != book.Id);
             if (dupIsbn)
-                throw new InvalidOperationException($"Mã ISBN '{book.ISBN}' đã tồn tại ở đầu sách khác.");
+                throw new InvalidOperationException($"Mã ISBN '{book.Isbn}' đã tồn tại ở đầu sách khác.");
         }
 
         if (book.Id == 0)
@@ -182,13 +183,13 @@ public class CatalogManagementService
 
             existing.IdCategory = book.IdCategory;
             existing.BookCode = book.BookCode.Trim();
-            existing.ISBN = string.IsNullOrWhiteSpace(book.ISBN) ? null : book.ISBN.Trim();
+            existing.Isbn = string.IsNullOrWhiteSpace(book.Isbn) ? null : book.Isbn.Trim();
             existing.Title = book.Title.Trim();
             existing.Author = book.Author.Trim();
             existing.Publisher = book.Publisher?.Trim();
-            existing.PublishedYear = book.PublishedYear?.Trim();
+            existing.PublishedYear = book.PublishedYear;
             existing.Language = book.Language?.Trim();
-            existing.PageCount = book.PageCount;
+            // existing.PageCount = book.PageCount;
             existing.CoverImagePath = book.CoverImagePath;
             existing.Status = book.Status;
             existing.Description = book.Description;
@@ -206,7 +207,7 @@ public class CatalogManagementService
 
         if (book.Status == "Active")
         {
-            bool hasBorrowed = book.Copies.Any(c => c.CirculationStatus == "Borrowed");
+            bool hasBorrowed = book.Copies.Any(c => c.CirculationStatus == CirculationStatus.Borrowed);
             if (hasBorrowed)
                 throw new InvalidOperationException("Đầu sách vẫn còn bản sách đang được mượn, không thể ngừng lưu hành.");
 
@@ -217,7 +218,7 @@ public class CatalogManagementService
             book.Status = "Active";
         }
 
-        book.UpdatedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+        book.UpdatedAt = Convert.ToDateTime(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
         db.SaveChanges();
     }
 
@@ -302,14 +303,14 @@ public class CatalogManagementService
             var existing = db.BookCopies.FirstOrDefault(c => c.Id == copy.Id)
                 ?? throw new InvalidOperationException("Không tìm thấy bản sách.");
 
-            string oldStatus = existing.CirculationStatus;
-            string oldCond = existing.PhysicalCondition;
+            CirculationStatus oldStatus = existing.CirculationStatus;
+            BookCondition oldCond = existing.PhysicalCondition;
             string? oldLoc = existing.ShelfLocation;
 
             existing.CopyCode = copy.CopyCode.Trim().ToUpper();
             existing.ShelfLocation = copy.ShelfLocation?.Trim();
             existing.ReceivedAt = copy.ReceivedAt;
-            existing.PurchasePrice = copy.PurchasePrice;
+            existing.PurchasePriceVnd = copy.PurchasePriceVnd;
             existing.Source = copy.Source?.Trim();
             existing.PhysicalCondition = copy.PhysicalCondition;
             existing.CirculationStatus = copy.CirculationStatus;
@@ -336,21 +337,21 @@ public class CatalogManagementService
         }
     }
 
-    public void ChangeCopyStatus(int copyId, string newStatus, string? newCondition = null, string? reason = null)
+    public void ChangeCopyStatus(int copyId, CirculationStatus newStatus, BookCondition? newCondition, string? reason)
     {
         using var db = new LibraryDbContext();
         var copy = db.BookCopies.FirstOrDefault(c => c.Id == copyId)
             ?? throw new InvalidOperationException("Không tìm thấy bản sách.");
 
-        if (copy.CirculationStatus == "Borrowed")
+        if (copy.CirculationStatus == CirculationStatus.Borrowed)
             throw new InvalidOperationException("Bản sách đang được độc giả mượn, không thể đổi trạng thái trực tiếp.");
 
-        string oldStatus = copy.CirculationStatus;
-        string oldCond = copy.PhysicalCondition;
+        CirculationStatus oldStatus = copy.CirculationStatus;
+        BookCondition? oldCond = copy.PhysicalCondition;
 
         copy.CirculationStatus = newStatus;
-        if (!string.IsNullOrWhiteSpace(newCondition))
-            copy.PhysicalCondition = newCondition;
+        if (!string.IsNullOrWhiteSpace(newCondition.ToString()))
+            copy.PhysicalCondition = (BookCondition)newCondition;
         copy.UpdatedAt = DateTime.Now;
 
         db.BookCopyHistories.Add(new BookCopyHistory

@@ -1,4 +1,6 @@
-﻿namespace LibraryManagement.Models;
+﻿using LibraryManagement.Enums;
+
+namespace LibraryManagement.Models;
 
 public class Categories
 {
@@ -8,7 +10,7 @@ public class Categories
     public string CategoryName { get; set; } = string.Empty;
     public int MaxLoanDays { get; set; }
     public int MaxRenewals { get; set; }
-    public string Status { get; set; } = "Active";
+    public BookCategoryStatus Status { get; set; } = BookCategoryStatus.Active;
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 

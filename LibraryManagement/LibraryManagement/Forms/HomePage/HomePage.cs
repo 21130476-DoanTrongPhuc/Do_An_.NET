@@ -1,5 +1,6 @@
 ﻿using System.Drawing.Drawing2D;
 using LibraryManagement.Data;
+using LibraryManagement.Enums;
 using LibraryManagement.Forms.Books.ReaderPortal;
 using LibraryManagement.Helpers;
 using LibraryManagement.Models;
@@ -218,7 +219,7 @@ namespace LibraryManagement.Forms.HomePage
             string readerCode = reader?.UserCode ?? "DG001";
 
             var card = context.ReaderCards
-                .Where(c => c.IdReader == readerId && c.Status == "Active")
+                .Where(c => c.IdReader == readerId && c.Status == ReaderCardStatus.Active)
                 .OrderByDescending(c => c.ExpiresAt)
                 .FirstOrDefault();
             string expire = card != null ? card.ExpiresAt.ToString("dd/MM/yyyy") : "Chưa cấp thẻ";
@@ -317,7 +318,7 @@ namespace LibraryManagement.Forms.HomePage
 
             var readyRes = context.Reservations
                 .Include(r => r.Book)
-                .FirstOrDefault(r => r.IdReader == readerId && r.Status == "ReadyForPickup");
+                .FirstOrDefault(r => r.IdReader == readerId && r.Status == ReservationStatus.ReadyForPickup);
             if (readyRes != null)
             {
                 AddNotice(GCheck, Green, "Sách đặt trước đã sẵn sàng", $"\"{readyRes.Book.Title}\" đang chờ bạn nhận tại quầy.");
@@ -336,7 +337,7 @@ namespace LibraryManagement.Forms.HomePage
                     b.IdCategory,
                     b.Title,
                     b.Author,
-                    Ok = context.BookCopies.Any(cp => cp.IdBook == b.Id && cp.CirculationStatus == "Available")
+                    Ok = context.BookCopies.Any(cp => cp.IdBook == b.Id && cp.CirculationStatus == CirculationStatus.Available)
                 })
                 .ToList();
 
