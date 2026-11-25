@@ -460,15 +460,48 @@ public class LoanManagementService
         using var db = new LibraryDbContext();
         var today = DateTime.Today;
 
-        return db.LoanDetails
-            .Include(d => d.Loan)
-            .Include(d => d.BookCopy)
-                .ThenInclude(c => c.Book)
+        var rawItems = db.LoanDetails
             .Where(d => d.IdLoan == loanId)
             .OrderBy(d => d.Id)
-            .ToList()
-            .Select(d => MapDetailDto(d, today))
+            .Select(d => new
+            {
+                d.Id,
+                d.IdLoan,
+                LoanCode = d.Loan.LoanCode,
+                d.IdBookCopy,
+                CopyCode = d.BookCopy.CopyCode,
+                Title = d.BookCopy.Book.Title,
+                Author = d.BookCopy.Book.Author,
+                BorrowedAt = d.Loan.BorrowedAt,
+                d.DueAt,
+                d.ReturnedAt,
+                d.PhysicalConditionBefore,
+                d.PhysicalConditionAfter,
+                d.RenewalCount,
+                d.Note
+            })
             .ToList();
+
+        return rawItems.Select(d => new LoanDetailItemDto
+        {
+            LoanDetailId = d.Id,
+            LoanId = d.IdLoan,
+            LoanCode = d.LoanCode ?? "",
+            BookCopyId = d.IdBookCopy,
+            CopyCode = d.CopyCode ?? "",
+            Title = d.Title ?? "",
+            Author = d.Author ?? "",
+            BorrowedAt = d.BorrowedAt,
+            DueAt = d.DueAt,
+            ReturnedAt = d.ReturnedAt,
+            PhysicalConditionBefore = d.PhysicalConditionBefore ?? "Good",
+            PhysicalConditionAfter = d.PhysicalConditionAfter,
+            RenewalCount = d.RenewalCount,
+            ItemStatus = d.ReturnedAt != null
+                ? "Đã trả"
+                : (d.DueAt.Date < today ? "Quá hạn" : "Đang mượn"),
+            Note = d.Note
+        }).ToList();
     }
 
     public List<LoanDetailItemDto> GetReaderBorrowHistory(int readerId)
@@ -476,42 +509,49 @@ public class LoanManagementService
         using var db = new LibraryDbContext();
         var today = DateTime.Today;
 
-        return db.LoanDetails
-            .Include(d => d.Loan)
-            .Include(d => d.BookCopy)
-                .ThenInclude(c => c.Book)
+        var rawItems = db.LoanDetails
             .Where(d => d.Loan.IdReader == readerId)
             .OrderByDescending(d => d.Loan.BorrowedAt)
             .ThenByDescending(d => d.Id)
-            .ToList()
-            .Select(d => MapDetailDto(d, today))
+            .Select(d => new
+            {
+                d.Id,
+                d.IdLoan,
+                LoanCode = d.Loan.LoanCode,
+                d.IdBookCopy,
+                CopyCode = d.BookCopy.CopyCode,
+                Title = d.BookCopy.Book.Title,
+                Author = d.BookCopy.Book.Author,
+                BorrowedAt = d.Loan.BorrowedAt,
+                d.DueAt,
+                d.ReturnedAt,
+                d.PhysicalConditionBefore,
+                d.PhysicalConditionAfter,
+                d.RenewalCount,
+                d.Note
+            })
             .ToList();
-    }
 
-    private static LoanDetailItemDto MapDetailDto(LoanDetails d, DateTime today)
-    {
-        string status = d.ReturnedAt != null
-            ? "Đã trả"
-            : (d.DueAt.Date < today ? "Quá hạn" : "Đang mượn");
-
-        return new LoanDetailItemDto
+        return rawItems.Select(d => new LoanDetailItemDto
         {
             LoanDetailId = d.Id,
             LoanId = d.IdLoan,
-            LoanCode = d.Loan.LoanCode,
+            LoanCode = d.LoanCode ?? "",
             BookCopyId = d.IdBookCopy,
-            CopyCode = d.BookCopy.CopyCode,
-            Title = d.BookCopy.Book.Title,
-            Author = d.BookCopy.Book.Author,
-            BorrowedAt = d.Loan.BorrowedAt,
+            CopyCode = d.CopyCode ?? "",
+            Title = d.Title ?? "",
+            Author = d.Author ?? "",
+            BorrowedAt = d.BorrowedAt,
             DueAt = d.DueAt,
             ReturnedAt = d.ReturnedAt,
-            PhysicalConditionBefore = d.PhysicalConditionBefore,
+            PhysicalConditionBefore = d.PhysicalConditionBefore ?? "Good",
             PhysicalConditionAfter = d.PhysicalConditionAfter,
             RenewalCount = d.RenewalCount,
-            ItemStatus = status,
+            ItemStatus = d.ReturnedAt != null
+                ? "Đã trả"
+                : (d.DueAt.Date < today ? "Quá hạn" : "Đang mượn"),
             Note = d.Note
-        };
+        }).ToList();
     }
 
     public LoanReceiptDto GetLoanReceipt(int loanId)

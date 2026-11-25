@@ -1,6 +1,6 @@
-﻿using LibraryManagement.Enums;
+﻿namespace LibraryManagement.Models;
 
-namespace LibraryManagement.Models;
+using System;
 
 public class LoanDetails
 {
