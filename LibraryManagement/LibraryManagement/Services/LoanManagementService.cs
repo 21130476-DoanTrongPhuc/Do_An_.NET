@@ -1,4 +1,5 @@
 ﻿using LibraryManagement.Data;
+using LibraryManagement.Enums;
 using LibraryManagement.Helpers;
 using LibraryManagement.Models;
 using Microsoft.EntityFrameworkCore;
@@ -13,11 +14,11 @@ public class ReaderBorrowContextDto
     public string UserCode { get; set; } = string.Empty;
     public string FullName { get; set; } = string.Empty;
     public string? Phone { get; set; }
-    public string AccountStatus { get; set; } = string.Empty;
+    public UserStatus AccountStatus { get; set; }
 
     public string CardCode { get; set; } = string.Empty;
     public DateTime? CardExpiresAt { get; set; }
-    public string CardStatus { get; set; } = "Missing";
+    public ReaderCardStatus CardStatus { get; set; } = ReaderCardStatus.Missing;
 
     public int ActiveBorrowedCount { get; set; }
     public int OverdueCount { get; set; }
@@ -35,7 +36,7 @@ public class BorrowCartItemDto
     public string CopyCode { get; set; } = string.Empty;
     public string Title { get; set; } = string.Empty;
     public string Author { get; set; } = string.Empty;
-    public string PhysicalCondition { get; set; } = "Good";
+    public BookCondition PhysicalCondition { get; set; } = BookCondition.Good;
     public int MaxLoanDays { get; set; }
     public DateTime DueAt { get; set; }
 }
@@ -67,8 +68,8 @@ public class LoanDetailItemDto
     public DateTime BorrowedAt { get; set; }
     public DateTime DueAt { get; set; }
     public DateTime? ReturnedAt { get; set; }
-    public string PhysicalConditionBefore { get; set; } = string.Empty;
-    public string? PhysicalConditionAfter { get; set; }
+    public BookCondition PhysicalConditionBefore { get; set; } 
+    public BookCondition? PhysicalConditionAfter { get; set; }
     public int RenewalCount { get; set; }
     public string ItemStatus { get; set; } = string.Empty; // Đang mượn | Quá hạn | Đã trả
     public string? Note { get; set; }
@@ -117,7 +118,7 @@ public class LoanManagementService
             .FirstOrDefault(c => c.CardCode.ToLower() == kw);
 
         Users? reader = matchedCard?.Reader ?? db.Users.FirstOrDefault(u =>
-            u.UserType == "Reader" &&
+            u.UserType == UserType.Reader &&
             (u.UserCode.ToLower() == kw ||
              (u.Phone != null && u.Phone == keyword.Trim()) ||
              u.FullName.ToLower().Contains(kw)));
@@ -126,7 +127,7 @@ public class LoanManagementService
 
         var card = matchedCard ?? db.ReaderCards
             .Where(c => c.IdReader == reader.Id)
-            .OrderByDescending(c => c.Status == "Active")
+            .OrderByDescending(c => c.Status == ReaderCardStatus.Active)
             .ThenByDescending(c => c.ExpiresAt)
             .FirstOrDefault();
 
@@ -160,7 +161,7 @@ public class LoanManagementService
             AccountStatus = reader.Status,
             CardCode = card?.CardCode ?? "Chưa cấp thẻ",
             CardExpiresAt = card?.ExpiresAt,
-            CardStatus = card?.Status ?? "Missing",
+            CardStatus = card?.Status ??  ReaderCardStatus.Missing,
             ActiveBorrowedCount = activeCount,
             OverdueCount = overdueCount,
             MaxActiveCopies = maxCopies,
@@ -174,14 +175,14 @@ public class LoanManagementService
         }
         else
         {
-            if (card.Status.Equals("Locked", StringComparison.OrdinalIgnoreCase))
+            if (card.Status == ReaderCardStatus.Locked)
                 ctx.ValidationMessages.Add($"Thẻ thư viện ({card.CardCode}) đang bị KHÓA.");
-            if (card.Status.Equals("Expired", StringComparison.OrdinalIgnoreCase) || card.ExpiresAt.Date < DateTime.Today)
+            if (card.Status == ReaderCardStatus.Expired || card.ExpiresAt.Date < DateTime.Today)
                 ctx.ValidationMessages.Add($"Thẻ thư viện ({card.CardCode}) đã HẾT HẠN ({card.ExpiresAt:dd/MM/yyyy}).");
         }
 
         // 2. Tài khoản độc giả không bị khóa quyền mượn
-        if (!reader.Status.Equals("Active", StringComparison.OrdinalIgnoreCase))
+        if (reader.Status != UserStatus.Active)
             ctx.ValidationMessages.Add("Tài khoản độc giả đang bị khóa quyền mượn.");
 
         // 3. Độc giả không có khoản nợ phạt vượt mức cho phép
@@ -225,13 +226,13 @@ public class LoanManagementService
         if (!copy.Book.Status.Equals("Active", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException($"Đầu sách '{copy.Book.Title}' đã ngừng lưu hành.");
 
-        bool isReservedForCurrentReader = copy.CirculationStatus.Equals("Reserved", StringComparison.OrdinalIgnoreCase) &&
-            db.Reservations.Any(r => r.IdBookCopy == copy.Id && r.IdReader == readerId && r.Status == "ReadyForPickup");
+        bool isReservedForCurrentReader = copy.CirculationStatus == CirculationStatus.Reserved &&
+            db.Reservations.Any(r => r.IdBookCopy == copy.Id && r.IdReader == readerId && r.Status == ReservationStatus.ReadyForPickup);
 
-        if (!copy.CirculationStatus.Equals("Available", StringComparison.OrdinalIgnoreCase) && !isReservedForCurrentReader)
+        if (copy.CirculationStatus != CirculationStatus.Available && !isReservedForCurrentReader)
             throw new InvalidOperationException($"Bản sách '{code}' không ở trạng thái có sẵn (Hiện tại: {copy.CirculationStatus}).");
 
-        if (copy.PhysicalCondition.Equals("Damaged", StringComparison.OrdinalIgnoreCase))
+        if (copy.PhysicalCondition == BookCondition.Damaged)
             throw new InvalidOperationException($"Bản sách '{code}' đang hư hỏng (Damaged), không đủ điều kiện lưu thông.");
 
         // Quy định hạn chế: không mượn trùng 2 bản của cùng 1 đầu sách
@@ -316,12 +317,12 @@ public class LoanManagementService
                     ?? throw new InvalidOperationException($"Không tìm thấy bản sách '{item.CopyCode}'.");
 
                 var matchedReservation = db.Reservations.FirstOrDefault(r =>
-                    r.IdBookCopy == copy.Id && r.IdReader == readerId && r.Status == "ReadyForPickup");
+                    r.IdBookCopy == copy.Id && r.IdReader == readerId && r.Status == ReservationStatus.ReadyForPickup);
 
                 bool canLend = copy.Book.Status.Equals("Active", StringComparison.OrdinalIgnoreCase)
-                    && !copy.PhysicalCondition.Equals("Damaged", StringComparison.OrdinalIgnoreCase)
-                    && (copy.CirculationStatus.Equals("Available", StringComparison.OrdinalIgnoreCase)
-                        || (copy.CirculationStatus.Equals("Reserved", StringComparison.OrdinalIgnoreCase) && matchedReservation != null));
+                    && copy.PhysicalCondition != BookCondition.Damaged
+                    && (copy.CirculationStatus == CirculationStatus.Available)
+                        || (copy.CirculationStatus == CirculationStatus.Reserved && matchedReservation != null);
 
                 if (!canLend)
                 {
@@ -329,7 +330,7 @@ public class LoanManagementService
                         $"Bản sách '{copy.CopyCode}' không còn sẵn sàng lưu thông (Trạng thái: {copy.CirculationStatus}).");
                 }
 
-                string oldStatus = copy.CirculationStatus;
+                CirculationStatus oldStatus = copy.CirculationStatus;
 
                 db.LoanDetails.Add(new LoanDetails
                 {
@@ -345,12 +346,12 @@ public class LoanManagementService
 
                 if (matchedReservation != null)
                 {
-                    matchedReservation.Status = "Completed";
+                    matchedReservation.Status = ReservationStatus.Completed;
                     matchedReservation.FulfilledAt = now;
                     matchedReservation.IdLoan = loan.Id;
                 }
 
-                copy.CirculationStatus = "Borrowed";
+                copy.CirculationStatus = CirculationStatus.Borrowed;
                 copy.UpdatedAt = now;
 
                 db.BookCopyHistories.Add(new BookCopyHistory
@@ -359,7 +360,7 @@ public class LoanManagementService
                     ChangedAt = nowStr,
                     ActionType = $"Cho mượn ({loanCode})",
                     OldStatus = oldStatus,
-                    NewStatus = "Borrowed",
+                    NewStatus = CirculationStatus.Borrowed,
                     OldCondition = copy.PhysicalCondition,
                     NewCondition = copy.PhysicalCondition,
                     Note = $"Độc giả: {readerCheck.FullName} ({readerCheck.UserCode}) | Thủ thư: {librarianInfo}"
@@ -427,7 +428,7 @@ public class LoanManagementService
                     status = "Đang mượn";
 
                 string cardCode = l.Reader.ReaderCards
-                    .OrderByDescending(c => c.Status == "Active")
+                    .OrderByDescending(c => c.Status == ReaderCardStatus.Active)
                     .Select(c => c.CardCode)
                     .FirstOrDefault() ?? "—";
 
@@ -563,7 +564,7 @@ public class LoanManagementService
             ?? throw new InvalidOperationException("Không tìm thấy phiếu mượn.");
 
         string cardCode = loan.Reader.ReaderCards
-            .OrderByDescending(c => c.Status == "Active")
+            .OrderByDescending(c => c.Status == ReaderCardStatus.Active)
             .Select(c => c.CardCode)
             .FirstOrDefault() ?? "—";
 
@@ -584,11 +585,10 @@ public class LoanManagementService
     /// <summary>
     /// Mục 2.4: Hỗ trợ trả từng cuốn sách trong cùng một phiếu mượn
     /// </summary>
-    public void ReturnSingleLoanDetail(int loanDetailId, string conditionAfter, string? note)
+    public void ReturnSingleLoanDetail(int loanDetailId, BookCondition conditionAfter, string? note)
     {
-        string[] validConditions = ["New", "Good", "Worn", "Damaged"];
-        if (!validConditions.Contains(conditionAfter))
-            conditionAfter = "Good";
+        if (!Enum.IsDefined(typeof(BookCondition), conditionAfter))
+            conditionAfter = BookCondition.Good;
 
         using var db = new LibraryDbContext();
         using var transaction = db.Database.BeginTransaction();
@@ -612,11 +612,11 @@ public class LoanManagementService
                 detail.Note = string.IsNullOrWhiteSpace(detail.Note) ? note.Trim() : $"{detail.Note} | Trả lẻ: {note.Trim()}";
 
             var copy = detail.BookCopy;
-            string oldStatus = copy.CirculationStatus;
-            string oldCond = copy.PhysicalCondition;
+            CirculationStatus oldStatus = copy.CirculationStatus;
+            BookCondition oldCond = copy.PhysicalCondition;
 
             copy.PhysicalCondition = conditionAfter;
-            copy.CirculationStatus = conditionAfter == "Damaged" ? "Maintenance" : "Available";
+            copy.CirculationStatus = conditionAfter == BookCondition.Damaged ? CirculationStatus.Maintenance : CirculationStatus.Available;
             copy.UpdatedAt = now;
 
             db.BookCopyHistories.Add(new BookCopyHistory

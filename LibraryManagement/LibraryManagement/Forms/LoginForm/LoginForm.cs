@@ -1,4 +1,5 @@
 ﻿using LibraryManagement.Data;
+using LibraryManagement.Enums;
 using LibraryManagement.Helpers;
 using LibraryManagement.Models;
 
@@ -42,10 +43,10 @@ public partial class LoginForm : Form
                     UserCode = "NV000",
                     Username = "admin",
                     PasswordHash = "123456",
-                    FullName = "Quản trị viên",
-                    UserType = "Admin",
+                    FullName = "Thủ thư",
+                    UserType = UserType.Librarian,
                     MaxActiveCopies = null,
-                    Status = "Active"
+                    Status = UserStatus.Active
                 });
                 context.SaveChanges();
             }
@@ -71,7 +72,7 @@ public partial class LoginForm : Form
     {
         if (rdoLibrarian.Checked)
         {
-            lblUsernameTitle.Text = "Tên đăng nhập thủ thư";
+            lblUsernameTitle.Text = "Tên đăng nhập thủ thư hoặc Admin";
             txtUsername.Clear();
             txtPassword.Clear();
         }
@@ -98,11 +99,11 @@ public partial class LoginForm : Form
                 var librarian = context.Users.FirstOrDefault(l =>
                     l.Username == username &&
                     l.PasswordHash == password &&
-                    (l.UserType == "Librarian" || l.UserType == "Admin"));
+                    (l.UserType == UserType.Librarian || l.UserType == UserType.Librarian));
 
                 if (librarian != null)
                 {
-                    if (librarian.Status.Equals("Inactive", StringComparison.OrdinalIgnoreCase))
+                    if (librarian.Status == UserStatus.Inactive)
                     {
                         MessageBox.Show("Tài khoản thủ thư đang bị khóa!", "Thông báo",
                             MessageBoxButtons.OK, MessageBoxIcon.Stop);
@@ -111,14 +112,14 @@ public partial class LoginForm : Form
 
                     Session.CurrentLibrarianId = librarian.Id;
 
-                    var f = new LibrarianFormMain();
+                    var f = new LibrarianFormMain.LibrarianFormMain();
                     f.FormClosed += (_, _) => AfterClose(f.IsLogout);
                     this.Hide();
                     f.Show();
                 }
                 else
                 {
-                    MessageBox.Show("Sai tài khoản hoặc mật khẩu thủ thư.", "Thông báo",
+                    MessageBox.Show("Sai tài khoản hoặc mật khẩu thủ thư/Admin.", "Thông báo",
                         MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
@@ -127,11 +128,11 @@ public partial class LoginForm : Form
                 var reader = context.Users.FirstOrDefault(r =>
                     (r.UserCode == username || r.Email == username) &&
                     r.PasswordHash == password &&
-                    r.UserType == "Reader");
+                    r.UserType == UserType.Reader);
 
                 if (reader != null)
                 {
-                    if (reader.Status.Equals("Inactive", StringComparison.OrdinalIgnoreCase))
+                    if (reader.Status == UserStatus.Inactive)
                     {
                         MessageBox.Show("Tài khoản của bạn đang bị khóa, vui lòng liên hệ thủ thư!", "Thông báo",
                             MessageBoxButtons.OK, MessageBoxIcon.Stop);

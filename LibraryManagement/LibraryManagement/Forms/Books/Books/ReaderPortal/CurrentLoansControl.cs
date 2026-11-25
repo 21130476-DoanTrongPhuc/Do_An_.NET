@@ -1,4 +1,5 @@
 ﻿using LibraryManagement.Data;
+using LibraryManagement.Enums;
 using LibraryManagement.Helpers;
 using Microsoft.EntityFrameworkCore;
 
@@ -328,14 +329,14 @@ public class CurrentLoansControl : UserControl
             var reservations = context.Reservations
                 .Include(r => r.Book)
                 .Where(r => r.IdReader == readerId &&
-                            (r.Status == "Pending" || r.Status == "ReadyForPickup"))
+                            (r.Status == ReservationStatus.Pending || r.Status == ReservationStatus.ReadyForPickup))
                 .OrderByDescending(r => r.ReservedAt)
                 .ToList();
 
             _dgvReservations.Rows.Clear();
             foreach (var r in reservations)
             {
-                string stText = r.Status == "ReadyForPickup" ? "Sẵn sàng nhận" : "Đang chờ duyệt";
+                string stText = r.Status == ReservationStatus.ReadyForPickup ? "Sẵn sàng nhận" : "Đang chờ duyệt";
                 int idx = _dgvReservations.Rows.Add(
                     r.Id,
                     r.IdBook,
@@ -349,7 +350,7 @@ public class CurrentLoansControl : UserControl
 
                 var stCell = _dgvReservations.Rows[idx].Cells["Status"];
                 stCell.Style.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-                stCell.Style.ForeColor = r.Status == "ReadyForPickup" ? Green : Primary;
+                stCell.Style.ForeColor = r.Status == ReservationStatus.ReadyForPickup ? Green : Primary;
             }
         }
         catch (Exception ex)
@@ -417,7 +418,7 @@ public class CurrentLoansControl : UserControl
             bool hasOtherReservation = context.Reservations.Any(r =>
                 r.IdBook == bookId &&
                 r.IdReader != Session.CurrentReaderId &&
-                (r.Status == "Pending" || r.Status == "ReadyForPickup"));
+                (r.Status == ReservationStatus.Pending || r.Status == ReservationStatus.ReadyForPickup));
 
             if (hasOtherReservation)
             {
@@ -471,17 +472,17 @@ public class CurrentLoansControl : UserControl
         {
             using var context = new LibraryDbContext();
             var reservation = context.Reservations.Find(resId);
-            if (reservation != null && (reservation.Status == "Pending" || reservation.Status == "ReadyForPickup"))
+            if (reservation != null && (reservation.Status == ReservationStatus.Pending || reservation.Status == ReservationStatus.ReadyForPickup))
             {
-                reservation.Status = "Cancelled";
+                reservation.Status = ReservationStatus.Cancelled;
                 reservation.CancelledAt = DateTime.Now;
 
                 if (reservation.IdBookCopy.HasValue)
                 {
                     var copy = context.BookCopies.Find(reservation.IdBookCopy.Value);
-                    if (copy != null && copy.CirculationStatus == "Reserved")
+                    if (copy != null && copy.CirculationStatus == CirculationStatus.Reserved)
                     {
-                        copy.CirculationStatus = "Available";
+                        copy.CirculationStatus = CirculationStatus.Available;
                     }
                 }
 

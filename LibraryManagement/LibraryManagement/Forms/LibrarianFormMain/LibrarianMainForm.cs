@@ -1,40 +1,55 @@
 ﻿using System.Drawing.Drawing2D;
+using LibraryManagement.Controls;
 using LibraryManagement.Data;
+using LibraryManagement.Enums;
+using LibraryManagement.Forms.Books;
+using LibraryManagement.Forms.FineManagement;
 using LibraryManagement.Helpers;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
-namespace LibraryManagement.Forms
+namespace LibraryManagement.Forms.LibrarianFormMain
 {
     public partial class LibrarianFormMain : Form
     {
         // ====== Màu sắc ======
-        private static readonly Color Primary = Color.FromArgb(19, 98, 160);
+        private static readonly Color Primary    = Color.FromArgb(19, 98, 160);
         private static readonly Color BorderGray = Color.FromArgb(205, 210, 218);
-        private static readonly Color TextGray = Color.FromArgb(110, 117, 128);
-        private static readonly Color SoftBlue = Color.FromArgb(232, 240, 250);
-        private static readonly Color Orange = Color.FromArgb(214, 140, 10);
-        private static readonly Color Green = Color.FromArgb(34, 160, 90);
-        private static readonly Color Red = Color.FromArgb(200, 40, 40);
+        private static readonly Color TextGray   = Color.FromArgb(110, 117, 128);
+        private static readonly Color SoftBlue   = Color.FromArgb(232, 240, 250);
+        private static readonly Color Orange     = Color.FromArgb(214, 140, 10);
+        private static readonly Color Green      = Color.FromArgb(34, 160, 90);
+        private static readonly Color Red        = Color.FromArgb(200, 40, 40);
         private const string IconFont = "Segoe MDL2 Assets";
 
         // Glyph (Segoe MDL2 Assets)
-        private const string GHome = "\uE80F", GBook = "\uE82D", GPeople = "\uE716",
-            GForward = "\uE72A", GBack = "\uE72B", GRefresh = "\uE72C", GHelp = "\uE897",
-            GWarn = "\uE7BA", GCalendar = "\uE787", GReport = "\uE9F9", GMoney = "\uE8C7";
+        private const string GHome     = "\uE80F";
+        private const string GBook     = "\uE82D";
+        private const string GPeople   = "\uE716";
+        private const string GForward  = "\uE72A";
+        private const string GBack     = "\uE72B";
+        private const string GRefresh  = "\uE72C";
+        private const string GHelp     = "\uE897";
+        private const string GWarn     = "\uE7BA";
+        private const string GCalendar = "\uE787";
+        private const string GReport   = "\uE9F9";
+        private const string GMoney    = "\uE8C7";
+        private const string GReturn   = "\uE7A7";
 
         public bool IsLogout { get; private set; }
 
-        // Control cần truy cập sau
+        // ====== Vùng nội dung động ======
+        private Panel _pnlContent = null!;
         private TabControl _tabMain = null!;
         private TabPage? _tabLoan;
         private TabPage? _tabReport;
         private TabPage? _tabReturn;
         private TabPage? _tabBookCatalog;
         private TabPage? _tabBookCopies;
-        private TabPage? _tabReaders;
+        private TabPage? _tabCategories;
         private TabPage? _tabOverdue;
         private TabPage? _tabFines;
 
+        // ====== Control trong trang Tổng quan ======
         private TableLayoutPanel _tblStats = null!;
         private DataGridView _dgvTrans = null!;
         private FlowLayoutPanel _flowNotice = null!;
@@ -49,17 +64,79 @@ namespace LibraryManagement.Forms
             Load += (_, _) =>
             {
                 Text = "LIBRA - Quản lý thư viện";
+                ShowOverviewPage();
                 LoadData();
             };
         }
 
         // ============================================================
-        //  DỮ LIỆU - KẾT NỐI TRỰC TIẾP VỚI DATABASE (LibraryDbContext)
+        //  ĐIỀU HƯỚNG
+        // ============================================================
+        private void ShowOverviewPage()
+        {
+            _pnlContent.SuspendLayout();
+            _pnlContent.Controls.Clear();
+
+            // Reset tab cache vì TabControl bị tạo lại
+            _tabLoan = _tabReport = _tabReturn = _tabBookCatalog =
+                _tabBookCopies = _tabCategories = _tabOverdue = _tabFines = null;
+
+            _tabMain = new TabControl
+            {
+                Dock = DockStyle.Fill,
+                Font = new Font("Segoe UI", 9F),
+                Padding = new Point(14, 4)
+            };
+
+            var tabOverview = new TabPage("Tổng quan")
+            {
+                BackColor = Color.FromArgb(240, 242, 245),
+                Padding = new Padding(8)
+            };
+            _tabMain.TabPages.Add(tabOverview);
+            BuildOverview(tabOverview);
+
+            _pnlContent.Controls.Add(_tabMain);
+            _pnlContent.ResumeLayout(true);
+        }
+
+        private void ShowUserControl(UserControl uc)
+        {
+            _pnlContent.SuspendLayout();
+            _pnlContent.Controls.Clear();
+            uc.Dock = DockStyle.Fill;
+            _pnlContent.Controls.Add(uc);
+            _pnlContent.ResumeLayout(true);
+        }
+
+        private void ShowBookReturn()
+        {
+            var uc = AppServices.Provider.GetRequiredService<BookFormReturn.BookFormReturn>();
+            uc.CloseRequested += (_, _) => ShowOverviewPage();
+            ShowUserControl(uc);
+        }
+
+        private void ShowOverdueBooks()
+        {
+            var uc = AppServices.Provider.GetRequiredService<OverdueBooks.OverdueBooks>();
+            uc.CloseRequested += (_, _) => ShowOverviewPage();
+            uc.ReturnBookRequested += (_, _) => ShowBookReturn();
+            ShowUserControl(uc);
+        }
+
+        private void ShowFineManagement()
+        {
+            var uc = new FineManagement.FineManagement();
+            ShowUserControl(uc);
+        }
+
+        // ============================================================
+        //  DỮ LIỆU
         // ============================================================
         private void LoadData()
         {
             var d = DateTime.Now;
-            string[] days = ["Chủ Nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy"];
+            string[] days = { "Chủ Nhật", "Thứ Hai", "Thứ Ba", "Thứ Tư", "Thứ Năm", "Thứ Sáu", "Thứ Bảy" };
             _lblDate.Text = $"{days[(int)d.DayOfWeek]}, ngày {d:dd} tháng {d:MM} năm {d:yyyy}";
 
             try
@@ -68,51 +145,47 @@ namespace LibraryManagement.Forms
                 var today = DateTime.Today;
                 var monthStart = new DateTime(today.Year, today.Month, 1);
 
-                // 1. Lấy thông tin thủ thư / admin đang đăng nhập
+                // 1. Thông tin thủ thư đang đăng nhập
                 var currentUser = context.Users
                     .Where(u => u.Id == Session.CurrentLibrarianId)
                     .Select(u => new { u.FullName, u.UserType, u.UserCode })
                     .FirstOrDefault();
 
-                _lblUserName.Text = currentUser?.FullName ?? "Quản trị viên";
+                _lblUserName.Text = currentUser?.FullName ?? "Thủ thư";
                 if (_lblStatusRole != null)
                 {
                     _lblStatusRole.Text = currentUser != null
-                        ? $"{(currentUser.UserType == "Admin" ? "Quản trị viên" : "Thủ thư")}: {currentUser.UserCode}"
+                        ? $"Thủ thư: {currentUser.UserCode}"
                         : "Thủ thư";
                 }
 
-                // 2. Truy vấn thống kê tổng quan từ Database
-                int totalBooks = context.Books.Count();
+                // 2. Thống kê tổng quan
+                int totalBooks  = context.Books.Count();
                 int totalCopies = context.BookCopies.Count();
 
-                int activeReaders = context.Users.Count(u => u.UserType == "Reader" && u.Status == "Active");
+                int activeReaders = context.Users.Count(u => u.UserType == UserType.Reader && u.Status == UserStatus.Active);
                 int newReadersThisMonth = context.Users
-                    .Where(u => u.UserType == "Reader")
+                    .Where(u => u.UserType == UserType.Reader)
                     .Select(u => u.CreatedAt)
                     .AsEnumerable()
-                    .Count(createdStr => DateTime.TryParse(createdStr, out var created) && created >= monthStart);
+                    .Count(created => created >= monthStart);
 
-                var unreturnedDetails = context.LoanDetails
+                var unreturned = context.LoanDetails
                     .Where(ld => ld.ReturnedAt == null)
-                    .Select(ld => new
-                    {
-                        ld.DueAt,
-                        BorrowedAt = ld.Loan.BorrowedAt
-                    })
+                    .Select(ld => new { ld.DueAt, BorrowedAt = ld.Loan.BorrowedAt })
                     .ToList();
 
-                int borrowingCount = unreturnedDetails.Count;
-                int borrowedTodayCount = unreturnedDetails.Count(ld => ld.BorrowedAt.Date == today);
-                int overdueCount = unreturnedDetails.Count(ld => ld.DueAt.Date < today);
+                int borrowingCount    = unreturned.Count;
+                int borrowedToday     = unreturned.Count(ld => ld.BorrowedAt.Date == today);
+                int overdueCount      = unreturned.Count(ld => ld.DueAt.Date < today);
 
                 _tblStats.Controls.Clear();
-                AddStat(0, GBook, "Tổng đầu sách", totalBooks.ToString("N0"), $"{totalCopies:N0} bản sách vật lý", false);
-                AddStat(1, GPeople, "Độc giả hoạt động", activeReaders.ToString("N0"), $"+{newReadersThisMonth} độc giả mới tháng này", false);
-                AddStat(2, GForward, "Sách đang mượn", borrowingCount.ToString("N0"), $"{borrowedTodayCount} lượt mượn hôm nay", false);
-                AddStat(3, GWarn, "Phiếu quá hạn", overdueCount.ToString("N0"), overdueCount > 0 ? "Cần xử lý ngay" : "Không có quá hạn", overdueCount > 0);
+                AddStat(0, GBook,   "Tổng đầu sách",       totalBooks.ToString("N0"),    $"{totalCopies:N0} bản sách vật lý", false);
+                AddStat(1, GPeople, "Độc giả hoạt động",   activeReaders.ToString("N0"), $"+{newReadersThisMonth} độc giả mới tháng này", false);
+                AddStat(2, GForward,"Sách đang mượn",      borrowingCount.ToString("N0"),$"{borrowedToday} lượt mượn hôm nay", false);
+                AddStat(3, GWarn,   "Phiếu quá hạn",       overdueCount.ToString("N0"),  overdueCount > 0 ? "Cần xử lý ngay" : "Không có quá hạn", overdueCount > 0);
 
-                // 3. Giao dịch mượn/trả gần đây
+                // 3. Giao dịch gần đây
                 var recentDetails = context.LoanDetails
                     .OrderByDescending(ld => ld.Loan.BorrowedAt)
                     .ThenByDescending(ld => ld.Id)
@@ -121,7 +194,7 @@ namespace LibraryManagement.Forms
                     {
                         ld.Loan.LoanCode,
                         ReaderName = ld.Loan.Reader.FullName,
-                        BookTitle = ld.BookCopy.Book.Title,
+                        BookTitle  = ld.BookCopy.Book.Title,
                         ld.Loan.BorrowedAt,
                         ld.DueAt,
                         ld.ReturnedAt
@@ -131,23 +204,11 @@ namespace LibraryManagement.Forms
                 _dgvTrans.Rows.Clear();
                 foreach (var item in recentDetails)
                 {
-                    string statusText;
-                    if (item.ReturnedAt != null)
-                    {
-                        statusText = "Đã trả";
-                    }
-                    else if (item.DueAt.Date < today)
-                    {
-                        statusText = "Quá hạn";
-                    }
-                    else if ((item.DueAt.Date - today).Days <= 3)
-                    {
-                        statusText = "Sắp đến hạn";
-                    }
-                    else
-                    {
-                        statusText = "Đang mượn";
-                    }
+                    string statusText =
+                        item.ReturnedAt != null                                ? "Đã trả" :
+                        item.DueAt.Date < today                                ? "Quá hạn" :
+                        (item.DueAt.Date - today).Days <= 3                    ? "Sắp đến hạn" :
+                                                                                 "Đang mượn";
 
                     _dgvTrans.Rows.Add(
                         item.LoanCode,
@@ -155,65 +216,36 @@ namespace LibraryManagement.Forms
                         item.BookTitle,
                         item.BorrowedAt.ToString("dd/MM/yyyy"),
                         item.DueAt.ToString("dd/MM/yyyy"),
-                        statusText
-                    );
+                        statusText);
                 }
                 _dgvTrans.ClearSelection();
 
-                // 4. Thông báo và nhắc việc động từ Database
+                // 4. Thông báo động
                 _flowNotice.Controls.Clear();
 
                 if (overdueCount > 0)
-                {
-                    AddNotice(GWarn, Red,
-                        $"{overdueCount} cuốn sách đã quá hạn trả",
-                        "Cần liên hệ độc giả và xử lý thu hồi sách",
-                        "Kiểm tra",
-                        OpenOverdueTab);
-                }
+                    AddNotice(GWarn, Red, $"{overdueCount} cuốn sách đã quá hạn trả",
+                        "Cần liên hệ độc giả và xử lý thu hồi sách", "Kiểm tra", OpenOverdueTab);
 
-                int expiringCardsCount = context.ReaderCards
-                    .Count(rc => rc.Status == "Active"
-                                 && rc.ExpiresAt >= today
-                                 && rc.ExpiresAt <= today.AddDays(30));
-                if (expiringCardsCount > 0)
-                {
-                    AddNotice(GPeople, Primary,
-                        $"{expiringCardsCount} thẻ độc giả sắp hết hạn",
-                        "Sẽ hết hạn trong vòng 30 ngày tới",
-                        "Xem báo cáo",
-                        OpenReportTab);
-                }
+                int expiringCards = context.ReaderCards
+                    .Count(rc => rc.Status == ReaderCardStatus.Active && rc.ExpiresAt >= today && rc.ExpiresAt <= today.AddDays(30));
+                if (expiringCards > 0)
+                    AddNotice(GPeople, Primary, $"{expiringCards} thẻ độc giả sắp hết hạn",
+                        "Sẽ hết hạn trong vòng 30 ngày tới", "Xem báo cáo", OpenReportTab);
 
-                int lowStockBooksCount = context.Books
-                    .Count(b => b.Copies.Count(c => c.CirculationStatus == "Available") < 2);
-                if (lowStockBooksCount > 0)
-                {
-                    AddNotice(GBook, Orange,
-                        $"{lowStockBooksCount} đầu sách sắp hết bản sẵn sàng",
-                        "Số lượng bản có thể mượn dưới 2 cuốn",
-                        "Xem bản sách",
-                        OpenBookCopiesTab);
-                }
+                int lowStock = context.Books.Count(b => b.Copies.Count(c => c.CirculationStatus == CirculationStatus.Available) < 2);
+                if (lowStock > 0)
+                    AddNotice(GBook, Orange, $"{lowStock} đầu sách sắp hết bản sẵn sàng",
+                        "Số lượng bản có thể mượn dưới 2 cuốn", "Xem bản sách", OpenBookCopiesTab);
 
-                int unpaidFinesCount = context.Fines.Count();
-                if (unpaidFinesCount > 0)
-                {
-                    AddNotice(GMoney, Orange,
-                        $"{unpaidFinesCount} khoản phạt chưa thanh toán",
-                        "Độc giả còn nợ phí phạt quá hạn / hư hỏng",
-                        "Thu phạt",
-                        OpenFinesTab);
-                }
+                int unpaidFines = context.Fines.Count();
+                if (unpaidFines > 0)
+                    AddNotice(GMoney, Orange, $"{unpaidFines} khoản phạt chưa thanh toán",
+                        "Độc giả còn nợ phí phạt quá hạn / hư hỏng", "Thu phạt", OpenFinesTab);
 
                 if (_flowNotice.Controls.Count == 0)
-                {
-                    AddNotice(GBook, Green,
-                        "Hệ thống hoạt động ổn định",
-                        "Hiện không có phiếu quá hạn hay cảnh báo tồn đọng",
-                        "Làm mới",
-                        LoadData);
-                }
+                    AddNotice(GBook, Green, "Hệ thống hoạt động ổn định",
+                        "Hiện không có phiếu quá hạn hay cảnh báo tồn đọng", "Làm mới", LoadData);
             }
             catch (Exception ex)
             {
@@ -229,16 +261,12 @@ namespace LibraryManagement.Forms
         {
             SuspendLayout();
 
-            // ---- TabControl (Fill - add đầu tiên) ----
-            _tabMain = new TabControl { Dock = DockStyle.Fill, Font = new Font("Segoe UI", 9F), Padding = new Point(14, 4) };
-            var tabOverview = new TabPage("Tổng quan") { BackColor = Color.FromArgb(240, 242, 245), Padding = new Padding(8) };
-            _tabMain.TabPages.Add(tabOverview);
-            BuildOverview(tabOverview);
-            Controls.Add(_tabMain);
+            _pnlContent = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(240, 242, 245) };
+            Controls.Add(_pnlContent);
 
-            Controls.Add(BuildStatusBar());      // Bottom
-            Controls.Add(BuildToolbar());        // Top
-            Controls.Add(BuildMenu());           // Top (trên cùng)
+            Controls.Add(BuildStatusBar()); // Bottom
+            Controls.Add(BuildToolbar());   // Top
+            Controls.Add(BuildMenu());      // Top (trên cùng)
 
             ResumeLayout(true);
         }
@@ -248,15 +276,16 @@ namespace LibraryManagement.Forms
             var menu = new MenuStrip { BackColor = Color.White, Dock = DockStyle.Top };
 
             var mnuSystem = new ToolStripMenuItem("Hệ thống");
-            mnuSystem.DropDownItems.Add("Trang chủ tổng quan", null, (_, _) => _tabMain.SelectedIndex = 0);
+            mnuSystem.DropDownItems.Add("Trang chủ tổng quan", null, (_, _) => ShowOverviewPage());
             mnuSystem.DropDownItems.Add("Làm mới dữ liệu", null, (_, _) => LoadData());
             mnuSystem.DropDownItems.Add(new ToolStripSeparator());
             mnuSystem.DropDownItems.Add("Đăng xuất", null, btnLogout_Click);
 
             var mnuCatalog = new ToolStripMenuItem("Danh mục");
             mnuCatalog.DropDownItems.Add("Quản lý đầu sách", null, (_, _) => OpenBookCatalogTab());
+            mnuCatalog.DropDownItems.Add("Quản lý thể loại", null, (_, _) => OpenCategoryTab());
             mnuCatalog.DropDownItems.Add("Quản lý bản sách", null, (_, _) => OpenBookCopiesTab());
-            mnuCatalog.DropDownItems.Add("Quản lý độc giả", null, (_, _) => OpenReadersTab());
+            mnuCatalog.DropDownItems.Add("Thêm độc giả", null, (_, _) => OpenReaderRegistration());
 
             var mnuCirculation = new ToolStripMenuItem("Lưu thông");
             mnuCirculation.DropDownItems.Add("Quản lý mượn sách", null, (_, _) => OpenLoanTab());
@@ -284,32 +313,43 @@ namespace LibraryManagement.Forms
 
             var ts = new ToolStrip
             {
-                Dock = DockStyle.Fill, GripStyle = ToolStripGripStyle.Hidden, BackColor = Color.FromArgb(246, 247, 249),
+                Dock = DockStyle.Fill, GripStyle = ToolStripGripStyle.Hidden,
+                BackColor = Color.FromArgb(246, 247, 249),
                 ImageScalingSize = new Size(24, 24), Padding = new Padding(6, 4, 0, 0)
             };
-            AddTool(ts, "Trang chủ", GHome, () => { _tabMain.SelectedIndex = 0; LoadData(); });
+            AddTool(ts, "Trang chủ",       GHome,    ShowOverviewPage);
             ts.Items.Add(new ToolStripSeparator());
-            AddTool(ts, "Thêm đầu sách", GBook, OpenAddBookAction);
-            AddTool(ts, "Bản sách", GBook, OpenBookCopiesTab);
-            AddTool(ts, "Thêm độc giả", GPeople, OpenAddReaderAction);
+            AddTool(ts, "Đầu sách",        GBook,    OpenBookCatalogTab);
+            AddTool(ts, "Bản sách",        GBook,    OpenBookCopiesTab);
+            AddTool(ts, "Thêm độc giả",    GPeople,  OpenReaderRegistration);
             ts.Items.Add(new ToolStripSeparator());
-            AddTool(ts, "Lập phiếu mượn", GForward, OpenLoanTab);
-            AddTool(ts, "Nhận trả sách", GBack, OpenReturnTab);
-            AddTool(ts, "Quá hạn", GWarn, OpenOverdueTab);
-            AddTool(ts, "Tiền phạt", GMoney, OpenFinesTab);
+            AddTool(ts, "Lập phiếu mượn",  GForward, OpenLoanTab);
+            AddTool(ts, "Nhận trả sách",   GBack,    OpenReturnTab);
+            AddTool(ts, "Quá hạn",         GWarn,    OpenOverdueTab);
+            AddTool(ts, "Tiền phạt",       GMoney,   OpenFinesTab);
             ts.Items.Add(new ToolStripSeparator());
-            AddTool(ts, "Báo cáo", GReport, OpenReportTab);
-            AddTool(ts, "Làm mới", GRefresh, LoadData);
+            AddTool(ts, "Báo cáo",         GReport,  OpenReportTab);
+            AddTool(ts, "Làm mới",         GRefresh, LoadData);
 
             // Khu người dùng bên phải
             var user = new Panel { Dock = DockStyle.Right, Width = 340 };
-            user.Controls.Add(new Label { Text = "Người dùng:", AutoSize = true, ForeColor = TextGray, Font = new Font("Segoe UI", 9F), Location = new Point(8, 22) });
-            _lblUserName = new Label { AutoSize = true, Font = new Font("Segoe UI", 9F, FontStyle.Bold), Location = new Point(84, 22) };
+            user.Controls.Add(new Label
+            {
+                Text = "Người dùng:", AutoSize = true, ForeColor = TextGray,
+                Font = new Font("Segoe UI", 9F), Location = new Point(8, 22)
+            });
+            _lblUserName = new Label
+            {
+                AutoSize = true, Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+                Location = new Point(84, 22)
+            };
             user.Controls.Add(_lblUserName);
+
             var btnLogout = new Button
             {
-                Text = "Đăng xuất", FlatStyle = FlatStyle.Flat, BackColor = Color.White, Size = new Size(92, 32),
-                Location = new Point(user.Width - 104, 14), Anchor = AnchorStyles.Top | AnchorStyles.Right
+                Text = "Đăng xuất", FlatStyle = FlatStyle.Flat, BackColor = Color.White,
+                Size = new Size(92, 32), Location = new Point(user.Width - 104, 14),
+                Anchor = AnchorStyles.Top | AnchorStyles.Right
             };
             btnLogout.FlatAppearance.BorderColor = BorderGray;
             btnLogout.Click += btnLogout_Click;
@@ -322,9 +362,16 @@ namespace LibraryManagement.Forms
 
         private StatusStrip BuildStatusBar()
         {
-            var st = new StatusStrip { Dock = DockStyle.Bottom, SizingGrip = true, BackColor = Color.FromArgb(240, 242, 245), Font = new Font("Segoe UI", 8F) };
-            _lblStatusRole = new ToolStripStatusLabel("Thủ thư");
-            st.Items.AddRange([
+            var st = new StatusStrip
+            {
+                Dock = DockStyle.Bottom, SizingGrip = true,
+                BackColor = Color.FromArgb(240, 242, 245), Font = new Font("Segoe UI", 8F)
+            };
+
+            _lblStatusRole = new ToolStripStatusLabel(string.Empty);
+
+            st.Items.AddRange(new ToolStripItem[]
+            {
                 new ToolStripStatusLabel("●") { ForeColor = Green },
                 new ToolStripStatusLabel("Đã kết nối CSDL"),
                 new ToolStripSeparator(),
@@ -334,13 +381,13 @@ namespace LibraryManagement.Forms
                 _lblStatusRole,
                 new ToolStripSeparator(),
                 new ToolStripStatusLabel("Phiên bản 2.4.0")
-            ]);
+            });
             return st;
         }
 
         private void BuildOverview(TabPage page)
         {
-            // ---------- Khối dưới: giao dịch + thông báo (Fill - add đầu) ----------
+            // Khối dưới: giao dịch + thông báo
             var pnlBottom = new Panel { Dock = DockStyle.Fill, Padding = new Padding(0, 10, 0, 0) };
 
             var grpTrans = new GroupBox { Text = "Giao dịch gần đây", Dock = DockStyle.Fill, Padding = new Padding(10, 8, 10, 10) };
@@ -349,7 +396,11 @@ namespace LibraryManagement.Forms
 
             var noticeHost = new Panel { Dock = DockStyle.Right, Width = 560, Padding = new Padding(12, 0, 0, 0) };
             var grpNotice = new GroupBox { Text = "Thông báo và nhắc việc", Dock = DockStyle.Fill, Padding = new Padding(10, 8, 10, 10) };
-            _flowNotice = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true };
+            _flowNotice = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown,
+                WrapContents = false, AutoScroll = true
+            };
             _flowNotice.Resize += (_, _) =>
             {
                 foreach (Control c in _flowNotice.Controls) c.Width = _flowNotice.ClientSize.Width - 8;
@@ -360,7 +411,7 @@ namespace LibraryManagement.Forms
             pnlBottom.Controls.Add(grpTrans);   // Fill
             pnlBottom.Controls.Add(noticeHost); // Right
 
-            // ---------- Khối giữa: thống kê + tác vụ nhanh ----------
+            // Khối giữa: thống kê + tác vụ nhanh
             var pnlTop = new Panel { Dock = DockStyle.Top, Height = 168, Padding = new Padding(0, 10, 0, 0) };
 
             var grpStats = new GroupBox { Text = "Thống kê hôm nay", Dock = DockStyle.Fill, Padding = new Padding(10, 8, 10, 10) };
@@ -376,17 +427,17 @@ namespace LibraryManagement.Forms
             tblQuick.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
             tblQuick.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
             tblQuick.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
-            tblQuick.Controls.Add(QuickButton("Nhận trả sách", GBack, OpenReturnTab), 0, 0);
-            tblQuick.Controls.Add(QuickButton("Sách quá hạn", GWarn, OpenOverdueTab), 1, 0);
-            tblQuick.Controls.Add(QuickButton("Quản lý bản sách", GBook, OpenBookCopiesTab), 0, 1);
-            tblQuick.Controls.Add(QuickButton("Quản lý tiền phạt", GMoney, OpenFinesTab), 1, 1);
+            tblQuick.Controls.Add(QuickButton("Lập phiếu mượn",   GForward, OpenLoanTab),        0, 0);
+            tblQuick.Controls.Add(QuickButton("Nhận trả sách",    GBack,    OpenReturnTab),      1, 0);
+            tblQuick.Controls.Add(QuickButton("Sách quá hạn",     GWarn,    OpenOverdueTab),     0, 1);
+            tblQuick.Controls.Add(QuickButton("Quản lý tiền phạt",GMoney,   OpenFinesTab),       1, 1);
             grpQuick.Controls.Add(tblQuick);
             quickHost.Controls.Add(grpQuick);
 
             pnlTop.Controls.Add(grpStats);  // Fill
             pnlTop.Controls.Add(quickHost); // Right
 
-            // ---------- Khối đầu: tiêu đề ----------
+            // Khối đầu: tiêu đề
             var pnlHeader = new Panel { Dock = DockStyle.Top, Height = 62, BackColor = SoftBlue };
             pnlHeader.Paint += (_, e) => e.Graphics.DrawRectangle(new Pen(BorderGray), 0, 0, pnlHeader.Width - 1, pnlHeader.Height - 1);
             pnlHeader.Controls.Add(new Label
@@ -394,14 +445,21 @@ namespace LibraryManagement.Forms
                 Text = "TỔNG QUAN HOẠT ĐỘNG THƯ VIỆN", AutoSize = true, BackColor = Color.Transparent,
                 Font = new Font("Segoe UI", 11F, FontStyle.Bold), Location = new Point(14, 8)
             });
-            _lblDate = new Label { AutoSize = true, BackColor = Color.Transparent, ForeColor = TextGray, Font = new Font("Segoe UI", 8.5F), Location = new Point(16, 36) };
+            _lblDate = new Label
+            {
+                AutoSize = true, BackColor = Color.Transparent, ForeColor = TextGray,
+                Font = new Font("Segoe UI", 8.5F), Location = new Point(16, 36)
+            };
             pnlHeader.Controls.Add(_lblDate);
 
             var btnRefresh = new Button
             {
-                Text = "  Làm mới dữ liệu", FlatStyle = FlatStyle.Flat, BackColor = Color.White, Size = new Size(150, 34),
-                Image = GlyphImage(GRefresh, 14, Color.Black), ImageAlign = ContentAlignment.MiddleLeft,
-                TextImageRelation = TextImageRelation.ImageBeforeText, Font = new Font("Segoe UI", 8.5F),
+                Text = "  Làm mới dữ liệu", FlatStyle = FlatStyle.Flat, BackColor = Color.White,
+                Size = new Size(150, 34),
+                Image = GlyphImage(GRefresh, 14, Color.Black),
+                ImageAlign = ContentAlignment.MiddleLeft,
+                TextImageRelation = TextImageRelation.ImageBeforeText,
+                Font = new Font("Segoe UI", 8.5F),
                 Anchor = AnchorStyles.Top | AnchorStyles.Right
             };
             btnRefresh.Location = new Point(1000, 14);
@@ -410,7 +468,6 @@ namespace LibraryManagement.Forms
             pnlHeader.Controls.Add(btnRefresh);
             pnlHeader.Resize += (_, _) => btnRefresh.Left = pnlHeader.Width - btnRefresh.Width - 12;
 
-            // Thứ tự add: Fill -> Top (dưới) -> Top (trên cùng)
             page.Controls.Add(pnlBottom);
             page.Controls.Add(pnlTop);
             page.Controls.Add(pnlHeader);
@@ -420,13 +477,19 @@ namespace LibraryManagement.Forms
         {
             var g = new DataGridView
             {
-                Dock = DockStyle.Fill, ReadOnly = true, AllowUserToAddRows = false, AllowUserToDeleteRows = false,
-                AllowUserToResizeRows = false, RowHeadersVisible = false, BackgroundColor = Color.White,
-                BorderStyle = BorderStyle.FixedSingle, CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal,
-                GridColor = Color.FromArgb(225, 228, 233), SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-                MultiSelect = false, EnableHeadersVisualStyles = false, RowTemplate = { Height = 42 },
-                ColumnHeadersHeight = 36, ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing,
-                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill, Font = new Font("Segoe UI", 9F)
+                Dock = DockStyle.Fill, ReadOnly = true, AllowUserToAddRows = false,
+                AllowUserToDeleteRows = false, AllowUserToResizeRows = false,
+                RowHeadersVisible = false, BackgroundColor = Color.White,
+                BorderStyle = BorderStyle.FixedSingle,
+                CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal,
+                GridColor = Color.FromArgb(225, 228, 233),
+                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                MultiSelect = false, EnableHeadersVisualStyles = false,
+                RowTemplate = { Height = 42 },
+                ColumnHeadersHeight = 36,
+                ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing,
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                Font = new Font("Segoe UI", 9F)
             };
             g.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(241, 243, 246);
             g.ColumnHeadersDefaultCellStyle.ForeColor = Color.Black;
@@ -438,26 +501,26 @@ namespace LibraryManagement.Forms
             g.DefaultCellStyle.SelectionBackColor = Color.FromArgb(225, 236, 248);
             g.DefaultCellStyle.SelectionForeColor = Color.Black;
 
-            g.Columns.Add("colId", "Mã phiếu");
+            g.Columns.Add("colId",     "Mã phiếu");
             g.Columns.Add("colReader", "Độc giả");
-            g.Columns.Add("colBook", "Tên sách");
+            g.Columns.Add("colBook",   "Tên sách");
             g.Columns.Add("colBorrow", "Ngày mượn");
-            g.Columns.Add("colDue", "Hạn trả");
+            g.Columns.Add("colDue",    "Hạn trả");
             g.Columns.Add("colStatus", "Trạng thái");
+
             g.Columns["colId"]!.DefaultCellStyle.ForeColor = Primary;
             g.Columns["colId"]!.DefaultCellStyle.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-            g.Columns["colId"]!.FillWeight = 70;
+            g.Columns["colId"]!.FillWeight     = 70;
             g.Columns["colReader"]!.FillWeight = 90;
-            g.Columns["colBook"]!.FillWeight = 100;
+            g.Columns["colBook"]!.FillWeight   = 100;
             g.Columns["colBorrow"]!.FillWeight = 75;
-            g.Columns["colDue"]!.FillWeight = 75;
+            g.Columns["colDue"]!.FillWeight    = 75;
             g.Columns["colStatus"]!.FillWeight = 85;
 
             g.CellPainting += DgvTrans_CellPainting;
             return g;
         }
 
-        // Vẽ nhãn trạng thái dạng "pill"
         private void DgvTrans_CellPainting(object? sender, DataGridViewCellPaintingEventArgs e)
         {
             if (e.RowIndex < 0 || e.ColumnIndex != 5 || e.Graphics == null) return;
@@ -466,11 +529,11 @@ namespace LibraryManagement.Forms
             string text = e.Value?.ToString() ?? "";
             Color c = text switch
             {
-                "Đang mượn" => Primary,
-                "Đã trả" => Green,
-                "Sắp đến hạn" => Orange,
-                "Quá hạn" => Red,
-                _ => TextGray
+                "Đang mượn"    => Primary,
+                "Đã trả"       => Green,
+                "Sắp đến hạn"  => Orange,
+                "Quá hạn"      => Red,
+                _              => TextGray
             };
 
             var font = new Font("Segoe UI", 8.5F);
@@ -481,7 +544,7 @@ namespace LibraryManagement.Forms
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
             using (var path = RoundedRect(rect, 13))
             using (var fill = new SolidBrush(Color.FromArgb(22, c)))
-            using (var pen = new Pen(Color.FromArgb(150, c)))
+            using (var pen  = new Pen(Color.FromArgb(150, c)))
             {
                 e.Graphics.FillPath(fill, path);
                 e.Graphics.DrawPath(pen, path);
@@ -497,45 +560,64 @@ namespace LibraryManagement.Forms
         private void AddStat(int col, string glyph, string caption, string value, string sub, bool danger)
         {
             var accent = danger ? Red : Primary;
-            var card = new Panel { Dock = DockStyle.Fill, BackColor = Color.White, Margin = new Padding(0, 0, col == 3 ? 0 : 10, 0) };
+            var card = new Panel
+            {
+                Dock = DockStyle.Fill, BackColor = Color.White,
+                Margin = new Padding(0, 0, col == 3 ? 0 : 10, 0)
+            };
             card.Paint += (_, e) => e.Graphics.DrawRectangle(new Pen(BorderGray), 0, 0, card.Width - 1, card.Height - 1);
 
             card.Controls.Add(new Label
             {
                 Text = glyph, Font = new Font(IconFont, 18F), ForeColor = accent,
                 BackColor = danger ? Color.FromArgb(253, 234, 234) : SoftBlue,
-                TextAlign = ContentAlignment.MiddleCenter, Size = new Size(50, 50), Location = new Point(10, 22)
+                TextAlign = ContentAlignment.MiddleCenter, Size = new Size(50, 50),
+                Location = new Point(10, 22)
             });
             card.Controls.Add(new Label { Text = caption, Font = new Font("Segoe UI", 8.5F), ForeColor = Color.FromArgb(60, 60, 60), AutoSize = true, Location = new Point(74, 14) });
-            card.Controls.Add(new Label { Text = value, Font = new Font("Segoe UI", 18F, FontStyle.Bold), AutoSize = true, Location = new Point(70, 30) });
-            card.Controls.Add(new Label { Text = sub, Font = new Font("Segoe UI", 7.5F), ForeColor = TextGray, AutoSize = true, Location = new Point(74, 70) });
+            card.Controls.Add(new Label { Text = value,   Font = new Font("Segoe UI", 18F, FontStyle.Bold), AutoSize = true, Location = new Point(70, 30) });
+            card.Controls.Add(new Label { Text = sub,     Font = new Font("Segoe UI", 7.5F), ForeColor = TextGray, AutoSize = true, Location = new Point(74, 70) });
             _tblStats.Controls.Add(card, col, 0);
         }
 
-        private Button QuickButton(string text, string glyph, Action onClick)
+        private Button QuickButton(string text, string glyph, Action? onClick = null)
         {
             var b = new Button
             {
-                Text = "  " + text, Dock = DockStyle.Fill, Margin = new Padding(4), FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(246, 247, 249), Font = new Font("Segoe UI", 9F),
-                Image = GlyphImage(glyph, 16, Color.Black), ImageAlign = ContentAlignment.MiddleLeft,
-                TextAlign = ContentAlignment.MiddleLeft, TextImageRelation = TextImageRelation.ImageBeforeText,
-                Padding = new Padding(10, 0, 0, 0), Cursor = Cursors.Hand
+                Text = "  " + text, Dock = DockStyle.Fill, Margin = new Padding(4),
+                FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(246, 247, 249),
+                Font = new Font("Segoe UI", 9F),
+                Image = GlyphImage(glyph, 16, Color.Black),
+                ImageAlign = ContentAlignment.MiddleLeft,
+                TextAlign = ContentAlignment.MiddleLeft,
+                TextImageRelation = TextImageRelation.ImageBeforeText,
+                Padding = new Padding(10, 0, 0, 0),
+                Cursor = Cursors.Hand
             };
             b.FlatAppearance.BorderColor = BorderGray;
-            b.Click += (_, _) => onClick();
+            b.Click += (_, _) => (onClick ?? (() => Todo(text)))();
             return b;
         }
 
         private void AddNotice(string glyph, Color color, string title, string desc, string linkText, Action onLinkClick)
         {
-            var row = new Panel { Height = 66, Width = Math.Max(_flowNotice.ClientSize.Width - 8, 200), Margin = new Padding(4, 0, 4, 10), BackColor = Color.White };
+            var row = new Panel
+            {
+                Height = 66,
+                Width = Math.Max(_flowNotice.ClientSize.Width - 8, 200),
+                Margin = new Padding(4, 0, 4, 10),
+                BackColor = Color.White
+            };
             row.Paint += (_, e) => e.Graphics.DrawRectangle(new Pen(BorderGray), 0, 0, row.Width - 1, row.Height - 1);
             row.Controls.Add(new Label { Text = glyph, Font = new Font(IconFont, 14F), ForeColor = color, AutoSize = true, Location = new Point(12, 20) });
             row.Controls.Add(new Label { Text = title, Font = new Font("Segoe UI", 9.5F, FontStyle.Bold), AutoSize = true, Location = new Point(52, 12) });
-            row.Controls.Add(new Label { Text = desc, Font = new Font("Segoe UI", 8F), ForeColor = TextGray, AutoSize = true, Location = new Point(54, 36) });
+            row.Controls.Add(new Label { Text = desc,  Font = new Font("Segoe UI", 8F), ForeColor = TextGray, AutoSize = true, Location = new Point(54, 36) });
 
-            var link = new LinkLabel { Text = linkText, AutoSize = true, Font = new Font("Segoe UI", 8.5F), Anchor = AnchorStyles.Top | AnchorStyles.Right };
+            var link = new LinkLabel
+            {
+                Text = linkText, AutoSize = true, Font = new Font("Segoe UI", 8.5F),
+                Anchor = AnchorStyles.Top | AnchorStyles.Right
+            };
             link.Location = new Point(row.Width - 85, 24);
             link.LinkClicked += (_, _) => onLinkClick();
             row.Controls.Add(link);
@@ -557,10 +639,14 @@ namespace LibraryManagement.Forms
         }
 
         // ============================================================
-        //  ĐIỀU HƯỚNG CÁC TAB CHỨC NĂNG CỦA THỦ THƯ
+        //  ĐIỀU HƯỚNG TAB CHỨC NĂNG
         // ============================================================
         private void OpenOrSelectTab(ref TabPage? tabField, string title, Func<UserControl> createControl)
         {
+            // Đảm bảo đang ở Overview (có _tabMain hợp lệ)
+            if (_pnlContent.Controls.Count == 0 || !_pnlContent.Controls.Contains(_tabMain))
+                ShowOverviewPage();
+
             if (tabField != null && _tabMain.TabPages.Contains(tabField))
             {
                 _tabMain.SelectedTab = tabField;
@@ -592,57 +678,44 @@ namespace LibraryManagement.Forms
         private void OpenReportTab() =>
             OpenOrSelectTab(ref _tabReport, "Báo cáo & Thống kê", () => new Controls.StatisticalReportControl());
 
-        private void OpenReturnTab() =>
-            OpenOrSelectTab(ref _tabReturn, "Nhận trả sách", () => new BookFormReturn.BookFormReturn());
-
         private void OpenBookCatalogTab() =>
             OpenOrSelectTab(ref _tabBookCatalog, "Quản lý đầu sách", () =>
             {
-                var ctrl = new Books.BookCatalogControl();
-                ctrl.ViewCopiesRequested += _ => OpenBookCopiesTab();
-                return ctrl;
+                var control = new BookCatalogControl();
+                control.ViewCopiesRequested += book =>
+                {
+                    OpenBookCopiesTab();
+                    var copiesControl = _tabBookCopies?.Controls
+                        .OfType<BookCopyControl>()
+                        .FirstOrDefault();
+                    copiesControl?.FilterByBook(book.Id, book.Title);
+                };
+                return control;
             });
+
+        private void OpenCategoryTab() =>
+            OpenOrSelectTab(ref _tabCategories, "Quản lý thể loại", () => new CategoryManagementControl());
+
+        private void OpenReaderRegistration()
+        {
+            using var form = new LibraryManagement.Forms.RegisterForm.RegisterForm(librarianMode: true);
+            if (form.ShowDialog(this) == DialogResult.OK)
+            {
+                LoadData();
+            }
+        }
+
+        private void OpenReturnTab() =>
+            OpenOrSelectTab(ref _tabReturn, "Nhận trả sách", () => AppServices.Provider.GetRequiredService<BookFormReturn.BookFormReturn>());
 
         private void OpenBookCopiesTab() =>
             OpenOrSelectTab(ref _tabBookCopies, "Quản lý bản sách", () => new BookCopyControl());
 
-        private void OpenReadersTab() =>
-            OpenOrSelectTab(ref _tabReaders, "Quản lý độc giả", () =>
-            {
-                var ctrl = new Readers.ReaderManagementControl();
-                ctrl.ReaderDataChanged += LoadData;
-                return ctrl;
-            });
-
         private void OpenOverdueTab() =>
-            OpenOrSelectTab(ref _tabOverdue, "Sách quá hạn", () => new OverdueBooks.OverdueBooks());
+            OpenOrSelectTab(ref _tabOverdue, "Sách quá hạn", () => AppServices.Provider.GetRequiredService<OverdueBooks.OverdueBooks>());
 
         private void OpenFinesTab() =>
             OpenOrSelectTab(ref _tabFines, "Quản lý tiền phạt", () => new FineManagement.FineManagement());
-
-        private void OpenAddBookAction()
-        {
-            OpenBookCatalogTab();
-            using var dlg = new Books.BookEditDialog(null);
-            if (dlg.ShowDialog() == DialogResult.OK)
-            {
-                if (_tabBookCatalog?.Controls[0] is Books.BookCatalogControl ctrl)
-                    ctrl.LoadData();
-                LoadData();
-            }
-        }
-
-        private void OpenAddReaderAction()
-        {
-            OpenReadersTab();
-            using var dlg = new Readers.ReaderEditDialog(null);
-            if (dlg.ShowDialog() == DialogResult.OK)
-            {
-                if (_tabReaders?.Controls[0] is Readers.ReaderManagementControl ctrl)
-                    ctrl.LoadData();
-                LoadData();
-            }
-        }
 
         // ============================================================
         //  TIỆN ÍCH
@@ -668,6 +741,10 @@ namespace LibraryManagement.Forms
             p.CloseFigure();
             return p;
         }
+
+        private void Todo(string feature) =>
+            MessageBox.Show($"Chức năng \"{feature}\" đang chờ hoàn thiện giao diện.", "LIBRA",
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
 
         private void btnLogout_Click(object? sender, EventArgs e)
         {

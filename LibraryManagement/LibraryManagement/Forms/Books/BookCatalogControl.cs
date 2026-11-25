@@ -1,4 +1,5 @@
-﻿using LibraryManagement.Models;
+﻿using LibraryManagement.Enums;
+using LibraryManagement.Models;
 using LibraryManagement.Services;
 
 namespace LibraryManagement.Forms.Books;
@@ -147,16 +148,16 @@ public class BookCatalogControl : UserControl
         foreach (var b in _books)
         {
             int total = b.Copies.Count;
-            int avail = b.Copies.Count(c => c.CirculationStatus == "Available");
+            int avail = b.Copies.Count(c => c.CirculationStatus == CirculationStatus.Available);
             string statusText = b.Status == "Active" ? "Đang lưu hành" : "Ngừng lưu hành";
 
             int idx = _dgvBooks.Rows.Add(
                 b.BookCode,
-                b.ISBN ?? "-",
+                b.Isbn ?? "-",
                 b.Title,
                 b.Author,
                 b.Category?.CategoryName ?? "-",
-                $"{b.Publisher ?? "-"} ({b.PublishedYear ?? "-"})",
+                $"{b.Publisher ?? "-"} ({b.PublishedYear.ToString() ?? "-"})",
                 $"{avail} / {total}",
                 statusText
             );
@@ -319,14 +320,14 @@ public class BookEditDialog : Form
         _cboCategory.ValueMember = "Id";
 
         _txtCode.Text = _book.BookCode;
-        _txtIsbn.Text = _book.ISBN;
+        _txtIsbn.Text = _book.Isbn;
         _txtTitle.Text = _book.Title;
         _txtAuthor.Text = _book.Author;
         if (_book.IdCategory > 0) _cboCategory.SelectedValue = _book.IdCategory;
         _txtPublisher.Text = _book.Publisher;
-        _txtYear.Text = _book.PublishedYear;
+        _txtYear.Text = _book.PublishedYear.ToString();
         _txtLanguage.Text = _book.Language ?? "Tiếng Việt";
-        _numPages.Value = _book.PageCount ?? 0;
+        // _numPages.Value = _book.PageCount ?? 0;
         _txtDesc.Text = _book.Description;
         _txtCoverPath.Text = _book.CoverImagePath;
         if (!string.IsNullOrWhiteSpace(_book.CoverImagePath) && File.Exists(_book.CoverImagePath))
@@ -338,14 +339,14 @@ public class BookEditDialog : Form
         try
         {
             _book.BookCode = _txtCode.Text;
-            _book.ISBN = _txtIsbn.Text;
+            _book.Isbn = _txtIsbn.Text;
             _book.Title = _txtTitle.Text;
             _book.Author = _txtAuthor.Text;
             _book.IdCategory = _cboCategory.SelectedValue is int id ? id : 0;
             _book.Publisher = _txtPublisher.Text;
-            _book.PublishedYear = _txtYear.Text;
+            _book.PublishedYear = Convert.ToInt32(_txtYear.Text);
             _book.Language = _txtLanguage.Text;
-            _book.PageCount = _numPages.Value > 0 ? (int)_numPages.Value : null;
+            // _book.PageCount = _numPages.Value > 0 ? (int)_numPages.Value : null;
             _book.CoverImagePath = string.IsNullOrWhiteSpace(_txtCoverPath.Text) ? null : _txtCoverPath.Text;
             _book.Description = _txtDesc.Text;
 

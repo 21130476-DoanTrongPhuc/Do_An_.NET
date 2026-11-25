@@ -1,4 +1,5 @@
 ﻿using LibraryManagement.Data;
+using LibraryManagement.Enums;
 using LibraryManagement.Helpers;
 using LibraryManagement.Models;
 using Microsoft.EntityFrameworkCore;
@@ -218,13 +219,13 @@ public class BookSearchControl : UserControl
 
         using var context = new LibraryDbContext();
         var categories = context.BookCategories
-            .Where(c => c.Status == "Active")
+            .Where(c => c.Status == BookCategoryStatus.Active)
             .OrderBy(c => c.CategoryName)
             .ToList();
 
         void AddChildren(TreeNode parentNode, int? parentId)
         {
-            foreach (var cat in categories.Where(c => c.IdParentCategory == parentId))
+            foreach (var cat in categories.Where(c => c.IdParent == parentId))
             {
                 var node = new TreeNode($"{cat.CategoryName} ({cat.MaxLoanDays} ngày)") { Tag = cat.Id };
                 AddChildren(node, cat.Id);
@@ -266,7 +267,7 @@ public class BookSearchControl : UserControl
 
             void CollectSubCategories(int parentId)
             {
-                foreach (var child in allCats.Where(c => c.IdParentCategory == parentId))
+                foreach (var child in allCats.Where(c => c.IdParent == parentId))
                 {
                     if (targetIds.Add(child.Id))
                         CollectSubCategories(child.Id);
@@ -283,20 +284,20 @@ public class BookSearchControl : UserControl
                 b.Title.ToLower().Contains(kw) ||
                 b.Author.ToLower().Contains(kw) ||
                 b.BookCode.ToLower().Contains(kw) ||
-                (b.ISBN != null && b.ISBN.ToLower().Contains(kw)));
+                (b.Isbn != null && b.Isbn.ToLower().Contains(kw)));
         }
 
         var books = query.OrderBy(b => b.Title).ToList();
         if (_chkAvailableOnly.Checked)
         {
-            books = books.Where(b => b.Copies.Any(c => c.CirculationStatus == "Available")).ToList();
+            books = books.Where(b => b.Copies.Any(c => c.CirculationStatus == CirculationStatus.Available)).ToList();
         }
 
         _dgvBooks.Rows.Clear();
         foreach (var b in books)
         {
             int totalCopies = b.Copies.Count;
-            int availCopies = b.Copies.Count(c => c.CirculationStatus == "Available");
+            int availCopies = b.Copies.Count(c => c.CirculationStatus == CirculationStatus.Available);
             bool isFav = favBookIds.Contains(b.Id);
 
             int idx = _dgvBooks.Rows.Add(
@@ -305,7 +306,7 @@ public class BookSearchControl : UserControl
                 b.Title,
                 b.Author,
                 b.Category?.CategoryName ?? "",
-                b.ISBN ?? "—",
+                b.Isbn ?? "—",
                 $"{availCopies} / {totalCopies} cuốn",
                 availCopies > 0 ? "Còn sách" : "Đã hết",
                 "Xem chi tiết",

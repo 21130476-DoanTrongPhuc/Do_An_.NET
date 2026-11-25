@@ -150,11 +150,11 @@ partial class LoginForm
         rdoLibrarian.AutoSize = true;
         rdoLibrarian.BackColor = System.Drawing.Color.White;
         rdoLibrarian.ForeColor = System.Drawing.Color.Black;
-        rdoLibrarian.Location = new System.Drawing.Point(352, 148);
+        rdoLibrarian.Location = new System.Drawing.Point(345, 148);
         rdoLibrarian.Name = "rdoLibrarian";
-        rdoLibrarian.Size = new System.Drawing.Size(98, 29);
+        rdoLibrarian.Size = new System.Drawing.Size(132, 29);
         rdoLibrarian.TabIndex = 5;
-        rdoLibrarian.Text = "Thủ thư";
+        rdoLibrarian.Text = "Thủ thư / Admin";
         rdoLibrarian.UseVisualStyleBackColor = false;
         rdoLibrarian.CheckedChanged += rdoLibrarian_CheckedChanged;
         // 

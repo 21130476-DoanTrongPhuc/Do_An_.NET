@@ -1,4 +1,5 @@
 ﻿using LibraryManagement.Data;
+using LibraryManagement.Enums;
 using LibraryManagement.Helpers;
 using LibraryManagement.Models;
 using Microsoft.EntityFrameworkCore;
@@ -479,13 +480,14 @@ public class BorrowHistoryControl : UserControl
         }
     }
 
-    private static string FormatViolation(string type) => type switch
+        private static string FormatViolation(ViolationType type) => type switch
     {
-        "Overdue" => "Trả sách quá hạn",
-        "Damaged" => "Làm hư hỏng sách",
-        "Lost" => "Làm mất sách",
-        _ => type
-    };
+        ViolationType.Overdue => "Trả sách quá hạn",
+        ViolationType.Damaged => "Làm hư hỏng sách",
+        ViolationType.Lost => "Làm mất sách",
+        ViolationType.Other => "Vi phạm khác",
+        _ => type.ToString()
+    };                            
 
     private static DataGridView CreateBaseGrid()
     {

@@ -1,4 +1,5 @@
-﻿using LibraryManagement.Services;
+﻿using LibraryManagement.Enums;
+using LibraryManagement.Services;
 
 namespace LibraryManagement.Forms.LoanManagement;
 
@@ -700,8 +701,11 @@ public class LoanManagementControl : UserControl
         var lblCond = new Label { Text = "Tình trạng sau trả:", Location = new Point(16, 62), AutoSize = true };
         var cboCond = new ComboBox { Location = new Point(145, 58), Width = 215, DropDownStyle = ComboBoxStyle.DropDownList };
         cboCond.Items.AddRange(["New", "Good", "Worn", "Damaged"]);
-        cboCond.SelectedItem = detail.PhysicalConditionBefore is "New" or "Good" or "Worn"
-            ? detail.PhysicalConditionBefore : "Good";
+        cboCond.SelectedItem = detail.PhysicalConditionBefore is BookCondition.New
+            or BookCondition.Good
+            or BookCondition.Worn
+            ? detail.PhysicalConditionBefore.ToString()
+            : "Good";
 
         var lblNote = new Label { Text = "Ghi chú:", Location = new Point(16, 98), AutoSize = true };
         var txtNote = new TextBox { Location = new Point(145, 94), Width = 215 };
@@ -722,9 +726,15 @@ public class LoanManagementControl : UserControl
 
         try
         {
-            _service.ReturnSingleLoanDetail(detail.LoanDetailId, cboCond.SelectedItem?.ToString() ?? "Good", txtNote.Text);
+            BookCondition conditionAfter = cboCond.SelectedItem is BookCondition c
+                ? c
+                : BookCondition.Good;
+
+            _service.ReturnSingleLoanDetail(detail.LoanDetailId, conditionAfter, txtNote.Text);
+
             MessageBox.Show($"Đã trả cuốn '{detail.Title}' ({detail.CopyCode}) thành công.",
                 "Hoàn tất", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
             LoadLoansList();
             LoanDataChanged?.Invoke();
         }

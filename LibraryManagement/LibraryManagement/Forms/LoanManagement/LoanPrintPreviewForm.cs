@@ -137,7 +137,7 @@ public class LoanPrintPreviewForm : Form
                 (idx + 1).ToString(),
                 item.CopyCode,
                 item.Title,
-                item.PhysicalConditionBefore,
+                item.PhysicalConditionBefore.ToString(),
                 item.DueAt.ToString("dd/MM/yyyy"),
                 item.ItemStatus
             ];
