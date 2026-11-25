@@ -35,7 +35,7 @@ public class LibraryDbContext : DbContext
     public DbSet<Reminders> Reminders { get; set; }
     public DbSet<FavoriteBook> FavoriteBooks { get; set; }
 
-     protected override void OnModelCreating(ModelBuilder modelBuilder)
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
 
@@ -220,10 +220,10 @@ public class LibraryDbContext : DbContext
              .HasColumnType("TEXT");
 
             e.Property(x => x.ActionType).IsRequired().HasColumnType("TEXT");
-            e.Property(x => x.OldStatus).HasConversion<string?>().HasColumnType("TEXT");
-            e.Property(x => x.NewStatus).HasConversion<string?>().HasColumnType("TEXT");
-            e.Property(x => x.OldCondition).HasConversion<string?>().HasColumnType("TEXT");
-            e.Property(x => x.NewCondition).HasConversion<string?>().HasColumnType("TEXT");
+            e.Property(x => x.OldStatus).HasConversion<string>().HasColumnType("TEXT");
+            e.Property(x => x.NewStatus).HasConversion<string>().HasColumnType("TEXT");
+            e.Property(x => x.OldCondition).HasConversion<string>().HasColumnType("TEXT");
+            e.Property(x => x.NewCondition).HasConversion<string>().HasColumnType("TEXT");
             e.Property(x => x.OldLocation).HasColumnType("TEXT");
             e.Property(x => x.NewLocation).HasColumnType("TEXT");
             e.Property(x => x.Note).HasColumnType("TEXT");
@@ -308,7 +308,7 @@ public class LibraryDbContext : DbContext
              .HasColumnType("TEXT");
 
             e.Property(x => x.PhysicalConditionAfter)
-             .HasConversion<string?>()
+             .HasConversion<string>()
              .HasColumnType("TEXT");
 
             e.Property(x => x.RenewalCount).IsRequired().HasDefaultValue(0);
