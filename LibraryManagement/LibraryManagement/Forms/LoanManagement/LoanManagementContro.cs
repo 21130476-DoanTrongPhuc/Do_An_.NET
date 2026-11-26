@@ -424,7 +424,10 @@ public class LoanManagementControl : UserControl
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Giao dịch thất bại (đã hoàn tác dữ liệu):\n{ex.Message}",
+            var root = ex;
+            while (root.InnerException != null) root = root.InnerException;
+
+            MessageBox.Show($"Giao dịch thất bại (đã hoàn tác dữ liệu):\n{ex.Message}\n\nChi tiết: {root.Message}",
                 "Lỗi giao dịch", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }

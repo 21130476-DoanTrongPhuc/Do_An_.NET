@@ -23,7 +23,7 @@ public class DatabaseConnection
         {
             DataSource = GetDatabasePath(),
             Mode = SqliteOpenMode.ReadWriteCreate,
-            Cache = SqliteCacheMode.Shared,
+            Cache = SqliteCacheMode.Default,
             Pooling = true,
             ForeignKeys = true,
             DefaultTimeout = 30
