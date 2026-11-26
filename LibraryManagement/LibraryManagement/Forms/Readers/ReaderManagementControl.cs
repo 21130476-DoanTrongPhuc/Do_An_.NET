@@ -217,10 +217,8 @@ public class ReaderManagementControl : UserControl
             var user = context.Users.FirstOrDefault(u => u.Id == id);
             if (user == null) return;
 
-            user.Status = user.Status == UserStatus.Active 
-                ? UserStatus.Inactive 
-                : UserStatus.Active;
-            user.UpdatedAt = Convert.ToDateTime(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+            user.Status = user.Status == UserStatus.Active ? UserStatus.Inactive : UserStatus.Active;
+            user.UpdatedAt = DateTime.Now;
             context.SaveChanges();
 
             LoadData();
@@ -378,10 +376,10 @@ public sealed class ReaderEditDialog : Form
 
         _txtUserCode.Text = user.UserCode;
         _txtFullName.Text = user.FullName;
-        if (user.DateOfBirth is DateTime dob)
+        if (user.DateOfBirth.HasValue)
         {
             _chkHasDob.Checked = true;
-            _dtpDob.Value = dob;
+            _dtpDob.Value = user.DateOfBirth.Value;
         }
         else
         {
@@ -469,8 +467,8 @@ public sealed class ReaderEditDialog : Form
                     Status = UserStatus.Active,
                     Username = string.IsNullOrEmpty(username) ? null : username,
                     PasswordHash = string.IsNullOrEmpty(username) ? null : password,
-                    CreatedAt = Convert.ToDateTime(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")),
-                    UpdatedAt = Convert.ToDateTime(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"))
+                    CreatedAt = DateTime.Now,
+                    UpdatedAt = DateTime.Now
                 };
                 context.Users.Add(user);
                 context.SaveChanges();
@@ -499,7 +497,7 @@ public sealed class ReaderEditDialog : Form
                     else if (string.IsNullOrEmpty(user.PasswordHash))
                         user.PasswordHash = "123456";
                 }
-                user.UpdatedAt = Convert.ToDateTime(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+                user.UpdatedAt = DateTime.Now;
                 context.SaveChanges();
             }
 

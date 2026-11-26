@@ -68,7 +68,7 @@ public class LoanDetailItemDto
     public DateTime BorrowedAt { get; set; }
     public DateTime DueAt { get; set; }
     public DateTime? ReturnedAt { get; set; }
-    public BookCondition PhysicalConditionBefore { get; set; } = BookCondition.Good;
+    public BookCondition PhysicalConditionBefore { get; set; }
     public BookCondition? PhysicalConditionAfter { get; set; }
     public int RenewalCount { get; set; }
     public string ItemStatus { get; set; } = string.Empty; // Đang mượn | Quá hạn | Đã trả
@@ -141,7 +141,7 @@ public class LoanManagementService
 
         // Chỉ Select các cột tồn tại trong bảng Fines để tránh lỗi ánh xạ cột Status
         var fineBalances = db.Fines
-            .Where(f => f.LoanDetail.Loan.IdReader == reader.Id)
+            .Where(f => f.LoanDetail != null && f.LoanDetail.Loan.IdReader == reader.Id)
             .Select(f => new
             {
                 f.AmountVnd,
@@ -161,7 +161,7 @@ public class LoanManagementService
             AccountStatus = reader.Status,
             CardCode = card?.CardCode ?? "Chưa cấp thẻ",
             CardExpiresAt = card?.ExpiresAt,
-            CardStatus = card?.Status ??  ReaderCardStatus.Missing,
+            CardStatus = card?.Status ?? ReaderCardStatus.Missing,
             ActiveBorrowedCount = activeCount,
             OverdueCount = overdueCount,
             MaxActiveCopies = maxCopies,
@@ -321,8 +321,8 @@ public class LoanManagementService
 
                 bool canLend = copy.Book.Status.Equals("Active", StringComparison.OrdinalIgnoreCase)
                     && copy.PhysicalCondition != BookCondition.Damaged
-                    && (copy.CirculationStatus == CirculationStatus.Available)
-                        || (copy.CirculationStatus == CirculationStatus.Reserved && matchedReservation != null);
+                    && (copy.CirculationStatus == CirculationStatus.Available
+                        || (copy.CirculationStatus == CirculationStatus.Reserved && matchedReservation != null));
 
                 if (!canLend)
                 {
@@ -467,12 +467,12 @@ public class LoanManagementService
             {
                 d.Id,
                 d.IdLoan,
-                LoanCode = d.Loan.LoanCode,
+                d.Loan.LoanCode,
                 d.IdBookCopy,
-                CopyCode = d.BookCopy.CopyCode,
-                Title = d.BookCopy.Book.Title,
-                Author = d.BookCopy.Book.Author,
-                BorrowedAt = d.Loan.BorrowedAt,
+                d.BookCopy.CopyCode,
+                d.BookCopy.Book.Title,
+                d.BookCopy.Book.Author,
+                d.Loan.BorrowedAt,
                 d.DueAt,
                 d.ReturnedAt,
                 d.PhysicalConditionBefore,
@@ -486,11 +486,11 @@ public class LoanManagementService
         {
             LoanDetailId = d.Id,
             LoanId = d.IdLoan,
-            LoanCode = d.LoanCode ?? "",
+            LoanCode = d.LoanCode,
             BookCopyId = d.IdBookCopy,
-            CopyCode = d.CopyCode ?? "",
-            Title = d.Title ?? "",
-            Author = d.Author ?? "",
+            CopyCode = d.CopyCode,
+            Title = d.Title,
+            Author = d.Author,
             BorrowedAt = d.BorrowedAt,
             DueAt = d.DueAt,
             ReturnedAt = d.ReturnedAt,
@@ -517,12 +517,12 @@ public class LoanManagementService
             {
                 d.Id,
                 d.IdLoan,
-                LoanCode = d.Loan.LoanCode,
+                d.Loan.LoanCode,
                 d.IdBookCopy,
-                CopyCode = d.BookCopy.CopyCode,
-                Title = d.BookCopy.Book.Title,
-                Author = d.BookCopy.Book.Author,
-                BorrowedAt = d.Loan.BorrowedAt,
+                d.BookCopy.CopyCode,
+                d.BookCopy.Book.Title,
+                d.BookCopy.Book.Author,
+                d.Loan.BorrowedAt,
                 d.DueAt,
                 d.ReturnedAt,
                 d.PhysicalConditionBefore,
@@ -536,11 +536,11 @@ public class LoanManagementService
         {
             LoanDetailId = d.Id,
             LoanId = d.IdLoan,
-            LoanCode = d.LoanCode ?? "",
+            LoanCode = d.LoanCode,
             BookCopyId = d.IdBookCopy,
-            CopyCode = d.CopyCode ?? "",
-            Title = d.Title ?? "",
-            Author = d.Author ?? "",
+            CopyCode = d.CopyCode,
+            Title = d.Title,
+            Author = d.Author,
             BorrowedAt = d.BorrowedAt,
             DueAt = d.DueAt,
             ReturnedAt = d.ReturnedAt,

@@ -1,8 +1,8 @@
-﻿using LibraryManagement.Enums;
+﻿using System;
+using System.ComponentModel.DataAnnotations;
+using LibraryManagement.Enums;
 
 namespace LibraryManagement.Models;
-
-using System;
 
 public class LoanDetails
 {
@@ -16,6 +16,8 @@ public class LoanDetails
     public BookCondition? PhysicalConditionAfter { get; set; }
 
     public int RenewalCount { get; set; }
+
+    [MaxLength(500)]
     public string? Note { get; set; }
 
     // Navigation
