@@ -4,6 +4,9 @@ using LibraryManagement.Data;
 using LibraryManagement.Enums;
 using LibraryManagement.Forms.Books;
 using LibraryManagement.Forms.FineManagement;
+using LibraryManagement.Forms.LibraryCardManagement;
+using LibraryManagement.Forms.ReaderManagement;
+using LibraryManagement.Forms.ReservationManagement;
 using LibraryManagement.Helpers;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -48,6 +51,9 @@ namespace LibraryManagement.Forms.LibrarianFormMain
         private TabPage? _tabCategories;
         private TabPage? _tabOverdue;
         private TabPage? _tabFines;
+        private TabPage? _tabReaders;
+        private TabPage? _tabReservations;
+        private TabPage? _tabReaderCards;
 
         // ====== Control trong trang Tổng quan ======
         private TableLayoutPanel _tblStats = null!;
@@ -65,7 +71,6 @@ namespace LibraryManagement.Forms.LibrarianFormMain
             {
                 Text = "LIBRA - Quản lý thư viện";
                 ShowOverviewPage();
-                LoadData();
             };
         }
 
@@ -77,16 +82,22 @@ namespace LibraryManagement.Forms.LibrarianFormMain
             _pnlContent.SuspendLayout();
             _pnlContent.Controls.Clear();
 
-            // Reset tab cache vì TabControl bị tạo lại
-            _tabLoan = _tabReport = _tabReturn = _tabBookCatalog =
-                _tabBookCopies = _tabCategories = _tabOverdue = _tabFines = null;
+            // Reset toàn bộ tab cache vì TabControl bị tạo lại
+            ResetAllTabCaches();
 
             _tabMain = new TabControl
             {
                 Dock = DockStyle.Fill,
                 Font = new Font("Segoe UI", 9F),
-                Padding = new Point(14, 4)
+                Padding = new Point(20, 5), // Chừa thêm khoảng trống bên phải cho nút ×
+                DrawMode = TabDrawMode.OwnerDrawFixed
             };
+
+            // Đăng ký các sự kiện vẽ nút × và xử lý click đóng tab
+            _tabMain.DrawItem += TabMain_DrawItem;
+            _tabMain.MouseDown += TabMain_MouseDown;
+            _tabMain.MouseMove += TabMain_MouseMove;
+            _tabMain.MouseLeave += (_, _) => { _hoveredCloseTabIndex = -1; _tabMain.Invalidate(); };
 
             var tabOverview = new TabPage("Tổng quan")
             {
@@ -98,6 +109,7 @@ namespace LibraryManagement.Forms.LibrarianFormMain
 
             _pnlContent.Controls.Add(_tabMain);
             _pnlContent.ResumeLayout(true);
+            LoadData();
         }
 
         private void ShowUserControl(UserControl uc)
@@ -286,12 +298,15 @@ namespace LibraryManagement.Forms.LibrarianFormMain
             mnuCatalog.DropDownItems.Add("Quản lý thể loại", null, (_, _) => OpenCategoryTab());
             mnuCatalog.DropDownItems.Add("Quản lý bản sách", null, (_, _) => OpenBookCopiesTab());
             mnuCatalog.DropDownItems.Add("Thêm độc giả", null, (_, _) => OpenReaderRegistration());
+            mnuCatalog.DropDownItems.Add("Quản lý độc giả", null, (_, _) => OpenReadersTab());
+            mnuCatalog.DropDownItems.Add("Quản lý thẻ thư viện", null, (_, _) => OpenReaderCardsTab());
 
             var mnuCirculation = new ToolStripMenuItem("Lưu thông");
             mnuCirculation.DropDownItems.Add("Quản lý mượn sách", null, (_, _) => OpenLoanTab());
             mnuCirculation.DropDownItems.Add("Nhận trả sách", null, (_, _) => OpenReturnTab());
             mnuCirculation.DropDownItems.Add("Sách quá hạn", null, (_, _) => OpenOverdueTab());
             mnuCirculation.DropDownItems.Add("Quản lý tiền phạt", null, (_, _) => OpenFinesTab());
+            mnuCirculation.DropDownItems.Add("Duyệt đặt trước sách", null, (_, _) => OpenReservationsTab());
 
             var mnuReport = new ToolStripMenuItem("Báo cáo");
             mnuReport.DropDownItems.Add("Báo cáo & Thống kê", null, (_, _) => OpenReportTab());
@@ -322,10 +337,13 @@ namespace LibraryManagement.Forms.LibrarianFormMain
             AddTool(ts, "Đầu sách",        GBook,    OpenBookCatalogTab);
             AddTool(ts, "Bản sách",        GBook,    OpenBookCopiesTab);
             AddTool(ts, "Thêm độc giả",    GPeople,  OpenReaderRegistration);
+            AddTool(ts, "Độc giả", GPeople, OpenReadersTab);
+            AddTool(ts, "Thẻ thư viện", GMoney, OpenReaderCardsTab);
             ts.Items.Add(new ToolStripSeparator());
             AddTool(ts, "Lập phiếu mượn",  GForward, OpenLoanTab);
             AddTool(ts, "Nhận trả sách",   GBack,    OpenReturnTab);
             AddTool(ts, "Quá hạn",         GWarn,    OpenOverdueTab);
+            AddTool(ts, "Đặt trước", GCalendar, OpenReservationsTab);
             AddTool(ts, "Tiền phạt",       GMoney,   OpenFinesTab);
             ts.Items.Add(new ToolStripSeparator());
             AddTool(ts, "Báo cáo",         GReport,  OpenReportTab);
@@ -340,7 +358,8 @@ namespace LibraryManagement.Forms.LibrarianFormMain
             });
             _lblUserName = new Label
             {
-                AutoSize = true, Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+                AutoSize = false, AutoEllipsis = true, Size = new Size(140, 20),
+                Font = new Font("Segoe UI", 9F, FontStyle.Bold),
                 Location = new Point(84, 22)
             };
             user.Controls.Add(_lblUserName);
@@ -454,11 +473,13 @@ namespace LibraryManagement.Forms.LibrarianFormMain
 
             var btnRefresh = new Button
             {
-                Text = "  Làm mới dữ liệu", FlatStyle = FlatStyle.Flat, BackColor = Color.White,
-                Size = new Size(150, 34),
+                Text = "Làm mới dữ liệu", FlatStyle = FlatStyle.Flat, BackColor = Color.White,
+                Size = new Size(190, 36),
                 Image = GlyphImage(GRefresh, 14, Color.Black),
                 ImageAlign = ContentAlignment.MiddleLeft,
                 TextImageRelation = TextImageRelation.ImageBeforeText,
+                TextAlign = ContentAlignment.MiddleLeft,
+                Padding = new Padding(8, 0, 8, 0),
                 Font = new Font("Segoe UI", 8.5F),
                 Anchor = AnchorStyles.Top | AnchorStyles.Right
             };
@@ -667,6 +688,208 @@ namespace LibraryManagement.Forms.LibrarianFormMain
             _tabMain.SelectedTab = tabField;
         }
 
+        // ============================================================
+        //  VẼ NÚT ĐÓNG (×) & XỬ LÝ TẮT TAB TRÊN _tabMain
+        // ============================================================
+        private int _hoveredCloseTabIndex = -1;
+
+        private void ResetAllTabCaches()
+        {
+            _tabLoan = _tabReport = _tabReturn = _tabBookCatalog =
+                _tabBookCopies = _tabCategories = _tabOverdue = _tabFines = null;
+            // Nếu bạn đã thêm các biến tab mới (Độc giả, Đặt trước, Thẻ thư viện) thì gán null luôn ở đây:
+            // _tabReaders = _tabReservations = _tabReaderCards = null;
+        }
+
+        private void ClearTabCacheReference(TabPage tab)
+        {
+            if (tab == _tabLoan) _tabLoan = null;
+            else if (tab == _tabReport) _tabReport = null;
+            else if (tab == _tabReturn) _tabReturn = null;
+            else if (tab == _tabBookCatalog) _tabBookCatalog = null;
+            else if (tab == _tabBookCopies) _tabBookCopies = null;
+            else if (tab == _tabCategories) _tabCategories = null;
+            else if (tab == _tabOverdue) _tabOverdue = null;
+            else if (tab == _tabFines) _tabFines = null;
+            // Nếu có thêm tab mới thì bổ sung else if tương tự:
+            // else if (tab == _tabReaders) _tabReaders = null;
+            // else if (tab == _tabReservations) _tabReservations = null;
+            // else if (tab == _tabReaderCards) _tabReaderCards = null;
+        }
+
+        private static Rectangle GetCloseButtonRect(Rectangle tabRect)
+        {
+            int size = 16;
+            return new Rectangle(
+                tabRect.Right - size - 6,
+                tabRect.Top + (tabRect.Height - size) / 2,
+                size,
+                size);
+        }
+
+        private void TabMain_DrawItem(object? sender, DrawItemEventArgs e)
+        {
+            if (_tabMain == null || e.Index < 0 || e.Index >= _tabMain.TabPages.Count) return;
+
+            var tab = _tabMain.TabPages[e.Index];
+            var rect = e.Bounds;
+            bool isSelected = (_tabMain.SelectedIndex == e.Index);
+            bool canClose = e.Index > 0; // Tab 0 ("Tổng quan") không cho phép đóng
+
+            // Nền tab
+            Color bgColor = isSelected ? Color.White : Color.FromArgb(232, 236, 242);
+            using (var bgBrush = new SolidBrush(bgColor))
+            {
+                e.Graphics.FillRectangle(bgBrush, rect);
+            }
+
+            // Vạch nhấn màu xanh Primary ở mép trên nếu đang chọn
+            if (isSelected)
+            {
+                using var accentBrush = new SolidBrush(Primary);
+                e.Graphics.FillRectangle(accentBrush, rect.X, rect.Y, rect.Width, 3);
+            }
+
+            // Chữ tiêu đề tab
+            var textRect = canClose
+                ? new Rectangle(rect.X + 8, rect.Y + 2, rect.Width - 28, rect.Height - 2)
+                : rect;
+
+            using var font = new Font("Segoe UI", 9F, isSelected ? FontStyle.Bold : FontStyle.Regular);
+            TextRenderer.DrawText(
+                e.Graphics,
+                tab.Text,
+                font,
+                textRect,
+                isSelected ? Primary : Color.FromArgb(55, 65, 81),
+                (canClose ? TextFormatFlags.Left : TextFormatFlags.HorizontalCenter)
+                | TextFormatFlags.VerticalCenter
+                | TextFormatFlags.EndEllipsis);
+
+            // Vẽ nút × cho các tab chức năng (index > 0)
+            if (canClose)
+            {
+                var closeRect = GetCloseButtonRect(rect);
+                bool isHovered = (_hoveredCloseTabIndex == e.Index);
+
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                if (isHovered)
+                {
+                    using var hoverBrush = new SolidBrush(Red);
+                    e.Graphics.FillEllipse(hoverBrush, closeRect);
+                }
+
+                using var xPen = new Pen(isHovered ? Color.White : TextGray, 1.6f);
+                int pad = 4;
+                e.Graphics.DrawLine(xPen, closeRect.Left + pad, closeRect.Top + pad, closeRect.Right - pad, closeRect.Bottom - pad);
+                e.Graphics.DrawLine(xPen, closeRect.Right - pad, closeRect.Top + pad, closeRect.Left + pad, closeRect.Bottom - pad);
+            }
+        }
+
+        private void TabMain_MouseMove(object? sender, MouseEventArgs e)
+        {
+            if (_tabMain == null) return;
+
+            int newHover = -1;
+            for (int i = 1; i < _tabMain.TabPages.Count; i++) // Bỏ qua tab 0 ("Tổng quan")
+            {
+                var closeRect = GetCloseButtonRect(_tabMain.GetTabRect(i));
+                if (closeRect.Contains(e.Location))
+                {
+                    newHover = i;
+                    break;
+                }
+            }
+
+            if (newHover != _hoveredCloseTabIndex)
+            {
+                _hoveredCloseTabIndex = newHover;
+                _tabMain.Invalidate();
+            }
+        }
+
+        private void TabMain_MouseDown(object? sender, MouseEventArgs e)
+        {
+            if (_tabMain == null) return;
+
+            for (int i = 1; i < _tabMain.TabPages.Count; i++) // Tab 0 không đóng
+            {
+                var tabRect = _tabMain.GetTabRect(i);
+                if (!tabRect.Contains(e.Location)) continue;
+
+                // 1. Click chuột trái vào đúng nút ×
+                if (e.Button == MouseButtons.Left && GetCloseButtonRect(tabRect).Contains(e.Location))
+                {
+                    CloseTabAt(i);
+                    return;
+                }
+
+                // 2. Click chuột giữa (Middle click) vào bất kỳ đâu trên tab
+                if (e.Button == MouseButtons.Middle)
+                {
+                    CloseTabAt(i);
+                    return;
+                }
+
+                // 3. Click chuột phải mở menu đóng nhanh
+                if (e.Button == MouseButtons.Right)
+                {
+                    int targetIndex = i;
+                    var ctxMenu = new ContextMenuStrip();
+                    ctxMenu.Items.Add("Đóng tab này", null, (_, _) => CloseTabAt(targetIndex));
+                    if (_tabMain.TabPages.Count > 2)
+                        ctxMenu.Items.Add("Đóng các tab khác", null, (_, _) => CloseOtherTabs(targetIndex));
+                    ctxMenu.Items.Add("Đóng tất cả tab chức năng", null, (_, _) => CloseAllClosableTabs());
+                    ctxMenu.Show(_tabMain, e.Location);
+                    return;
+                }
+            }
+        }
+
+        private void CloseTabAt(int index)
+        {
+            if (_tabMain == null || index <= 0 || index >= _tabMain.TabPages.Count) return;
+
+            var tabToClose = _tabMain.TabPages[index];
+            int nextSelectedIndex = (_tabMain.SelectedIndex == index)
+                ? Math.Max(0, index - 1)
+                : _tabMain.SelectedIndex;
+
+            ClearTabCacheReference(tabToClose);
+            _tabMain.TabPages.RemoveAt(index);
+            tabToClose.Dispose();
+
+            _hoveredCloseTabIndex = -1;
+            if (nextSelectedIndex < _tabMain.TabPages.Count)
+                _tabMain.SelectedIndex = nextSelectedIndex;
+        }
+
+    private void CloseOtherTabs(int keepIndex)
+    {
+        if (_tabMain == null) return;
+        for (int i = _tabMain.TabPages.Count - 1; i >= 1; i--)
+        {
+            if (i != keepIndex) CloseTabAt(i);
+        }
+    }
+
+    private void CloseAllClosableTabs()
+    {
+        if (_tabMain == null) return;
+        for (int i = _tabMain.TabPages.Count - 1; i >= 1; i--)
+        {
+            CloseTabAt(i);
+        }
+    }
+
+        private void OpenReadersTab() =>
+            OpenOrSelectTab(ref _tabReaders, "Quản lý độc giả", () =>
+            {
+                var ctrl = new ReaderManagementControl();
+                ctrl.ReaderDataChanged += LoadData;
+                return ctrl;
+            });
+
         private void OpenLoanTab() =>
             OpenOrSelectTab(ref _tabLoan, "Quản lý mượn sách", () =>
             {
@@ -711,8 +934,24 @@ namespace LibraryManagement.Forms.LibrarianFormMain
         private void OpenBookCopiesTab() =>
             OpenOrSelectTab(ref _tabBookCopies, "Quản lý bản sách", () => new BookCopyControl());
 
+        private void OpenReservationsTab() =>
+            OpenOrSelectTab(ref _tabReservations, "Đặt trước sách", () =>
+            {
+                var ctrl = new ReservationManagementControl();
+                ctrl.ReservationDataChanged += LoadData;
+                return ctrl;
+            });
+
         private void OpenOverdueTab() =>
             OpenOrSelectTab(ref _tabOverdue, "Sách quá hạn", () => AppServices.Provider.GetRequiredService<OverdueBooks.OverdueBooks>());
+
+        private void OpenReaderCardsTab() =>
+            OpenOrSelectTab(ref _tabReaderCards, "Thẻ thư viện", () =>
+            {
+                var ctrl = new LibraryCardManagementControl();
+                ctrl.CardDataChanged += LoadData;
+                return ctrl;
+            });
 
         private void OpenFinesTab() =>
             OpenOrSelectTab(ref _tabFines, "Quản lý tiền phạt", () => new FineManagement.FineManagement());
@@ -725,7 +964,7 @@ namespace LibraryManagement.Forms.LibrarianFormMain
             var bmp = new Bitmap(size + 6, size + 6);
             using var g = Graphics.FromImage(bmp);
             using var f = new Font(IconFont, size, GraphicsUnit.Pixel);
-            TextRenderer.DrawText(g, glyph, f, new Rectangle(0, 0, bmp.Width, bmp.Height), color,
+            TextRenderer.DrawText(g, glyph, f, new Rectangle(0, -1, bmp.Width, bmp.Height), color,
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
             return bmp;
         }

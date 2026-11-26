@@ -36,7 +36,7 @@ public class BookSearchControl : UserControl
         var leftHost = new Panel { Dock = DockStyle.Left, Width = 260, Padding = new Padding(0, 0, 12, 0) };
         var grpCat = new GroupBox
         {
-            Text = "Danh mục thể loại (Cây phân cấp)",
+            Text = "Danh mục thể loại",
             Dock = DockStyle.Fill,
             Font = new Font("Segoe UI", 9F, FontStyle.Bold),
             BackColor = Color.White,
@@ -88,7 +88,7 @@ public class BookSearchControl : UserControl
 
         _chkAvailableOnly = new CheckBox
         {
-            Text = "Chỉ hiện sách còn bản sao",
+            Text = "Chỉ hiện sách còn bản để mượn",
             AutoSize = true,
             Font = new Font("Segoe UI", 9F),
             Location = new Point(370, 21)
@@ -102,8 +102,8 @@ public class BookSearchControl : UserControl
             ForeColor = Color.White,
             FlatStyle = FlatStyle.Flat,
             Font = new Font("Segoe UI", 9F, FontStyle.Bold),
-            Size = new Size(100, 32),
-            Location = new Point(560, 15),
+            Size = new Size(92, 32),
+            Location = new Point(0, 16),
             Cursor = Cursors.Hand
         };
         btnSearch.FlatAppearance.BorderSize = 0;
@@ -115,8 +115,8 @@ public class BookSearchControl : UserControl
             BackColor = Color.White,
             FlatStyle = FlatStyle.Flat,
             Font = new Font("Segoe UI", 9F),
-            Size = new Size(80, 32),
-            Location = new Point(668, 15),
+            Size = new Size(72, 32),
+            Location = new Point(0, 16),
             Cursor = Cursors.Hand
         };
         btnReset.FlatAppearance.BorderColor = BorderGray;
@@ -134,11 +134,13 @@ public class BookSearchControl : UserControl
             AutoSize = true,
             Font = new Font("Segoe UI", 9F, FontStyle.Bold),
             ForeColor = Primary,
-            Anchor = AnchorStyles.Top | AnchorStyles.Right,
-            Location = new Point(770, 22)
+            Location = new Point(0, 22)
         };
 
         pnlFilter.Controls.AddRange(new Control[] { _txtKeyword, _chkAvailableOnly, btnSearch, btnReset, _lblCount });
+        pnlFilter.Resize += (_, _) => LayoutFilterBar(pnlFilter, btnSearch, btnReset);
+        _lblCount.TextChanged += (_, _) => LayoutFilterBar(pnlFilter, btnSearch, btnReset);
+        LayoutFilterBar(pnlFilter, btnSearch, btnReset);
 
         var pnlGridHost = new Panel { Dock = DockStyle.Fill, Padding = new Padding(0, 10, 0, 0) };
         _dgvBooks = new DataGridView
@@ -212,6 +214,19 @@ public class BookSearchControl : UserControl
         Controls.Add(leftHost);
     }
 
+    private void LayoutFilterBar(Panel pnlFilter, Button btnSearch, Button btnReset)
+    {
+        const int margin = 14;
+        const int gap = 8;
+
+        int right = pnlFilter.ClientSize.Width - margin;
+        _lblCount.Left = right - _lblCount.Width;
+        btnReset.Left = _lblCount.Left - gap - btnReset.Width;
+        btnSearch.Left = btnReset.Left - gap - btnSearch.Width;
+        _chkAvailableOnly.Left = btnSearch.Left - gap - _chkAvailableOnly.Width;
+        _txtKeyword.Width = Math.Max(140, _chkAvailableOnly.Left - gap - _txtKeyword.Left);
+    }
+
     private void LoadCategoriesTree()
     {
         _treeCategories.Nodes.Clear();
@@ -227,7 +242,7 @@ public class BookSearchControl : UserControl
         {
             foreach (var cat in categories.Where(c => c.IdParent == parentId))
             {
-                var node = new TreeNode($"{cat.CategoryName} ({cat.MaxLoanDays} ngày)") { Tag = cat.Id };
+                var node = new TreeNode(cat.CategoryName) { Tag = cat.Id };
                 AddChildren(node, cat.Id);
                 parentNode.Nodes.Add(node);
             }

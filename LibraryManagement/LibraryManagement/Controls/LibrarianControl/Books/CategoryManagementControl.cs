@@ -34,7 +34,7 @@ public class CategoryManagementControl : UserControl
         var split = new SplitContainer
         {
             Dock = DockStyle.Fill,
-            SplitterDistance = 420,
+            SplitterDistance = 300,
             BackColor = BackColor
         };
 
@@ -100,7 +100,10 @@ public class CategoryManagementControl : UserControl
             Text = "Chưa chọn thể loại",
             ForeColor = Color.FromArgb(19, 98, 160),
             Font = new Font("Segoe UI", 9.5F, FontStyle.Bold),
-            AutoSize = true
+            AutoSize = false,
+            Dock = DockStyle.Fill,
+            TextAlign = ContentAlignment.MiddleLeft,
+            Margin = new Padding(0)
         };
 
         AddFormRow(tbl, 0, "Mã thể loại (*):", _txtCode);

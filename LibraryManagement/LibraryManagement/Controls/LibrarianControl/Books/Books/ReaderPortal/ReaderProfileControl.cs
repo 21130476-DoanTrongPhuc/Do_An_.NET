@@ -83,7 +83,9 @@ public class ReaderProfileControl : UserControl
             Text = "Độc giả",
             Font = new Font("Segoe UI", 14F, FontStyle.Bold),
             ForeColor = Color.FromArgb(25, 32, 42),
-            AutoSize = true,
+            AutoSize = false,
+            AutoEllipsis = true,
+            Size = new Size(460, 28),
             Location = new Point(104, 22)
         };
 
@@ -92,7 +94,9 @@ public class ReaderProfileControl : UserControl
             Text = "Mã độc giả: DG000 · Tài khoản: reader",
             Font = new Font("Segoe UI", 9F),
             ForeColor = TextGray,
-            AutoSize = true,
+            AutoSize = false,
+            AutoEllipsis = true,
+            Size = new Size(460, 20),
             Location = new Point(105, 52)
         };
 
@@ -146,6 +150,15 @@ public class ReaderProfileControl : UserControl
         cardBox.Controls.AddRange(new Control[] { _lblCardCode, _lblCardDates, _lblCardStatus });
         headerCard.Controls.AddRange(new Control[] { _picAvatar, _lblDisplayName, _lblDisplayMeta, _lblQuotaInfo, cardBox });
 
+        void LayoutHeaderLabels()
+        {
+            int infoWidth = Math.Max(120, cardBox.Left - _lblDisplayName.Left - 12);
+            _lblDisplayName.Width = infoWidth;
+            _lblDisplayMeta.Width = infoWidth;
+        }
+        headerCard.Resize += (_, _) => LayoutHeaderLabels();
+        LayoutHeaderLabels();
+
         // 2. Khu vực chính chia 2 cột: Trái (Hồ sơ cá nhân) - Phải (Đổi mật khẩu)
         var bodyHost = new Panel
         {
@@ -190,6 +203,8 @@ public class ReaderProfileControl : UserControl
         _txtPhone = AddFormRow(pnlLeft, "Số điện thoại:", ref y, readOnly: false);
         _txtEmail = AddFormRow(pnlLeft, "Email:", ref y, readOnly: false);
         _txtAddress = AddFormRow(pnlLeft, "Địa chỉ liên hệ:", ref y, readOnly: false);
+        pnlLeft.Resize += (_, _) => ResizeInputs(pnlLeft,
+            _txtUserCode, _txtUsername, _txtFullName, _txtDateOfBirth, _txtPhone, _txtEmail, _txtAddress);
 
         var btnSaveProfile = new Button
         {
@@ -233,6 +248,7 @@ public class ReaderProfileControl : UserControl
             Text = "Mật khẩu mới cần tối thiểu 6 ký tự và không trùng mật khẩu cũ.",
             Font = new Font("Segoe UI", 8.5F),
             ForeColor = TextGray,
+            AutoSize = false,
             Size = new Size(340, 34),
             Location = new Point(18, 42)
         };
@@ -241,6 +257,13 @@ public class ReaderProfileControl : UserControl
         _txtCurrentPass = AddPasswordRow(pnlRight, "Mật khẩu hiện tại:", ref py);
         _txtNewPass = AddPasswordRow(pnlRight, "Mật khẩu mới:", ref py);
         _txtConfirmPass = AddPasswordRow(pnlRight, "Xác nhận mật khẩu mới:", ref py);
+        void LayoutPasswordPanel()
+        {
+            lblPassHint.Width = Math.Max(120, pnlRight.ClientSize.Width - 36);
+            ResizeInputs(pnlRight, _txtCurrentPass, _txtNewPass, _txtConfirmPass);
+        }
+        pnlRight.Resize += (_, _) => LayoutPasswordPanel();
+        LayoutPasswordPanel();
 
         var chkShowPass = new CheckBox
         {
@@ -470,7 +493,7 @@ public class ReaderProfileControl : UserControl
             BackColor = readOnly ? Color.FromArgb(245, 247, 250) : Color.White,
             Size = new Size(340, 26),
             Location = new Point(185, y),
-            Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
+            Anchor = AnchorStyles.Top | AnchorStyles.Left
         };
 
         host.Controls.Add(lbl);
@@ -496,13 +519,20 @@ public class ReaderProfileControl : UserControl
             PasswordChar = '●',
             Size = new Size(320, 26),
             Location = new Point(18, y + 22),
-            Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
+            Anchor = AnchorStyles.Top | AnchorStyles.Left
         };
 
         host.Controls.Add(lbl);
         host.Controls.Add(txt);
         y += 58;
         return txt;
+    }
+
+    private static void ResizeInputs(Panel host, params TextBox[] inputs)
+    {
+        int width = Math.Max(120, host.ClientSize.Width - inputs[0].Left - 18);
+        foreach (var input in inputs)
+            input.Width = width;
     }
 
     private static string FormatCardStatus(ReaderCardStatus status) => status switch

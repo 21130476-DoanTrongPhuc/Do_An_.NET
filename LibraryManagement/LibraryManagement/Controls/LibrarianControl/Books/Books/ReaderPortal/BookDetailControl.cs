@@ -266,7 +266,7 @@ public class BookDetailControl : UserControl
             Font = new Font("Segoe UI", 9F),
             PlaceholderText = "Ví dụ: Cần mượn phục vụ đồ án cuối kỳ (không bắt buộc)...",
             Size = new Size(320, 25),
-            Location = new Point(132, 13)
+            Location = new Point(lblNote.Right + 12, 13)
         };
 
         _btnReserve = new Button
@@ -292,7 +292,15 @@ public class BookDetailControl : UserControl
             Location = new Point(642, 17)
         };
 
+        void LayoutReserveNote()
+        {
+            _txtReserveNote.Left = lblNote.Right + 12;
+            _txtReserveNote.Width = Math.Max(140, _btnReserve.Left - _txtReserveNote.Left - 12);
+        }
+        reserveBar.Resize += (_, _) => LayoutReserveNote();
+
         reserveBar.Controls.AddRange(new Control[] { lblNote, _txtReserveNote, _btnReserve, _lblReserveStatus });
+        LayoutReserveNote();
 
         infoCard.Resize += (_, _) =>
         {

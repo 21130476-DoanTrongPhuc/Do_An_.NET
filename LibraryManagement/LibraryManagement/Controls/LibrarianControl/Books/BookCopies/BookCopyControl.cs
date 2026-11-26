@@ -57,8 +57,8 @@ public partial class BookCopyControl : UserControl
 
         btnLost.Click += (_, _) => ChangeStatus(
             CirculationStatus.Maintenance,
-            null,
-            "Báo mất bản sách / Đang sửa chưa");
+            BookCondition.Lost,
+            "Báo mất bản sách");
 
         btnHistory.Click += (_, _) => ShowStatusHistory();
         btnExport.Click += (_, _) => ExportCsv();
@@ -155,8 +155,11 @@ public partial class BookCopyControl : UserControl
         try
         {
             _service.ChangeCopyStatus(copy.Id, newStatus, newCond, defaultReason);
+            string updatedStatus = newCond == BookCondition.Lost
+                ? TranslateCondition(newCond)!
+                : TranslateStatus(newStatus)!;
             MessageBox.Show(
-                $"Đã cập nhật trạng thái bản sách '{copy.CopyCode}' thành {TranslateStatus(newStatus)}.",
+                $"Đã cập nhật trạng thái bản sách '{copy.CopyCode}' thành {updatedStatus}.",
                 "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
             LoadBookCopies();
         }

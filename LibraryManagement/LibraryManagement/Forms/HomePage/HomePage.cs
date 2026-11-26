@@ -554,23 +554,38 @@ namespace LibraryManagement.Forms.HomePage
                 Text = subtitle, Font = new Font("Segoe UI", 7.5F), ForeColor = TextGray, AutoEllipsis = true,
                 Size = new Size(145, 16), Location = new Point(60, 27), Cursor = Cursors.Hand
             };
+            Label? lblExtra = null;
+            if (extra != null)
+            {
+                lblExtra = new Label
+                {
+                    Text = extra, Font = new Font("Segoe UI", 7.5F), ForeColor = TextGray,
+                    AutoEllipsis = true, Size = new Size(145, 16), Location = new Point(60, 44)
+                };
+            }
+
+            void LayoutCardText()
+            {
+                int textWidth = Math.Max(70, card.ClientSize.Width - (isBorrowedCard ? 176 : 110));
+                lblTitle.Width = textWidth;
+                lblSub.Width = textWidth;
+                if (lblExtra != null)
+                    lblExtra.Width = textWidth;
+            }
+            card.Resize += (_, _) => LayoutCardText();
 
             card.Controls.Add(coverPnl);
             card.Controls.Add(lblTitle);
             card.Controls.Add(lblSub);
+            if (lblExtra != null)
+                card.Controls.Add(lblExtra);
+            LayoutCardText();
 
             // Bấm vào bìa hoặc tiêu đề sách để mở Trang 3 (Chi tiết sách)
             card.Click += (_, _) => OpenBookDetail(bookId);
             coverPnl.Click += (_, _) => OpenBookDetail(bookId);
             lblTitle.Click += (_, _) => OpenBookDetail(bookId);
             lblSub.Click += (_, _) => OpenBookDetail(bookId);
-
-            if (extra != null)
-                card.Controls.Add(new Label
-                {
-                    Text = extra, Font = new Font("Segoe UI", 7.5F), ForeColor = TextGray, AutoSize = true,
-                    Location = new Point(60, 44)
-                });
 
             var pill = new Label
             {
@@ -665,11 +680,11 @@ namespace LibraryManagement.Forms.HomePage
         // ============================================================
         private static Bitmap GlyphImage(string glyph, int size, Color color, int badge)
         {
-            var bmp = new Bitmap(size + 14, size + 6);
+            var bmp = new Bitmap(size + 4, size + 4);
             using var g = Graphics.FromImage(bmp);
             g.SmoothingMode = SmoothingMode.AntiAlias;
             using var f = new Font(IconFont, size, GraphicsUnit.Pixel);
-            TextRenderer.DrawText(g, glyph, f, new Rectangle(0, 0, size + 4, bmp.Height), color,
+            TextRenderer.DrawText(g, glyph, f, new Rectangle(0, 0, bmp.Width, bmp.Height), color,
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
             if (badge > 0)
             {

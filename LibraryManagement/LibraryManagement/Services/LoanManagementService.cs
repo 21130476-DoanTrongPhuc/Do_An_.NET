@@ -24,9 +24,20 @@ public class ReaderBorrowContextDto
     public int OverdueCount { get; set; }
     public int MaxActiveCopies { get; set; }
     public int UnpaidFineVnd { get; set; }
-
+    public List<ReadyReservationItemDto> ReadyReservations { get; set; } = new();
     public bool IsEligible { get; set; }
     public List<string> ValidationMessages { get; set; } = new();
+}
+
+// 1. Thêm class DTO này (đặt ngay dưới ReaderBorrowContextDto)
+public class ReadyReservationItemDto
+{
+    public int ReservationId { get; set; }
+    public string ReservationCode { get; set; } = string.Empty;
+    public int BookCopyId { get; set; }
+    public string CopyCode { get; set; } = string.Empty;
+    public string Title { get; set; } = string.Empty;
+    public DateTime? ExpiresAt { get; set; }
 }
 
 public class BorrowCartItemDto
@@ -199,6 +210,23 @@ public class LoanManagementService
         if (overdueCount > 0)
             ctx.ValidationMessages.Add($"Độc giả đang giữ {overdueCount} cuốn sách QUÁ HẠN chưa trả.");
 
+        ctx.ReadyReservations = db.Reservations
+            .Where(r => r.IdReader == reader.Id
+                        && r.Status == ReservationStatus.ReadyForPickup
+                        && r.IdBookCopy != null
+                        && r.BookCopy != null)
+            .OrderBy(r => r.ExpiresAt)
+            .Select(r => new ReadyReservationItemDto
+            {
+                ReservationId = r.Id,
+                ReservationCode = r.ReservationCode,
+                BookCopyId = r.IdBookCopy!.Value,
+                CopyCode = r.BookCopy!.CopyCode,
+                Title = r.Book.Title,
+                ExpiresAt = r.ExpiresAt
+            })
+            .ToList();
+        
         ctx.IsEligible = ctx.ValidationMessages.Count == 0;
         return ctx;
     }

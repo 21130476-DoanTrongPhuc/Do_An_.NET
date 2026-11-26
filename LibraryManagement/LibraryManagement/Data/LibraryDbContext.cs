@@ -210,7 +210,7 @@ public class LibraryDbContext : DbContext
         // =========================================================
         modelBuilder.Entity<BookCopyHistory>(e =>
         {
-            e.ToTable("BookCopyHistories");
+            e.ToTable("BookCopyHistory");
             e.HasKey(x => x.Id);
             e.Property(x => x.Id).ValueGeneratedOnAdd();
 

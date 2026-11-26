@@ -246,7 +246,7 @@ public class FavoriteBooksControl : UserControl
             DropDownStyle = ComboBoxStyle.DropDownList,
             Font = new Font("Segoe UI", 8.5F),
             Location = new Point(70, 10),
-            Size = new Size(175, 25)
+            Size = new Size(160, 25)
         };
         _cboCategory.SelectedIndexChanged += (_, _) => ApplyFilter();
 
@@ -264,7 +264,7 @@ public class FavoriteBooksControl : UserControl
             DropDownStyle = ComboBoxStyle.DropDownList,
             Font = new Font("Segoe UI", 8.5F),
             Location = new Point(328, 10),
-            Size = new Size(150, 25)
+            Size = new Size(135, 25)
         };
         _cboStatus.Items.AddRange(new object[] { "Tất cả trạng thái", "Còn sách sẵn sàng", "Đã hết sách" });
         _cboStatus.SelectedIndex = 0;
@@ -292,16 +292,17 @@ public class FavoriteBooksControl : UserControl
 
         var btnRefresh = new Button
         {
-            Text = "  Làm mới",
+            Text = "Làm mới",
             FlatStyle = FlatStyle.Flat,
             BackColor = Color.White,
             Font = new Font("Segoe UI", 8.5F),
-            Size = new Size(96, 28),
+            Size = new Size(112, 32),
             Location = new Point(bar.Width - 110, 9),
             Anchor = AnchorStyles.Top | AnchorStyles.Right,
-            Image = GlyphImage(GRefresh, 13, Primary),
+            Image = GlyphImage(GRefresh, 12, Primary),
             ImageAlign = ContentAlignment.MiddleLeft,
             TextImageRelation = TextImageRelation.ImageBeforeText,
+            Padding = new Padding(8, 0, 8, 0),
             Cursor = Cursors.Hand
         };
         btnRefresh.FlatAppearance.BorderColor = BorderGray;
@@ -312,21 +313,39 @@ public class FavoriteBooksControl : UserControl
             Text = "",
             Font = new Font("Segoe UI", 8.5F, FontStyle.Bold),
             ForeColor = Primary,
-            AutoSize = true,
-            Anchor = AnchorStyles.Top | AnchorStyles.Right,
+            AutoSize = false,
+            Size = new Size(0, 20),
+            TextAlign = ContentAlignment.MiddleLeft,
+            Anchor = AnchorStyles.Top | AnchorStyles.Left,
             Location = new Point(bar.Width - 260, 14)
         };
 
-        bar.Resize += (_, _) =>
+        void LayoutFilterBar()
         {
-            btnRefresh.Left = bar.Width - btnRefresh.Width - 12;
-            _lblResultCount.Left = btnRefresh.Left - _lblResultCount.Width - 16;
-        };
+            lblCat.Left = 14;
+            _cboCategory.Left = lblCat.Right + 8;
+            lblStatus.Left = _cboCategory.Right + 16;
+            _cboStatus.Left = lblStatus.Right + 8;
+            lblSort.Left = _cboStatus.Right + 16;
+            _cboSort.Left = lblSort.Right + 8;
+
+            int right = bar.ClientSize.Width - 12;
+            btnRefresh.Left = right - btnRefresh.Width;
+            _lblResultCount.Width = string.IsNullOrEmpty(_lblResultCount.Text)
+                ? 0
+                : TextRenderer.MeasureText(_lblResultCount.Text, _lblResultCount.Font).Width;
+            _lblResultCount.Left = btnRefresh.Left - _lblResultCount.Width - 12;
+            _cboSort.Width = Math.Clamp(_lblResultCount.Left - 16 - _cboSort.Left, 110, 155);
+        }
+
+        bar.Resize += (_, _) => LayoutFilterBar();
+        _lblResultCount.TextChanged += (_, _) => LayoutFilterBar();
 
         bar.Controls.AddRange(new Control[]
         {
             lblCat, _cboCategory, lblStatus, _cboStatus, lblSort, _cboSort, _lblResultCount, btnRefresh
         });
+        LayoutFilterBar();
 
         host.Controls.Add(bar);
         return host;
@@ -441,10 +460,6 @@ public class FavoriteBooksControl : UserControl
 
         var filtered = query.ToList();
         _lblResultCount.Text = $"Hiển thị {filtered.Count} / {_allFavorites.Count} cuốn";
-        if (_lblResultCount.Parent != null)
-        {
-            _lblResultCount.Left = _lblResultCount.Parent.Width - 110 - _lblResultCount.Width - 16;
-        }
 
         _flowBooks.SuspendLayout();
         _flowBooks.Controls.Clear();

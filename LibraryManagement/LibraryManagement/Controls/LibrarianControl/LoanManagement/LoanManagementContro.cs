@@ -39,6 +39,9 @@ public class LoanManagementControl : UserControl
     private DataGridView _dgvLoans = null!;
     private DataGridView _dgvLoanDetails = null!;
     private Label _lblDetailHeader = null!;
+    private Panel _pnlReservationAlert = null!;
+    private Label _lblReservationAlert = null!;
+    private Button _btnAddReservedBooks = null!;
 
     private List<LoanSummaryDto> _loans = new();
     private List<LoanDetailItemDto> _currentDetails = new();
@@ -156,6 +159,38 @@ public class LoanManagementControl : UserControl
         };
         pnlScanBar.Paint += (_, e) => e.Graphics.DrawRectangle(new Pen(BorderGray), 0, 0, pnlScanBar.Width - 1, pnlScanBar.Height - 1);
 
+        // Tạo thanh hiển thị sách đặt trước đã duyệt (mặc định ẩn, chỉ hiện khi độc giả có sách đặt)
+        _pnlReservationAlert = new Panel
+        {
+            Dock = DockStyle.Top,
+            Height = 56,
+            BackColor = Color.FromArgb(254, 249, 231), // Vàng kem nổi bật
+            Padding = new Padding(12, 6, 12, 6),
+            Visible = false
+        };
+        _pnlReservationAlert.Paint += (_, e) =>
+            e.Graphics.DrawRectangle(new Pen(Orange), 0, 0, _pnlReservationAlert.Width - 1, _pnlReservationAlert.Height - 1);
+
+        _lblReservationAlert = new Label
+        {
+            Location = new Point(12, 8),
+            Size = new Size(650, 40),
+            ForeColor = Color.FromArgb(146, 64, 14),
+            Font = new Font("Segoe UI", 8.8F, FontStyle.Bold),
+            Text = ""
+        };
+
+        _btnAddReservedBooks = MakeButton("Nạp sách đặt trước vào phiếu", Orange, Color.White, 210);
+        _btnAddReservedBooks.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        _btnAddReservedBooks.Click += (_, _) => AddAllReservedBooksToCart();
+
+        _pnlReservationAlert.Controls.AddRange([_lblReservationAlert, _btnAddReservedBooks]);
+        _pnlReservationAlert.Resize += (_, _) =>
+        {
+            _btnAddReservedBooks.Location = new Point(_pnlReservationAlert.Width - _btnAddReservedBooks.Width - 12, 12);
+            _lblReservationAlert.Width = _btnAddReservedBooks.Left - 24;
+        };
+        
         var lblScanBook = new Label
         {
             Text = "Quét mã vạch bản sách:",
@@ -219,7 +254,8 @@ public class LoanManagementControl : UserControl
         };
         pnlFooter.Paint += (_, e) => e.Graphics.DrawLine(new Pen(BorderGray), 0, 0, pnlFooter.Width, 0);
 
-        pnlFooter.Controls.Add(new Label { Text = "Ghi chú:", AutoSize = true, Location = new Point(12, 22) });
+        var lblLoanNote = new Label { Text = "Ghi chú:", AutoSize = true, Location = new Point(12, 22) };
+        pnlFooter.Controls.Add(lblLoanNote);
         _txtLoanNote = new TextBox { Location = new Point(72, 18), Width = 280, PlaceholderText = "Ghi chú phiếu mượn..." };
 
         _lblCartSummary = new Label
@@ -230,6 +266,11 @@ public class LoanManagementControl : UserControl
             ForeColor = Primary,
             Text = "Số sách mượn: 0 cuốn"
         };
+        void LayoutLoanNote()
+        {
+            _txtLoanNote.Left = lblLoanNote.Right + 10;
+            _txtLoanNote.Width = Math.Max(160, _lblCartSummary.Left - _txtLoanNote.Left - 12);
+        }
 
         var btnReset = MakeButton("Làm mới", Color.White, Color.Black, 95);
         btnReset.Anchor = AnchorStyles.Top | AnchorStyles.Right;
@@ -251,12 +292,17 @@ public class LoanManagementControl : UserControl
         btnConfirmLoan.Click += (_, _) => ConfirmCreateLoan();
 
         pnlFooter.Controls.AddRange([_txtLoanNote, _lblCartSummary, btnReset, _btnPrintLastLoan, btnConfirmLoan]);
+        pnlFooter.Resize += (_, _) => LayoutLoanNote();
+        LayoutLoanNote();
 
         page.Controls.Add(_dgvCart);
         page.Controls.Add(pnlFooter);
+        page.Controls.Add(_pnlReservationAlert); // Nằm ngay dưới thanh quét mã sách
         page.Controls.Add(pnlScanBar);
         page.Controls.Add(pnlTop);
     }
+    
+    
 
     private void ScanReader()
     {
@@ -277,31 +323,95 @@ public class LoanManagementControl : UserControl
     }
 
     private void RefreshReaderPanel()
+{
+    if (_currentReader == null)
     {
-        if (_currentReader == null) return;
-        _currentReader = _service.FindAndValidateReader(_currentReader.UserCode, _cart.Count)!;
+        _pnlReservationAlert.Visible = false;
+        return;
+    }
 
-        _lblReaderSummary.ForeColor = Color.Black;
-        _lblReaderSummary.Text =
-            $"Họ tên: {_currentReader.FullName} ({_currentReader.UserCode})   |   Thẻ: {_currentReader.CardCode} ({_currentReader.CardStatus})\n" +
-            $"Hạn thẻ: {(_currentReader.CardExpiresAt?.ToString("dd/MM/yyyy") ?? "—")}   |   SĐT: {_currentReader.Phone ?? "—"}\n" +
-            $"Đang mượn: {_currentReader.ActiveBorrowedCount}/{_currentReader.MaxActiveCopies} cuốn   |   Nợ phạt: {_currentReader.UnpaidFineVnd:N0} đ";
+    _currentReader = _service.FindAndValidateReader(_currentReader.UserCode, _cart.Count)!;
 
-        if (_currentReader.IsEligible)
+    _lblReaderSummary.ForeColor = Color.Black;
+    _lblReaderSummary.Text =
+        $"Họ tên: {_currentReader.FullName} ({_currentReader.UserCode})   |   Thẻ: {_currentReader.CardCode} ({_currentReader.CardStatus})\n" +
+        $"Hạn thẻ: {(_currentReader.CardExpiresAt?.ToString("dd/MM/yyyy") ?? "—")}   |   SĐT: {_currentReader.Phone ?? "—"}\n" +
+        $"Đang mượn: {_currentReader.ActiveBorrowedCount}/{_currentReader.MaxActiveCopies} cuốn   |   Nợ phạt: {_currentReader.UnpaidFineVnd:N0} đ";
+
+    if (_currentReader.IsEligible)
+    {
+        _lblEligibilityBanner.ForeColor = Green;
+        _lblEligibilityBanner.Text =
+            "✔ ĐỦ ĐIỀU KIỆN MƯỢN SÁCH\n" +
+            $"• Có thể mượn thêm tối đa {_currentReader.MaxActiveCopies - _currentReader.ActiveBorrowedCount - _cart.Count} cuốn nữa.";
+    }
+    else
+    {
+        _lblEligibilityBanner.ForeColor = Red;
+        _lblEligibilityBanner.Text =
+            "✖ KHÔNG ĐỦ ĐIỀU KIỆN MƯỢN SÁCH:\n• " +
+            string.Join("\n• ", _currentReader.ValidationMessages);
+    }
+
+    // Hiển thị các sách đặt trước đã duyệt (ReadyForPickup) chưa có trong giỏ
+    var pendingReserved = _currentReader.ReadyReservations
+        .Where(r => !_cart.Any(c => c.BookCopyId == r.BookCopyId))
+        .ToList();
+
+    if (pendingReserved.Count > 0)
+    {
+        string summaryItems = string.Join("  |  ", pendingReserved.Select(r =>
+            $"[{r.CopyCode}] {r.Title} (Hạn giữ: {r.ExpiresAt:dd/MM})"));
+
+        _lblReservationAlert.Text =
+            $"📌 ĐỘC GIẢ CÓ {pendingReserved.Count} SÁCH ĐẶT TRƯỚC ĐÃ DUYỆT ĐANG CHỜ LẤY:\n{summaryItems}";
+        _btnAddReservedBooks.Enabled = _currentReader.IsEligible;
+        _pnlReservationAlert.Visible = true;
+    }
+    else
+    {
+        _pnlReservationAlert.Visible = false;
+    }
+}
+
+    private void AddAllReservedBooksToCart()
+{
+    if (_currentReader == null || !_currentReader.IsEligible) return;
+
+    var pendingReserved = _currentReader.ReadyReservations
+        .Where(r => !_cart.Any(c => c.BookCopyId == r.BookCopyId))
+        .ToList();
+
+    int addedCount = 0;
+    foreach (var res in pendingReserved)
+    {
+        if (_currentReader.ActiveBorrowedCount + _cart.Count >= _currentReader.MaxActiveCopies)
         {
-            _lblEligibilityBanner.ForeColor = Green;
-            _lblEligibilityBanner.Text =
-                "✔ ĐỦ ĐIỀU KIỆN MƯỢN SÁCH\n" +
-                $"• Có thể mượn thêm tối đa {_currentReader.MaxActiveCopies - _currentReader.ActiveBorrowedCount - _cart.Count} cuốn nữa.";
+            MessageBox.Show($"Đã đạt giới hạn mượn tối đa {_currentReader.MaxActiveCopies} cuốn.",
+                "Giới hạn mượn", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            break;
         }
-        else
+
+        try
         {
-            _lblEligibilityBanner.ForeColor = Red;
-            _lblEligibilityBanner.Text =
-                "✖ KHÔNG ĐỦ ĐIỀU KIỆN MƯỢN SÁCH:\n• " +
-                string.Join("\n• ", _currentReader.ValidationMessages);
+            var item = _service.ValidateAndPrepareCopy(res.CopyCode, _currentReader.ReaderId, _cart);
+            _cart.Add(item);
+            addedCount++;
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Không thể thêm bản sách '{res.CopyCode}': {ex.Message}",
+                "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
     }
+
+    if (addedCount > 0)
+    {
+        BindCartGrid();
+        RefreshReaderPanel();
+        _txtScanCopy.Focus();
+    }
+}
 
     private void ScanBookCopy()
     {
