@@ -21,7 +21,7 @@
             this.MinimumSize = new System.Drawing.Size(900, 600);
             this.Name = "OverduePrintPreviewForm";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterParent;
-            this.Text = "Xem trước bản in - Danh sách đòi sách";
+            this.Text = "Xem trước bản in - Danh sách sách quá hạn";
             this.ResumeLayout(false);
         }
 

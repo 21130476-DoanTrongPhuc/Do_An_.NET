@@ -13,7 +13,6 @@ public partial class OverdueBooks : UserControl
     // =========================================================
     // CONFIGURATION
     // =========================================================
-    private const int PageSize = 20;
     private const string IconFont = "Segoe MDL2 Assets";
 
     private const string GSearch  = "\uE721";
@@ -46,8 +45,6 @@ public partial class OverdueBooks : UserControl
     // ====== State ======
     private List<ManageOverdueBookInfo> _allBooks = new();
     private List<ManageOverdueBookInfo> _filteredBooks = new();
-    private int _currentPage = 1;
-    private int _totalPages = 1;
     private bool _isLoading;
 
     private HashSet<string> _selectedIds = new(StringComparer.OrdinalIgnoreCase);
@@ -55,7 +52,7 @@ public partial class OverdueBooks : UserControl
     
     private Rectangle _headerCheckboxRect = Rectangle.Empty;
     private bool _headerCheckboxHover = false;
-    private bool _allSelectedOnPage = false;
+    private bool _allSelected = false;
 
     // ====== Sự kiện host ======
     public event EventHandler? CloseRequested;
@@ -77,10 +74,6 @@ public partial class OverdueBooks : UserControl
 
     private DataGridView dgvOverdue = null!;
     private Button btnNotify = null!;
-    private Button btnPrevPage = null!;
-    private Button btnNextPage = null!;
-    private Label lblPageInfo = null!;
-
     // Drawer
     private Panel pnlDrawer = null!;
     private Label lblDrawerTitle = null!;
@@ -110,7 +103,6 @@ public partial class OverdueBooks : UserControl
 
         // Thứ tự add: Fill -> Top dưới -> Top trên -> Drawer (Right)
         Controls.Add(BuildTableArea());
-        Controls.Add(BuildPager());
         Controls.Add(BuildToolbar());
         Controls.Add(BuildKpiArea());
         Controls.Add(BuildHeader());
@@ -238,7 +230,7 @@ public partial class OverdueBooks : UserControl
     // ---------------------------------------------------------
     private Panel BuildToolbar()
     {
-        var host = new Panel { Dock = DockStyle.Top, Height = 132, Padding = new Padding(12, 8, 12, 0) };
+        var host = new Panel { Dock = DockStyle.Top, Height = 190, Padding = new Padding(12, 8, 12, 0) };
         var grp = new GroupBox
         {
             Text = "Tìm kiếm & Bộ lọc",
@@ -246,8 +238,7 @@ public partial class OverdueBooks : UserControl
             Padding = new Padding(12, 6, 12, 8)
         };
 
-        // --- Row 1: search + loại + trạng thái + ngày + action ---
-        var row1 = new Panel { Dock = DockStyle.Top, Height = 38 };
+        var row1 = new Panel { Dock = DockStyle.Top, Height = 36 };
 
         txtSearch = new TextBox
         {
@@ -257,43 +248,155 @@ public partial class OverdueBooks : UserControl
         txtSearch.TextChanged += async (_, _) => await LoadDataAsync();
         row1.Controls.Add(txtSearch);
 
-        row1.Controls.Add(MakeLabel("Quá hạn:", 336, 12));
+        var lblDays = MakeLabel("Quá hạn:", 0, 12);
+        row1.Controls.Add(lblDays);
         cboDaysFilter = MakeCombo(402, 8, 165, new[] {
             "Tất cả", "Quá hạn 1–7 ngày", "Quá hạn 8–30 ngày", "Quá hạn trên 30 ngày"
         });
         cboDaysFilter.SelectedIndexChanged += async (_, _) => await LoadDataAsync();
         row1.Controls.Add(cboDaysFilter);
 
-        row1.Controls.Add(MakeLabel("Trạng thái nhắc:", 580, 12));
+        var lblReminderStatus = MakeLabel("Trạng thái nhắc:", 0, 12);
+        row1.Controls.Add(lblReminderStatus);
         cboReminderStatus = MakeCombo(690, 8, 175, new[] {
             "Tất cả", "Chưa nhắc", "Đã nhắc hôm nay", "Chưa nhắc hôm nay"
         });
         cboReminderStatus.SelectedIndexChanged += async (_, _) => await LoadDataAsync();
         row1.Controls.Add(cboReminderStatus);
 
+        void LayoutFilterRow()
+        {
+            bool compact = row1.ClientSize.Width < 820;
+            row1.Height = compact ? 72 : 36;
+
+            if (compact)
+            {
+                txtSearch.SetBounds(6, 3, Math.Max(150, row1.ClientSize.Width - 12), txtSearch.Height);
+                lblDays.Left = 6;
+                cboDaysFilter.Left = lblDays.Right + 8;
+                lblReminderStatus.Left = cboDaysFilter.Right + 12;
+                cboReminderStatus.Left = lblReminderStatus.Right + 8;
+                lblDays.Top = lblReminderStatus.Top = (row1.ClientSize.Height + 36 - lblDays.Height) / 2;
+                cboDaysFilter.Top = cboReminderStatus.Top = 40;
+                return;
+            }
+
+            int right = row1.ClientSize.Width - 6;
+            cboReminderStatus.Left = right - cboReminderStatus.Width;
+            lblReminderStatus.Left = cboReminderStatus.Left - 10 - lblReminderStatus.Width;
+            cboDaysFilter.Left = lblReminderStatus.Left - 12 - cboDaysFilter.Width;
+            lblDays.Left = cboDaysFilter.Left - 8 - lblDays.Width;
+            txtSearch.SetBounds(6, 6, Math.Max(160, lblDays.Left - 16), txtSearch.Height);
+            lblDays.Top = lblReminderStatus.Top = (row1.ClientSize.Height - lblDays.Height) / 2;
+            cboDaysFilter.Top = cboReminderStatus.Top = 8;
+        }
+
+        row1.Resize += (_, _) => LayoutFilterRow();
+        LayoutFilterRow();
+
+        var rowDate = new Panel { Dock = DockStyle.Top, Height = 36 };
         chkUseDueRange = new CheckBox
         {
             Text = "Hạn trả:",
-            AutoSize = true, ForeColor = TextGray, Font = new Font("Segoe UI", 8.5F),
-            Location = new Point(880, 12)
+            AutoSize = true, ForeColor = TextGray, Font = new Font("Segoe UI", 8.5F)
         };
-        row1.Controls.Add(chkUseDueRange);
+        rowDate.Controls.Add(chkUseDueRange);
 
         dtpFrom = new DateTimePicker
         {
-            Format = DateTimePickerFormat.Short, Location = new Point(950, 8),
+            Format = DateTimePickerFormat.Short, Location = new Point(0, 6),
             Width = 110, Enabled = false, Value = DateTime.Today.AddDays(-60)
         };
-        row1.Controls.Add(dtpFrom);
+        rowDate.Controls.Add(dtpFrom);
 
-        row1.Controls.Add(new Label { Text = "–", AutoSize = true, ForeColor = TextGray, Location = new Point(1064, 12) });
+        var lblDateSeparator = new Label
+        {
+            Text = "–",
+            AutoSize = true,
+            ForeColor = TextGray,
+            Location = new Point(0, 12)
+        };
+        rowDate.Controls.Add(lblDateSeparator);
 
         dtpTo = new DateTimePicker
         {
-            Format = DateTimePickerFormat.Short, Location = new Point(1080, 8),
+            Format = DateTimePickerFormat.Short, Location = new Point(0, 6),
             Width = 110, Enabled = false, Value = DateTime.Today
         };
-        row1.Controls.Add(dtpTo);
+        rowDate.Controls.Add(dtpTo);
+
+        var rowActions = new Panel { Dock = DockStyle.Top, Height = 38 };
+
+        var btnRefresh = new Button
+        {
+            Text = "Làm mới", Size = new Size(112, 32), Location = new Point(0, 2),
+            FlatStyle = FlatStyle.Flat, BackColor = Color.White,
+            Font = new Font("Segoe UI", 9F),
+            Image = GlyphImage(GRefresh, 14, Color.Black),
+            ImageAlign = ContentAlignment.MiddleLeft,
+            TextImageRelation = TextImageRelation.ImageBeforeText,
+            TextAlign = ContentAlignment.MiddleLeft,
+            Padding = new Padding(8, 0, 8, 0)
+        };
+        btnRefresh.FlatAppearance.BorderColor = BorderGray;
+        btnRefresh.Click += async (_, _) => await LoadDataAsync();
+        rowActions.Controls.Add(btnRefresh);
+
+        var btnExport = new Button
+        {
+            Text = "Xuất CSV", Size = new Size(120, 32), Location = new Point(120, 2),
+            FlatStyle = FlatStyle.Flat, BackColor = Color.White,
+            Font = new Font("Segoe UI", 9F),
+            Image = GlyphImage(GExport, 14, Color.Black),
+            ImageAlign = ContentAlignment.MiddleLeft,
+            TextImageRelation = TextImageRelation.ImageBeforeText,
+            TextAlign = ContentAlignment.MiddleLeft,
+            Padding = new Padding(8, 0, 8, 0)
+        };
+        btnExport.FlatAppearance.BorderColor = BorderGray;
+        btnExport.Click += (_, _) => ExportCsv();
+        rowActions.Controls.Add(btnExport);
+
+        var btnPrint = new Button
+        {
+            Text = "In danh sách", Size = new Size(150, 32), Location = new Point(248, 2),
+            FlatStyle = FlatStyle.Flat, BackColor = Primary, ForeColor = Color.White,
+            Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+            Image = GlyphImage(GPrint, 14, Color.White),
+            ImageAlign = ContentAlignment.MiddleLeft,
+            TextImageRelation = TextImageRelation.ImageBeforeText,
+            TextAlign = ContentAlignment.MiddleLeft,
+            Padding = new Padding(8, 0, 8, 0)
+        };
+        btnPrint.FlatAppearance.BorderSize = 0;
+        btnPrint.Click += (_, _) => ShowPrintPreview();
+        rowActions.Controls.Add(btnPrint);
+
+        void LayoutActionRow()
+        {
+            btnPrint.Left = rowActions.ClientSize.Width - btnPrint.Width - 4;
+            btnExport.Left = btnPrint.Left - btnExport.Width - 8;
+            btnRefresh.Left = btnExport.Left - btnRefresh.Width - 8;
+        }
+
+        rowActions.Resize += (_, _) => LayoutActionRow();
+        LayoutActionRow();
+
+        void LayoutDateRow()
+        {
+            int availableWidth = Math.Max(0, rowDate.ClientSize.Width - 16);
+            int dateWidth = Math.Clamp((availableWidth - chkUseDueRange.Width - lblDateSeparator.Width - 24) / 2, 80, 110);
+            chkUseDueRange.Location = new Point(8, (rowDate.ClientSize.Height - chkUseDueRange.Height) / 2);
+            dtpFrom.Width = dateWidth;
+            dtpFrom.Left = chkUseDueRange.Right + 8;
+            lblDateSeparator.Left = dtpFrom.Right + 8;
+            lblDateSeparator.Top = (rowDate.ClientSize.Height - lblDateSeparator.Height) / 2;
+            dtpTo.Width = dateWidth;
+            dtpTo.Left = lblDateSeparator.Right + 8;
+        }
+
+        rowDate.Resize += (_, _) => LayoutDateRow();
+        LayoutDateRow();
 
         chkUseDueRange.CheckedChanged += async (_, _) =>
         {
@@ -303,53 +406,6 @@ public partial class OverdueBooks : UserControl
         dtpFrom.ValueChanged += async (_, _) => { if (chkUseDueRange.Checked) await LoadDataAsync(); };
         dtpTo.ValueChanged   += async (_, _) => { if (chkUseDueRange.Checked) await LoadDataAsync(); };
 
-        // Action buttons bên phải row1
-        var right = new Panel { Dock = DockStyle.Right, Width = 330 };
-        row1.Controls.Add(right);
-
-        var btnRefresh = new Button
-        {
-            Text = "  Làm mới", Size = new Size(110, 32), Location = new Point(0, 4),
-            FlatStyle = FlatStyle.Flat, BackColor = Color.White,
-            Font = new Font("Segoe UI", 9F),
-            Image = GlyphImage(GRefresh, 14, Color.Black),
-            ImageAlign = ContentAlignment.MiddleLeft,
-            TextImageRelation = TextImageRelation.ImageBeforeText,
-            Anchor = AnchorStyles.Top | AnchorStyles.Right
-        };
-        btnRefresh.FlatAppearance.BorderColor = BorderGray;
-        btnRefresh.Click += async (_, _) => await LoadDataAsync();
-        right.Controls.Add(btnRefresh);
-
-        var btnExport = new Button
-        {
-            Text = "  Xuất CSV", Size = new Size(120, 32), Location = new Point(120, 4),
-            FlatStyle = FlatStyle.Flat, BackColor = Color.White,
-            Font = new Font("Segoe UI", 9F),
-            Image = GlyphImage(GExport, 14, Color.Black),
-            ImageAlign = ContentAlignment.MiddleLeft,
-            TextImageRelation = TextImageRelation.ImageBeforeText,
-            Anchor = AnchorStyles.Top | AnchorStyles.Right
-        };
-        btnExport.FlatAppearance.BorderColor = BorderGray;
-        btnExport.Click += (_, _) => ExportCsv();
-        right.Controls.Add(btnExport);
-
-        var btnPrint = new Button
-        {
-            Text = "  In danh sách", Size = new Size(150, 32), Location = new Point(250, 4),
-            FlatStyle = FlatStyle.Flat, BackColor = Primary, ForeColor = Color.White,
-            Font = new Font("Segoe UI", 9F, FontStyle.Bold),
-            Image = GlyphImage(GPrint, 14, Color.White),
-            ImageAlign = ContentAlignment.MiddleLeft,
-            TextImageRelation = TextImageRelation.ImageBeforeText,
-            Anchor = AnchorStyles.Top | AnchorStyles.Right
-        };
-        btnPrint.FlatAppearance.BorderSize = 0;
-        btnPrint.Click += (_, _) => ShowPrintPreview();
-        right.Controls.Add(btnPrint);
-
-        // --- Row 2: kênh gửi + nút Gửi thông báo (to, ngang) ---
         var row2 = new Panel { Dock = DockStyle.Top, Height = 44, Padding = new Padding(0, 6, 0, 0) };
 
         row2.Controls.Add(MakeLabel("Kênh gửi:", 6, 12));
@@ -358,7 +414,7 @@ public partial class OverdueBooks : UserControl
 
         btnNotify = new Button
         {
-            Text = "  Gửi thông báo (0)",
+            Text = "Gửi thông báo (0)",
             Size = new Size(240, 34),
             Location = new Point(256, 4),
             FlatStyle = FlatStyle.Flat,
@@ -367,7 +423,9 @@ public partial class OverdueBooks : UserControl
             Font = new Font("Segoe UI", 9F, FontStyle.Bold),
             Image = GlyphImage(GSend, 14, Color.White),
             ImageAlign = ContentAlignment.MiddleLeft,
-            TextImageRelation = TextImageRelation.ImageBeforeText
+            TextImageRelation = TextImageRelation.ImageBeforeText,
+            TextAlign = ContentAlignment.MiddleLeft,
+            Padding = new Padding(8, 0, 8, 0)
         };
         btnNotify.FlatAppearance.BorderSize = 0;
         btnNotify.Click += async (_, _) => await SendNotificationsAsync();
@@ -376,14 +434,16 @@ public partial class OverdueBooks : UserControl
         var lblHint = new Label
         {
             Text = "Tick chọn dòng trong bảng (cột đầu) hoặc dùng menu “…” để gửi từng độc giả.",
-            AutoSize = true, ForeColor = TextGray, Font = new Font("Segoe UI", 8.5F),
+            AutoSize = false, AutoEllipsis = true, ForeColor = TextGray, Font = new Font("Segoe UI", 8.5F),
             Location = new Point(510, 14)
         };
         row2.Controls.Add(lblHint);
+        row2.Resize += (_, _) => lblHint.Width = Math.Max(100, row2.ClientSize.Width - lblHint.Left - 8);
 
-        // group chứa cả 2 row
         var inner = new Panel { Dock = DockStyle.Fill };
+        inner.Controls.Add(rowActions);
         inner.Controls.Add(row2);
+        inner.Controls.Add(rowDate);
         inner.Controls.Add(row1);
         grp.Controls.Add(inner);
 
@@ -529,15 +589,15 @@ public partial class OverdueBooks : UserControl
 
         if (!localRect.Contains(e.Location)) return;
 
-        _allSelectedOnPage = !_allSelectedOnPage;
+        _allSelected = !_allSelected;
 
         foreach (DataGridViewRow row in dgvOverdue.Rows)
         {
-            row.Cells["colSelected"].Value = _allSelectedOnPage;
+            row.Cells["colSelected"].Value = _allSelected;
 
             if (row.Tag is ManageOverdueBookInfo b)
             {
-                if (_allSelectedOnPage) _selectedIds.Add(b.LoanCode);
+                if (_allSelected) _selectedIds.Add(b.LoanCode);
                 else                    _selectedIds.Remove(b.LoanCode);
             }
         }
@@ -551,51 +611,6 @@ public partial class OverdueBooks : UserControl
         {
             Name = name, HeaderText = header, FillWeight = weight
         });
-    }
-
-    // ---------------------------------------------------------
-    // PAGER
-    // ---------------------------------------------------------
-    private Panel BuildPager()
-    {
-        var host = new Panel
-        {
-            Dock = DockStyle.Bottom, Height = 46,
-            Padding = new Padding(12, 4, 12, 8), BackColor = BgPage
-        };
-        var tbl = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 1 };
-        tbl.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        tbl.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        tbl.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        tbl.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        tbl.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-
-        btnPrevPage = MakeFlatButton("‹  Trước", 95);
-        btnPrevPage.Click += (_, _) => { if (_currentPage > 1) { _currentPage--; RenderPage(); } };
-
-        lblPageInfo = new Label
-        {
-            Text = "Trang 1/1 - 0 dòng", AutoSize = false, Dock = DockStyle.Fill,
-            TextAlign = ContentAlignment.MiddleCenter, ForeColor = TextGray,
-            Font = new Font("Segoe UI", 9F)
-        };
-
-        btnNextPage = MakeFlatButton("Sau  ›", 95);
-        btnNextPage.Click += (_, _) => { if (_currentPage < _totalPages) { _currentPage++; RenderPage(); } };
-
-        var btnRefresh = MakeFlatButton("Làm mới", 90);
-        btnRefresh.Image = GlyphImage(GRefresh, 14, Color.Black);
-        btnRefresh.ImageAlign = ContentAlignment.MiddleLeft;
-        btnRefresh.TextImageRelation = TextImageRelation.ImageBeforeText;
-        btnRefresh.Padding = new Padding(6, 0, 0, 0);
-        btnRefresh.Click += async (_, _) => await LoadDataAsync();
-
-        tbl.Controls.Add(btnPrevPage, 0, 0);
-        tbl.Controls.Add(lblPageInfo, 1, 0);
-        tbl.Controls.Add(btnNextPage, 2, 0);
-        tbl.Controls.Add(btnRefresh, 3, 0);
-        host.Controls.Add(tbl);
-        return host;
     }
 
     private static Button MakeFlatButton(string text, int width) => new()
@@ -622,11 +637,7 @@ public partial class OverdueBooks : UserControl
             _allBooks = await _service.GetManageOverdueBooks(filter);
 
             _filteredBooks = _allBooks;
-            _currentPage = 1;
-            _totalPages = Math.Max(1, (int)Math.Ceiling(_filteredBooks.Count / (double)PageSize));
-            if (_currentPage > _totalPages) _currentPage = _totalPages;
-
-            RenderPage();
+            RenderRows();
             RecalculateKpi();
             UpdateNotifyButton();
         }
@@ -677,16 +688,11 @@ public partial class OverdueBooks : UserControl
     // =========================================================
     // RENDER
     // =========================================================
-    private void RenderPage()
+    private void RenderRows()
     {
         dgvOverdue.Rows.Clear();
 
-        var pageRows = _filteredBooks
-            .Skip((_currentPage - 1) * PageSize)
-            .Take(PageSize)
-            .ToList();
-
-        foreach (var book in pageRows)
+        foreach (var book in _filteredBooks)
         {
             int idx = dgvOverdue.Rows.Add();
             var row = dgvOverdue.Rows[idx];
@@ -704,13 +710,9 @@ public partial class OverdueBooks : UserControl
             row.Cells["colNotice"].Value   = BuildNoticeText(book);
         }
 
-        lblPageInfo.Text = $"Trang {_currentPage}/{_totalPages} - {_filteredBooks.Count} dòng";
-        btnPrevPage.Enabled = _currentPage > 1;
-        btnNextPage.Enabled = _currentPage < _totalPages;
         dgvOverdue.ClearSelection();
         
-        // ⭐ đồng bộ trạng thái checkbox header với dữ liệu trang hiện tại
-        _allSelectedOnPage = dgvOverdue.Rows.Count > 0
+        _allSelected = dgvOverdue.Rows.Count > 0
                              && dgvOverdue.Rows.Cast<DataGridViewRow>()
                                  .All(r => r.Cells["colSelected"].Value is bool b && b);
 
@@ -768,7 +770,7 @@ public partial class OverdueBooks : UserControl
                 e.CellBounds.Y + (e.CellBounds.Height - box) / 2,
                 box, box);
 
-            var state = _allSelectedOnPage ? ButtonState.Checked : ButtonState.Normal;
+            var state = _allSelected ? ButtonState.Checked : ButtonState.Normal;
 
             if (_headerCheckboxHover)
                 state |= ButtonState.Flat;   // hoặc dùng Pushed để có hiệu ứng hover
@@ -885,7 +887,7 @@ public partial class OverdueBooks : UserControl
         else _selectedIds.Remove(book.LoanCode);
 
         // ⭐ đồng bộ header checkbox
-        _allSelectedOnPage = dgvOverdue.Rows.Count > 0
+        _allSelected = dgvOverdue.Rows.Count > 0
                              && dgvOverdue.Rows.Cast<DataGridViewRow>()
                                  .All(r => r.Cells["colSelected"].Value is bool b2 && b2);
         dgvOverdue.InvalidateCell(dgvOverdue.Columns["colSelected"].HeaderCell);

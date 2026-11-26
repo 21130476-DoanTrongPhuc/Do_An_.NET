@@ -13,7 +13,7 @@ namespace LibraryManagement.Forms.OverduePrintPreviewForm
         public OverduePrintPreviewForm(System.Collections.IEnumerable rows, decimal penaltyPerDay)
         {
             InitializeComponent();
-            Text = "Xem trước bản in - Danh sách đòi sách";
+            Text = "Xem trước bản in - Danh sách sách quá hạn";
             Size = new Size(1000, 760);
             StartPosition = FormStartPosition.CenterParent;
 
@@ -24,7 +24,7 @@ namespace LibraryManagement.Forms.OverduePrintPreviewForm
 
         private void BuildUi()
         {
-            _doc = new PrintDocument { DocumentName = "Danh sách đòi sách" };
+            _doc = new PrintDocument { DocumentName = "Danh sách sách quá hạn" };
             _doc.DefaultPageSettings.PaperSize = new PaperSize("A4", 827, 1169);
             _doc.DefaultPageSettings.Margins = new Margins(60, 60, 60, 60);
             _doc.PrintPage += Doc_PrintPage;

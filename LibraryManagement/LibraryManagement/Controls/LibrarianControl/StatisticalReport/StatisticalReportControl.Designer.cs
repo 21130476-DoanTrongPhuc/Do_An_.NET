@@ -143,7 +143,7 @@ partial class StatisticalReportControl
         btnFilter.Size = new Size(145, 32);
         btnFilter.Text = "Lọc thống kê";
         btnFilter.UseVisualStyleBackColor = false;
-        btnFilter.Click += btnFilter_Click;
+  
 
         btnExportCsv.BackColor = Color.White;
         btnExportCsv.Cursor = Cursors.Hand;
@@ -156,7 +156,7 @@ partial class StatisticalReportControl
         btnExportCsv.Size = new Size(155, 32);
         btnExportCsv.Text = "Xuất file CSV ➔";
         btnExportCsv.UseVisualStyleBackColor = false;
-        btnExportCsv.Click += btnExportCsv_Click;
+    
 
         SetupKpiCard(pnlCardBooks, lblCardBooksTitle, lblCardBooksValue, new Point(24, 158), "TỔNG ĐẦU SÁCH");
         SetupKpiCard(pnlCardReaders, lblCardReadersTitle, lblCardReadersValue, new Point(259, 158), "TỔNG ĐỘC GIẢ");
@@ -207,7 +207,6 @@ partial class StatisticalReportControl
         ForeColor = Color.Black;
         Name = "StatisticalReportControl";
         Size = new Size(970, 650);
-        Load += StatisticalReportControl_Load;
 
         pnlFilter.ResumeLayout(false);
         pnlFilter.PerformLayout();

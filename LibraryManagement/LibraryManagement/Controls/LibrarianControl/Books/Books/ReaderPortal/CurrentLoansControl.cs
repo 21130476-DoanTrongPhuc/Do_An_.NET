@@ -51,10 +51,12 @@ public class CurrentLoansControl : UserControl
 
         var lblTitle = new Label
         {
-            Text = "SÁCH ĐANG MƯỢN & PHIẾU ĐẶT TRƯỚC",
+            Text = "SÁCH ĐANG MƯỢN & ĐẶT TRƯỚC",
             Font = new Font("Segoe UI", 10.5F, FontStyle.Bold),
             ForeColor = Color.FromArgb(30, 38, 48),
-            AutoSize = true,
+            AutoSize = false,
+            AutoEllipsis = true,
+            Size = new Size(300, 24),
             Location = new Point(14, 18)
         };
 
@@ -106,10 +108,25 @@ public class CurrentLoansControl : UserControl
         btnRefresh.FlatAppearance.BorderColor = BorderGray;
         btnRefresh.Click += (_, _) => ReloadData();
 
+        void LayoutTopBar()
+        {
+            btnRefresh.Left = topBar.ClientSize.Width - btnRefresh.Width - 12;
+            _lblOverdueBadge.Left = btnRefresh.Left - _lblOverdueBadge.Width - 8;
+            _lblDueSoonBadge.Left = _lblOverdueBadge.Left - _lblDueSoonBadge.Width - 8;
+            _lblQuotaBadge.Left = _lblDueSoonBadge.Left - _lblQuotaBadge.Width - 8;
+            lblTitle.Width = Math.Max(120, _lblQuotaBadge.Left - lblTitle.Left - 12);
+        }
+
+        topBar.Resize += (_, _) => LayoutTopBar();
+        _lblQuotaBadge.TextChanged += (_, _) => LayoutTopBar();
+        _lblDueSoonBadge.TextChanged += (_, _) => LayoutTopBar();
+        _lblOverdueBadge.TextChanged += (_, _) => LayoutTopBar();
+
         topBar.Controls.AddRange(new Control[]
         {
             lblTitle, _lblQuotaBadge, _lblDueSoonBadge, _lblOverdueBadge, btnRefresh
         });
+        LayoutTopBar();
 
         // 2. Khu vực dưới: Danh sách phiếu đặt trước đang chờ
         var bottomHost = new Panel

@@ -50,10 +50,6 @@ public partial class BookFormReturn : UserControl
 
     private DataGridView dgvBooks = null!;
 
-    private Button btnPrevPage = null!;
-    private Button btnNextPage = null!;
-    private Label  lblPageInfo = null!;
-
     private Label lblTotalBooks     = null!;
     private Label lblTotalLateFee   = null!;
     private Label lblTotalDamageFee = null!;
@@ -61,11 +57,6 @@ public partial class BookFormReturn : UserControl
     private RadioButton rdoPaid = null!;
     private RadioButton rdoDebt = null!;
 
-    // Phân trang client-side (giữ nguyên nghiệp vụ, chỉ để hiển thị đẹp)
-    private const int PageSize = 20;
-    private int _currentPage = 1;
-    private int _totalPages = 1;
-    private List<DataGridViewRow> _allRowsBuffer = new();
     private List<ReturnedBookInfor> _allBooks = new();
     private sealed record ReturnReceiptLine(
         string CopyCode,
@@ -97,7 +88,6 @@ public partial class BookFormReturn : UserControl
         // add ngược từ dưới lên
         Controls.Add(BuildTableArea());    // Fill
         Controls.Add(BuildFooter());       // Bottom (footer tổng kết)
-        Controls.Add(BuildPager());        // Bottom (pager)
         Controls.Add(BuildToolbar());      // Top
         Controls.Add(BuildFilterBar());    // Top
         Controls.Add(BuildKpiArea());      // Top
@@ -353,12 +343,13 @@ public partial class BookFormReturn : UserControl
         var tbl = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
-            ColumnCount = 3,
+            ColumnCount = 4,
             RowCount = 1
         };
         tbl.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));      // icon + label "Độc giả:"
         tbl.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F)); // info flow
-        tbl.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));      // action buttons
+        tbl.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));      // reset
+        tbl.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));      // reload
         tbl.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
         // Cột 0: label cố định
@@ -388,6 +379,15 @@ public partial class BookFormReturn : UserControl
         btnReset.Margin = new Padding(0, 8, 0, 8);
         btnReset.Click += (_, _) => ResetForm();
         tbl.Controls.Add(btnReset, 2, 0);
+
+        var btnReload = CreateButton("  Tải lại", Color.White, Color.Black, 90, GRefresh);
+        btnReload.Margin = new Padding(4, 8, 0, 8);
+        btnReload.Click += (_, _) =>
+        {
+            if (_currentReader != null) { txtSearch.Text = _currentReader.UserCode; DoSearch(); }
+            else ResetForm();
+        };
+        tbl.Controls.Add(btnReload, 3, 0);
 
         host.Controls.Add(tbl);
         return host;
@@ -502,69 +502,6 @@ public partial class BookFormReturn : UserControl
     }
 
     // ---------------------------------------------------------
-    // PAGER (giống OverdueBooks)
-    // ---------------------------------------------------------
-    private Panel BuildPager()
-    {
-        var host = new Panel
-        {
-            Dock = DockStyle.Bottom,
-            Height = 46,
-            Padding = new Padding(12, 4, 12, 8),
-            BackColor = BgPage
-        };
-
-        var tbl = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 4,
-            RowCount = 1
-        };
-        tbl.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));      // prev
-        tbl.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F)); // info
-        tbl.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));      // next
-        tbl.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));      // refresh
-        tbl.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-
-        btnPrevPage = CreateButton("‹  Trước", Color.White, Color.Black, 95);
-        btnPrevPage.Click += (_, _) =>
-        {
-            if (_currentPage > 1) { _currentPage--; RenderPage(); }
-        };
-
-        lblPageInfo = new Label
-        {
-            Text = "Trang 1/1 - 0 dòng",
-            AutoSize = false,
-            Dock = DockStyle.Fill,
-            TextAlign = ContentAlignment.MiddleCenter,
-            ForeColor = TextGray,
-            Font = new Font("Segoe UI", 9F)
-        };
-
-        btnNextPage = CreateButton("Sau  ›", Color.White, Color.Black, 95);
-        btnNextPage.Click += (_, _) =>
-        {
-            if (_currentPage < _totalPages) { _currentPage++; RenderPage(); }
-        };
-
-        var btnRefresh = CreateButton("Làm mới", Color.White, Color.Black, 90);
-        btnRefresh.Click += (_, _) =>
-        {
-            if (_currentReader != null) { txtSearch.Text = _currentReader.UserCode; DoSearch(); }
-            else ResetForm();
-        };
-
-        tbl.Controls.Add(btnPrevPage, 0, 0);
-        tbl.Controls.Add(lblPageInfo, 1, 0);
-        tbl.Controls.Add(btnNextPage, 2, 0);
-        tbl.Controls.Add(btnRefresh, 3, 0);
-
-        host.Controls.Add(tbl);
-        return host;
-    }
-
-    // ---------------------------------------------------------
     // FOOTER (tổng kết + 3 nút hành động — giữ nguyên nghiệp vụ)
     // ---------------------------------------------------------
     private Panel BuildFooter()
@@ -572,7 +509,7 @@ public partial class BookFormReturn : UserControl
         var host = new Panel
         {
             Dock = DockStyle.Bottom,
-            Height = 140,
+            Height = 200,
             Padding = new Padding(12, 4, 12, 12)
         };
 
@@ -656,17 +593,17 @@ public partial class BookFormReturn : UserControl
         rightTbl.RowStyles.Add(new RowStyle(SizeType.Percent, 33.33F));
         rightTbl.RowStyles.Add(new RowStyle(SizeType.Percent, 33.34F));
 
-        var btnReset = CreateButton("  Làm mới", Color.White, Color.Black, 0, GRefresh);
+        var btnReset = CreateButton("Làm mới", Color.White, Color.Black, 0, GRefresh);
         btnReset.Dock = DockStyle.Fill;
         btnReset.Margin = new Padding(0, 4, 0, 4);
         btnReset.Click += (_, _) => ResetForm();
 
-        var btnConfirm = CreateButton("  Xác nhận trả sách", Green, Color.White, 0, GCheck);
+        var btnConfirm = CreateButton("Xác nhận trả sách", Green, Color.White, 0, GCheck);
         btnConfirm.Dock = DockStyle.Fill;
         btnConfirm.Margin = new Padding(0, 4, 0, 4);
         btnConfirm.Click += (_, _) => _ = ConfirmReturnAsync(false);
 
-        var btnPrint = CreateButton("  Xác nhận & In phiếu", Primary, Color.White, 0, GPrint);
+        var btnPrint = CreateButton("Xác nhận & In phiếu", Primary, Color.White, 0, GPrint);
         btnPrint.Dock = DockStyle.Fill;
         btnPrint.Margin = new Padding(0, 4, 0, 4);
         btnPrint.Click += (_, _) => _ = ConfirmReturnAsync(true);
@@ -745,22 +682,15 @@ public partial class BookFormReturn : UserControl
     private void LoadBooks(List<ReturnedBookInfor>? books)
     {
         _allBooks = books ?? new List<ReturnedBookInfor>();
-        _currentPage = 1;
-        _totalPages = Math.Max(1, (int)Math.Ceiling(_allBooks.Count / (double)PageSize));
-        RenderPage();
+        RenderRows();
         RecalcSummary();
     }
 
-    private void RenderPage()
+    private void RenderRows()
     {
         dgvBooks.Rows.Clear();
 
-        var pageBooks = _allBooks
-            .Skip((_currentPage - 1) * PageSize)
-            .Take(PageSize)
-            .ToList();
-
-        foreach (var book in pageBooks)
+        foreach (var book in _allBooks)
         {
             int index = dgvBooks.Rows.Add();
             var row = dgvBooks.Rows[index];
@@ -782,9 +712,6 @@ public partial class BookFormReturn : UserControl
             UpdateRowFees(index);
         }
 
-        lblPageInfo.Text = $"Trang {_currentPage}/{_totalPages} - {_allBooks.Count} dòng";
-        btnPrevPage.Enabled = _currentPage > 1;
-        btnNextPage.Enabled = _currentPage < _totalPages;
         dgvBooks.ClearSelection();
 
         UpdateKpi();
@@ -1098,7 +1025,7 @@ public partial class BookFormReturn : UserControl
     {
         // Lọc client-side đơn giản — không ảnh hưởng dữ liệu gốc
         if (_allBooks.Count == 0) return;
-        RenderPage();
+        RenderRows();
     }
 
     private void DgvBooks_CellPainting(object? sender, DataGridViewCellPaintingEventArgs e)
@@ -1194,9 +1121,6 @@ public partial class BookFormReturn : UserControl
         dgvBooks.Rows.Clear();
         _allBooks.Clear();
         _currentReader = null;
-        _currentPage = 1;
-        _totalPages = 1;
-        lblPageInfo.Text = "Trang 1/1 - 0 dòng";
         RecalcSummary();
     }
 
@@ -1215,6 +1139,8 @@ public partial class BookFormReturn : UserControl
             FlatStyle = FlatStyle.Flat,
             Font = new Font("Segoe UI", 9F, backColor != Color.White ? FontStyle.Bold : FontStyle.Regular),
             Margin = new Padding(4, 8, 0, 4),
+            Padding = new Padding(10, 0, 10, 0),
+            TextAlign = ContentAlignment.MiddleLeft,
             Cursor = Cursors.Hand
         };
         if (glyph != null)
@@ -1233,7 +1159,7 @@ public partial class BookFormReturn : UserControl
         var bmp = new Bitmap(size + 6, size + 6);
         using var g = Graphics.FromImage(bmp);
         using var f = new Font(IconFont, size, GraphicsUnit.Pixel);
-        TextRenderer.DrawText(g, glyph, f, new Rectangle(0, 0, bmp.Width, bmp.Height), color,
+        TextRenderer.DrawText(g, glyph, f, new Rectangle(0, -1, bmp.Width, bmp.Height), color,
             TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
         return bmp;
     }

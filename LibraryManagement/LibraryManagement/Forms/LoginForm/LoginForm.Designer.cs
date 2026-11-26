@@ -119,7 +119,6 @@ partial class LoginForm
         btnRegister.TabIndex = 13;
         btnRegister.Text = "Đăng ký tài khoản";
         btnRegister.UseVisualStyleBackColor = false;
-        btnRegister.Click += btnRegister_Click;
         // 
         // lblRoleTitle
         // 
@@ -143,7 +142,6 @@ partial class LoginForm
         rdoReader.TabIndex = 4;
         rdoReader.Text = "Người mượn sách";
         rdoReader.UseVisualStyleBackColor = false;
-        rdoReader.CheckedChanged += rdoReader_CheckedChanged;
         // 
         // rdoLibrarian
         // 
@@ -156,7 +154,6 @@ partial class LoginForm
         rdoLibrarian.TabIndex = 5;
         rdoLibrarian.Text = "Thủ thư / Admin";
         rdoLibrarian.UseVisualStyleBackColor = false;
-        rdoLibrarian.CheckedChanged += rdoLibrarian_CheckedChanged;
         // 
         // lblUsernameTitle
         // 
@@ -228,7 +225,6 @@ partial class LoginForm
         lblForgotPass.TabStop = true;
         lblForgotPass.Text = "Quên mật khẩu?";
         lblForgotPass.VisitedLinkColor = System.Drawing.Color.Black;
-        lblForgotPass.LinkClicked += lblForgotPass_LinkClicked;
         // 
         // btnLogin
         // 
@@ -245,7 +241,6 @@ partial class LoginForm
         btnLogin.TabIndex = 12;
         btnLogin.Text = "Đăng nhập ➔";
         btnLogin.UseVisualStyleBackColor = false;
-        btnLogin.Click += btnLogin_Click;
         // 
         // lblSubtitle
         // 

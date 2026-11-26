@@ -169,7 +169,18 @@ public class BorrowHistoryControl : UserControl
         btnRefresh.FlatAppearance.BorderColor = BorderGray;
         btnRefresh.Click += (_, _) => ReloadData();
 
+        void LayoutFilterBar()
+        {
+            btnRefresh.Left = filterBar.ClientSize.Width - btnRefresh.Width - 12;
+            _cboStatus.Left = btnRefresh.Left - _cboStatus.Width - 12;
+            lblStatus.Left = _cboStatus.Left - lblStatus.Width - 8;
+            _txtKeyword.Width = Math.Max(140, lblStatus.Left - _txtKeyword.Left - 12);
+            lblStatus.Top = (filterBar.ClientSize.Height - lblStatus.Height) / 2;
+        }
+
+        filterBar.Resize += (_, _) => LayoutFilterBar();
         filterBar.Controls.AddRange(new Control[] { _txtKeyword, lblStatus, _cboStatus, btnRefresh });
+        LayoutFilterBar();
         filterHost.Controls.Add(filterBar);
 
         // 3. Khung dưới: Danh sách biên lai phạt & thanh toán
