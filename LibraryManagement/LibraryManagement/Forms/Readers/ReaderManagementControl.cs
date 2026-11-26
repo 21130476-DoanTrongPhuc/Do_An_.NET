@@ -1,4 +1,5 @@
 ﻿using LibraryManagement.Data;
+using LibraryManagement.Enums;
 using LibraryManagement.Models;
 
 namespace LibraryManagement.Forms.Readers;
@@ -123,7 +124,7 @@ public class ReaderManagementControl : UserControl
             int statusFilter = _cboStatusFilter.SelectedIndex;
 
             var readers = context.Users
-                .Where(u => u.UserType == "Reader")
+                .Where(u => u.UserType == UserType.Reader)
                 .Select(u => new
                 {
                     u.Id,
@@ -135,7 +136,7 @@ public class ReaderManagementControl : UserControl
                     u.Status,
                     ActiveCard = context.ReaderCards
                         .Where(rc => rc.IdReader == u.Id)
-                        .OrderByDescending(rc => rc.Status == "Active")
+                        .OrderByDescending(rc => rc.Status == ReaderCardStatus.Active)
                         .ThenByDescending(rc => rc.Id)
                         .Select(rc => new { rc.CardCode, rc.ExpiresAt, rc.Status })
                         .FirstOrDefault()
@@ -144,8 +145,8 @@ public class ReaderManagementControl : UserControl
 
             var filtered = readers.Where(r =>
             {
-                if (statusFilter == 1 && r.Status != "Active") return false;
-                if (statusFilter == 2 && r.Status != "Inactive") return false;
+                if (statusFilter == 1 && r.Status != UserStatus.Active) return false;
+                if (statusFilter == 2 && r.Status != UserStatus.Inactive) return false;
 
                 if (!string.IsNullOrEmpty(kw))
                 {
@@ -162,7 +163,7 @@ public class ReaderManagementControl : UserControl
             _dgvReaders.Rows.Clear();
             foreach (var r in filtered)
             {
-                string statusText = r.Status == "Active" ? "Hoạt động" : "Đã khóa";
+                string statusText = r.Status == UserStatus.Active ? "Hoạt động" : "Đã khóa";
                 string cardCode = r.ActiveCard?.CardCode ?? "Chưa cấp thẻ";
                 string expireText = r.ActiveCard != null ? r.ActiveCard.ExpiresAt.ToString("dd/MM/yyyy") : "-";
 
@@ -177,7 +178,7 @@ public class ReaderManagementControl : UserControl
                     statusText
                 );
                 _dgvReaders.Rows[idx].Tag = r.Id;
-                if (r.Status != "Active")
+                if (r.Status != UserStatus.Active)
                     _dgvReaders.Rows[idx].DefaultCellStyle.ForeColor = Color.Gray;
             }
 
@@ -216,8 +217,10 @@ public class ReaderManagementControl : UserControl
             var user = context.Users.FirstOrDefault(u => u.Id == id);
             if (user == null) return;
 
-            user.Status = user.Status == "Active" ? "Inactive" : "Active";
-            user.UpdatedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+            user.Status = user.Status == UserStatus.Active 
+                ? UserStatus.Inactive 
+                : UserStatus.Active;
+            user.UpdatedAt = Convert.ToDateTime(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
             context.SaveChanges();
 
             LoadData();
@@ -375,7 +378,7 @@ public sealed class ReaderEditDialog : Form
 
         _txtUserCode.Text = user.UserCode;
         _txtFullName.Text = user.FullName;
-        if (DateTime.TryParse(user.DateOfBirth, out var dob))
+        if (user.DateOfBirth is DateTime dob)
         {
             _chkHasDob.Checked = true;
             _dtpDob.Value = dob;
@@ -393,7 +396,7 @@ public sealed class ReaderEditDialog : Form
 
         var card = context.ReaderCards
             .Where(rc => rc.IdReader == user.Id)
-            .OrderByDescending(rc => rc.Status == "Active")
+            .OrderByDescending(rc => rc.Status == ReaderCardStatus.Active)
             .ThenByDescending(rc => rc.Id)
             .FirstOrDefault();
 
@@ -457,17 +460,17 @@ public sealed class ReaderEditDialog : Form
                 {
                     UserCode = userCode,
                     FullName = fullName,
-                    DateOfBirth = _chkHasDob.Checked ? _dtpDob.Value.ToString("yyyy-MM-dd") : null,
+                    DateOfBirth = _chkHasDob.Checked ? _dtpDob.Value.Date : null,
                     Phone = string.IsNullOrWhiteSpace(_txtPhone.Text) ? null : _txtPhone.Text.Trim(),
                     Email = string.IsNullOrWhiteSpace(_txtEmail.Text) ? null : _txtEmail.Text.Trim(),
                     Address = string.IsNullOrWhiteSpace(_txtAddress.Text) ? null : _txtAddress.Text.Trim(),
-                    UserType = "Reader",
+                    UserType = UserType.Reader,
                     MaxActiveCopies = (int)_numMaxCopies.Value,
-                    Status = "Active",
+                    Status = UserStatus.Active,
                     Username = string.IsNullOrEmpty(username) ? null : username,
                     PasswordHash = string.IsNullOrEmpty(username) ? null : password,
-                    CreatedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
-                    UpdatedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
+                    CreatedAt = Convert.ToDateTime(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")),
+                    UpdatedAt = Convert.ToDateTime(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"))
                 };
                 context.Users.Add(user);
                 context.SaveChanges();
@@ -477,7 +480,7 @@ public sealed class ReaderEditDialog : Form
                 user = context.Users.First(u => u.Id == _readerId);
                 user.UserCode = userCode;
                 user.FullName = fullName;
-                user.DateOfBirth = _chkHasDob.Checked ? _dtpDob.Value.ToString("yyyy-MM-dd") : null;
+                user.DateOfBirth = _chkHasDob.Checked ? _dtpDob.Value.Date : null;
                 user.Phone = string.IsNullOrWhiteSpace(_txtPhone.Text) ? null : _txtPhone.Text.Trim();
                 user.Email = string.IsNullOrWhiteSpace(_txtEmail.Text) ? null : _txtEmail.Text.Trim();
                 user.Address = string.IsNullOrWhiteSpace(_txtAddress.Text) ? null : _txtAddress.Text.Trim();
@@ -496,13 +499,13 @@ public sealed class ReaderEditDialog : Form
                     else if (string.IsNullOrEmpty(user.PasswordHash))
                         user.PasswordHash = "123456";
                 }
-                user.UpdatedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+                user.UpdatedAt = Convert.ToDateTime(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
                 context.SaveChanges();
             }
 
             var existingCard = context.ReaderCards
                 .Where(rc => rc.IdReader == user.Id)
-                .OrderByDescending(rc => rc.Status == "Active")
+                .OrderByDescending(rc => rc.Status == ReaderCardStatus.Active)
                 .ThenByDescending(rc => rc.Id)
                 .FirstOrDefault();
 
@@ -522,7 +525,7 @@ public sealed class ReaderEditDialog : Form
                     CardCode = cardCode,
                     IssuedAt = _dtpIssuedAt.Value.Date,
                     ExpiresAt = _dtpExpiresAt.Value.Date,
-                    Status = "Active"
+                    Status = ReaderCardStatus.Active
                 });
             }
             else

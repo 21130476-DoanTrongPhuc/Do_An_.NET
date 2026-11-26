@@ -1,4 +1,6 @@
-﻿namespace LibraryManagement.Models;
+﻿using LibraryManagement.Enums;
+
+namespace LibraryManagement.Models;
 
 using System;
 

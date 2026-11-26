@@ -68,7 +68,7 @@ public class LoanDetailItemDto
     public DateTime BorrowedAt { get; set; }
     public DateTime DueAt { get; set; }
     public DateTime? ReturnedAt { get; set; }
-    public BookCondition PhysicalConditionBefore { get; set; } 
+    public BookCondition PhysicalConditionBefore { get; set; } = BookCondition.Good;
     public BookCondition? PhysicalConditionAfter { get; set; }
     public int RenewalCount { get; set; }
     public string ItemStatus { get; set; } = string.Empty; // Đang mượn | Quá hạn | Đã trả
@@ -494,7 +494,7 @@ public class LoanManagementService
             BorrowedAt = d.BorrowedAt,
             DueAt = d.DueAt,
             ReturnedAt = d.ReturnedAt,
-            PhysicalConditionBefore = d.PhysicalConditionBefore ?? "Good",
+            PhysicalConditionBefore = d.PhysicalConditionBefore,
             PhysicalConditionAfter = d.PhysicalConditionAfter,
             RenewalCount = d.RenewalCount,
             ItemStatus = d.ReturnedAt != null
@@ -544,7 +544,7 @@ public class LoanManagementService
             BorrowedAt = d.BorrowedAt,
             DueAt = d.DueAt,
             ReturnedAt = d.ReturnedAt,
-            PhysicalConditionBefore = d.PhysicalConditionBefore ?? "Good",
+            PhysicalConditionBefore = d.PhysicalConditionBefore,
             PhysicalConditionAfter = d.PhysicalConditionAfter,
             RenewalCount = d.RenewalCount,
             ItemStatus = d.ReturnedAt != null
