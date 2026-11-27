@@ -9,10 +9,12 @@ public partial class BookCopyControl : UserControl
 {
     private readonly CatalogManagementService _service = new();
     private int? _filterBookId;
+    public event Action? CopyDataChanged;
 
     public BookCopyControl()
     {
         InitializeComponent();
+        dgvBookCopies.Columns.Remove(dataGridViewTextBoxColumn4);
         WireEvents();
         LoadBookCopies();
     }
@@ -63,14 +65,12 @@ public partial class BookCopyControl : UserControl
         btnHistory.Click += (_, _) => ShowStatusHistory();
         btnExport.Click += (_, _) => ExportCsv();
 
-        var btnDispose = CreateExtraActionButton("Thanh lý", 991);
-        btnDispose.Click += (_, _) => ChangeStatus(
+        var btnDispose = CreateExtraActionButton("Thanh lý", btnExport.Right + 8);        btnDispose.Click += (_, _) => ChangeStatus(
             CirculationStatus.Disposed,
             null,
             "Thanh lý bản sách không còn đủ điều kiện lưu thông");
 
-        var btnDelete = CreateExtraActionButton("Xóa bản sách", 1082);
-        btnDelete.ForeColor = Color.FromArgb(200, 40, 40);
+        var btnDelete = CreateExtraActionButton("Xóa bản sách", btnDispose.Right + 8);        btnDelete.ForeColor = Color.FromArgb(200, 40, 40);
         btnDelete.Click += (_, _) => DeleteSelectedCopy();
 
         panelActions.Controls.Add(btnDispose);
@@ -132,8 +132,11 @@ public partial class BookCopyControl : UserControl
     {
         using var dlg = new BookCopyEditDialog(copy, _filterBookId);
         if (dlg.ShowDialog() == DialogResult.OK)
-            LoadBookCopies();
+        {
+        LoadBookCopies();
+        CopyDataChanged?.Invoke();
     }
+}
 
     // ============================================================
     //  ĐỔI TRẠNG THÁI
@@ -162,6 +165,7 @@ public partial class BookCopyControl : UserControl
                 $"Đã cập nhật trạng thái bản sách '{copy.CopyCode}' thành {updatedStatus}.",
                 "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
             LoadBookCopies();
+            CopyDataChanged?.Invoke();
         }
         catch (Exception ex)
         {
@@ -183,6 +187,7 @@ public partial class BookCopyControl : UserControl
             MessageBox.Show("Đã xóa bản sách.", "Thông báo",
                 MessageBoxButtons.OK, MessageBoxIcon.Information);
             LoadBookCopies();
+            CopyDataChanged?.Invoke();
         }
         catch (Exception ex)
         {
@@ -262,7 +267,7 @@ public partial class BookCopyControl : UserControl
         if (sfd.ShowDialog() != DialogResult.OK) return;
 
         var sb = new StringBuilder();
-        sb.AppendLine("MaBanSach,MaVach,MaDauSach,TenSach,ViTriKe,TinhTrangVatLy,TrangThaiLuuThong,NgayNhap,GiaNhap");
+        sb.AppendLine("MaBanSach,MaDauSach,TenSach,ViTriKe,TinhTrangVatLy,TrangThaiLuuThong,NgayNhap,GiaNhap");
 
         foreach (DataGridViewRow row in dgvBookCopies.Rows)
         {
