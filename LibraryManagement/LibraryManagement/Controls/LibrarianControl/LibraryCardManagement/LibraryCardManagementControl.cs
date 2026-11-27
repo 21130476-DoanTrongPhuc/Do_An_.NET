@@ -1,7 +1,7 @@
 ﻿using System.Drawing.Drawing2D;
-using LibraryManagement.Data;
-using LibraryManagement.Enums;
-using LibraryManagement.Models;
+using LibraryManagement.DTO.Request;
+using LibraryManagement.Filters;
+using LibraryManagement.Services;
 
 namespace LibraryManagement.Forms.LibraryCardManagement
 {
@@ -27,6 +27,8 @@ namespace LibraryManagement.Forms.LibraryCardManagement
         private const string GLock     = "\uE72E";
         private const string GPrint    = "\uE749";
         private const string GSave     = "\uE74E";
+
+        private readonly LibraryCardService _cardService;
 
         public event Action? CardDataChanged;
 
@@ -56,12 +58,13 @@ namespace LibraryManagement.Forms.LibraryCardManagement
         private Button _btnToggleLock = null!;
         private Button _btnPrintCard = null!;
 
-        public LibraryCardManagementControl()
+        public LibraryCardManagementControl(LibraryCardService cardService)
         {
+            _cardService = cardService;
             BackColor = BgGray;
             Font = new Font("Segoe UI", 9F);
             BuildUi();
-            Load += (_, _) => LoadCards();
+            Load += async (_, _) => await LoadCardsAsync();
         }
 
         // ============================================================
@@ -71,12 +74,10 @@ namespace LibraryManagement.Forms.LibraryCardManagement
         {
             SuspendLayout();
 
-            // 1. Header & Thanh lọc (Top)
             var pnlTop = new Panel { Dock = DockStyle.Top, Height = 112, BackColor = BgGray };
             pnlTop.Controls.Add(BuildFilterBar());
             pnlTop.Controls.Add(BuildHeader());
 
-            // 2. Khu vực chính: Trái (Danh sách thẻ) - Phải (Chi tiết & Thao tác thẻ)
             var pnlMain = new Panel { Dock = DockStyle.Fill, Padding = new Padding(0, 8, 0, 0) };
 
             var pnlRightHost = new Panel { Dock = DockStyle.Right, Width = 395, Padding = new Padding(10, 0, 0, 0) };
@@ -131,7 +132,7 @@ namespace LibraryManagement.Forms.LibraryCardManagement
 
             var btnRefresh = CreateActionButton("  Làm mới", GRefresh, Color.White, Color.Black, 110);
             btnRefresh.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            btnRefresh.Click += (_, _) => LoadCards();
+            btnRefresh.Click += async (_, _) => await LoadCardsAsync();
 
             pnl.Controls.Add(btnIssueNew);
             pnl.Controls.Add(btnRefresh);
@@ -163,7 +164,10 @@ namespace LibraryManagement.Forms.LibraryCardManagement
                 Width = 260,
                 PlaceholderText = "Mã thẻ (RC...), mã độc giả, họ tên hoặc SĐT..."
             };
-            _txtSearch.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) LoadCards(); };
+            _txtSearch.KeyDown += async (_, e) =>
+            {
+                if (e.KeyCode == Keys.Enter) await LoadCardsAsync();
+            };
 
             var lblStatus = new Label { Text = "Tình trạng thẻ:", AutoSize = true, Location = new Point(0, 16), ForeColor = TextGray };
 
@@ -183,12 +187,12 @@ namespace LibraryManagement.Forms.LibraryCardManagement
                 "Độc giả chưa có thẻ (Missing)"
             });
             _cboStatusFilter.SelectedIndex = 0;
-            _cboStatusFilter.SelectedIndexChanged += (_, _) => LoadCards();
+            _cboStatusFilter.SelectedIndexChanged += async (_, _) => await LoadCardsAsync();
 
             var btnSearch = CreateActionButton("  Tra cứu", GSearch, SoftBlue, Primary, 120);
             btnSearch.Location = new Point(0, 9);
             btnSearch.Height = 31;
-            btnSearch.Click += (_, _) => LoadCards();
+            btnSearch.Click += async (_, _) => await LoadCardsAsync();
 
             void LayoutFilterBar()
             {
@@ -217,7 +221,6 @@ namespace LibraryManagement.Forms.LibraryCardManagement
                 BackColor = Color.White
             };
 
-            // Mô phỏng trực quan thẻ thư viện
             _pnlCardPreview = new Panel
             {
                 Location = new Point(14, 24),
@@ -287,14 +290,12 @@ namespace LibraryManagement.Forms.LibraryCardManagement
 
             int y = 154;
 
-            // Mã thẻ
             grp.Controls.Add(new Label { Text = "Mã thẻ thư viện (CardCode):", AutoSize = true, ForeColor = TextGray, Location = new Point(14, y) });
             y += 20;
             _txtCardCode = new TextBox { Location = new Point(14, y), Width = 345 };
             grp.Controls.Add(_txtCardCode);
             y += 32;
 
-            // Ngày cấp & Ngày hết hạn
             grp.Controls.Add(new Label { Text = "Ngày cấp thẻ:", AutoSize = true, ForeColor = TextGray, Location = new Point(14, y) });
             grp.Controls.Add(new Label { Text = "Ngày hết hạn:", AutoSize = true, ForeColor = TextGray, Location = new Point(194, y) });
             y += 20;
@@ -305,21 +306,18 @@ namespace LibraryManagement.Forms.LibraryCardManagement
             grp.Controls.Add(_dtpExpiresAt);
             y += 34;
 
-            // Ghi chú thẻ
             grp.Controls.Add(new Label { Text = "Ghi chú thẻ (Lý do khóa / cấp lại):", AutoSize = true, ForeColor = TextGray, Location = new Point(14, y) });
             y += 20;
             _txtNote = new TextBox { Location = new Point(14, y), Width = 345, PlaceholderText = "Ghi chú tình trạng thẻ..." };
             grp.Controls.Add(_txtNote);
             y += 36;
 
-            // Nút Cấp thẻ / Lưu thông tin thẻ
             _btnIssueOrSave = CreateActionButton("  Lưu thông tin thẻ", GSave, Primary, Color.White, 345);
             _btnIssueOrSave.Location = new Point(14, y);
             _btnIssueOrSave.Click += BtnIssueOrSave_Click;
             grp.Controls.Add(_btnIssueOrSave);
             y += 44;
 
-            // Khu vực gia hạn nhanh
             grp.Controls.Add(new Label { Text = "Gia hạn nhanh thời hạn thẻ:", AutoSize = true, ForeColor = TextGray, Location = new Point(14, y) });
             y += 21;
 
@@ -341,7 +339,6 @@ namespace LibraryManagement.Forms.LibraryCardManagement
             grp.Controls.Add(_btnExtend);
             y += 44;
 
-            // Khóa/Mở khóa & In thẻ
             _btnToggleLock = CreateActionButton("  Khóa thẻ", GLock, Color.White, Red, 168);
             _btnToggleLock.Location = new Point(14, y);
             _btnToggleLock.Click += BtnToggleLock_Click;
@@ -449,127 +446,36 @@ namespace LibraryManagement.Forms.LibraryCardManagement
         }
 
         // ============================================================
-        //  TẢI DỮ LIỆU & XỬ LÝ NGHIỆP VỤ THẺ
+        //  TẢI DỮ LIỆU & GỌI SERVICE
         // ============================================================
-        public void LoadCards()
+        public void LoadCards() => _ = LoadCardsAsync();
+
+        public async Task LoadCardsAsync()
         {
             try
             {
-                using var db = new LibraryDbContext();
-                var today = DateTime.Today;
-                string kw = _txtSearch.Text.Trim().ToLower();
-                int filterIdx = _cboStatusFilter.SelectedIndex;
-
-                // Lấy toàn bộ độc giả kèm thẻ mới nhất của họ (kể cả độc giả chưa có thẻ)
-                var readerCards = db.Users
-                    .Where(u => u.UserType == UserType.Reader)
-                    .Select(u => new
-                    {
-                        ReaderId = u.Id,
-                        u.UserCode,
-                        u.FullName,
-                        u.Phone,
-                        LatestCard = db.ReaderCards
-                            .Where(c => c.IdReader == u.Id)
-                            .OrderByDescending(c => c.Status == ReaderCardStatus.Active)
-                            .ThenByDescending(c => c.ExpiresAt)
-                            .Select(c => new
-                            {
-                                c.Id,
-                                c.CardCode,
-                                c.IssuedAt,
-                                c.ExpiresAt,
-                                c.Status
-                            })
-                            .FirstOrDefault()
-                    })
-                    .OrderByDescending(x => x.LatestCard != null ? x.LatestCard.Id : 0)
-                    .ThenByDescending(x => x.ReaderId)
-                    .ToList();
-
-                int activeCount = 0, expiringCount = 0, expiredOrLockedCount = 0, missingCount = 0;
-
-                var viewItems = readerCards.Select(x =>
+                var filter = new LibraryCardFilter
                 {
-                    string displayStatus;
-                    if (x.LatestCard == null)
-                    {
-                        displayStatus = "Chưa cấp thẻ";
-                        missingCount++;
-                    }
-                    else if (x.LatestCard.Status == ReaderCardStatus.Locked)
-                    {
-                        displayStatus = "Đang bị khóa";
-                        expiredOrLockedCount++;
-                    }
-                    else if (x.LatestCard.Status == ReaderCardStatus.Expired || x.LatestCard.ExpiresAt.Date < today)
-                    {
-                        displayStatus = "Đã hết hạn";
-                        expiredOrLockedCount++;
-                    }
-                    else if ((x.LatestCard.ExpiresAt.Date - today).Days <= 30)
-                    {
-                        displayStatus = "Sắp hết hạn";
-                        expiringCount++;
-                        activeCount++;
-                    }
-                    else
-                    {
-                        displayStatus = "Đang hoạt động";
-                        activeCount++;
-                    }
+                    Keyword = _txtSearch.Text,
+                    StatusFilterIndex = _cboStatusFilter.SelectedIndex
+                };
 
-                    return new
-                    {
-                        x.ReaderId,
-                        CardId = x.LatestCard?.Id,
-                        CardCode = x.LatestCard?.CardCode ?? "—",
-                        x.UserCode,
-                        x.FullName,
-                        Phone = x.Phone ?? "—",
-                        IssuedAt = x.LatestCard?.IssuedAt,
-                        ExpiresAt = x.LatestCard?.ExpiresAt,
-                        RawStatus = x.LatestCard?.Status ?? ReaderCardStatus.Missing,
-                        DisplayStatus = displayStatus
-                    };
-                }).ToList();
-
-                var filtered = viewItems.Where(item =>
-                {
-                    if (!string.IsNullOrEmpty(kw))
-                    {
-                        bool match = item.CardCode.ToLower().Contains(kw)
-                                  || item.UserCode.ToLower().Contains(kw)
-                                  || item.FullName.ToLower().Contains(kw)
-                                  || item.Phone.ToLower().Contains(kw);
-                        if (!match) return false;
-                    }
-
-                    return filterIdx switch
-                    {
-                        1 => item.DisplayStatus is "Đang hoạt động" or "Sắp hết hạn",
-                        2 => item.DisplayStatus == "Sắp hết hạn",
-                        3 => item.DisplayStatus == "Đã hết hạn",
-                        4 => item.DisplayStatus == "Đang bị khóa",
-                        5 => item.DisplayStatus == "Chưa cấp thẻ",
-                        _ => true
-                    };
-                }).ToList();
+                var summary = await _cardService.GetCards(filter);
 
                 _lblSummary.Text =
-                    $"Hoạt động: {activeCount}  ·  Sắp hết hạn: {expiringCount}  ·  Hết hạn/Khóa: {expiredOrLockedCount}  ·  Chưa cấp thẻ: {missingCount}";
+                    $"Hoạt động: {summary.ActiveCount}  ·  Sắp hết hạn: {summary.ExpiringCount}  ·  Hết hạn/Khóa: {summary.ExpiredOrLockedCount}  ·  Chưa cấp thẻ: {summary.MissingCount}";
 
                 _dgvCards.Rows.Clear();
-                foreach (var item in filtered)
+                foreach (var item in summary.Items)
                 {
                     _dgvCards.Rows.Add(
                         item.ReaderId,
                         item.CardId,
                         item.CardCode,
-                        $"{item.FullName} ({item.UserCode})",
+                        item.ReaderDisplay,
                         item.Phone,
-                        item.IssuedAt?.ToString("dd/MM/yyyy") ?? "—",
-                        item.ExpiresAt?.ToString("dd/MM/yyyy") ?? "—",
+                        item.IssuedAtText,
+                        item.ExpiresAtText,
                         item.DisplayStatus
                     );
                 }
@@ -586,7 +492,7 @@ namespace LibraryManagement.Forms.LibraryCardManagement
             }
         }
 
-        private void DgvCards_SelectionChanged(object? sender, EventArgs e)
+        private async void DgvCards_SelectionChanged(object? sender, EventArgs e)
         {
             if (_dgvCards.SelectedRows.Count == 0)
             {
@@ -598,43 +504,32 @@ namespace LibraryManagement.Forms.LibraryCardManagement
             if (row.Cells["colReaderId"].Value is not int readerId) return;
             int? cardId = row.Cells["colCardId"].Value as int?;
 
-            LoadCardDetail(readerId, cardId);
+            await LoadCardDetailAsync(readerId, cardId);
         }
 
-        private void LoadCardDetail(int readerId, int? cardId)
+        private async Task LoadCardDetailAsync(int readerId, int? cardId)
         {
             try
             {
-                using var db = new LibraryDbContext();
-                var today = DateTime.Today;
+                var detail = await _cardService.GetCardDetail(readerId, cardId);
+                if (detail == null) return;
 
-                var reader = db.Users.FirstOrDefault(u => u.Id == readerId);
-                if (reader == null) return;
-
-                var card = cardId.HasValue
-                    ? db.ReaderCards.FirstOrDefault(c => c.Id == cardId.Value)
-                    : db.ReaderCards.Where(c => c.IdReader == readerId)
-                        .OrderByDescending(c => c.ExpiresAt)
-                        .FirstOrDefault();
-
-                _selectedReaderId = reader.Id;
-                _selectedCardId = card?.Id;
+                _selectedReaderId = detail.ReaderId;
+                _selectedCardId = detail.CardId;
                 SetActionPanelEnabled(true);
 
-                if (card == null)
+                if (!detail.HasCard)
                 {
-                    // Độc giả chưa có thẻ -> Gợi ý cấp thẻ mới
-                    string suggestedCode = GenerateNextCardCode(db);
                     _pnlCardPreview.BackColor = TextGray;
                     _lblPreviewStatus.Text = "CHƯA CẤP THẺ";
-                    _lblPreviewCode.Text = $"MÃ GỢI Ý: {suggestedCode}";
-                    _lblPreviewReader.Text = $"Độc giả: {reader.FullName} ({reader.UserCode})";
+                    _lblPreviewCode.Text = $"MÃ GỢI Ý: {detail.CardCode}";
+                    _lblPreviewReader.Text = $"Độc giả: {detail.ReaderFullName} ({detail.ReaderCode})";
                     _lblPreviewDates.Text = "Chưa có dữ liệu phát hành thẻ";
 
-                    _txtCardCode.Text = suggestedCode;
+                    _txtCardCode.Text = detail.CardCode;
                     _txtCardCode.ReadOnly = false;
-                    _dtpIssuedAt.Value = today;
-                    _dtpExpiresAt.Value = today.AddYears(1);
+                    _dtpIssuedAt.Value = detail.IssuedAt;
+                    _dtpExpiresAt.Value = detail.ExpiresAt;
                     _txtNote.Clear();
 
                     _btnIssueOrSave.Text = "  Cấp thẻ thư viện mới";
@@ -645,20 +540,17 @@ namespace LibraryManagement.Forms.LibraryCardManagement
                 }
                 else
                 {
-                    bool isLocked = card.Status == ReaderCardStatus.Locked;
-                    bool isExpired = card.Status == ReaderCardStatus.Expired || card.ExpiresAt.Date < today;
+                    _pnlCardPreview.BackColor = detail.IsLocked ? Red : (detail.IsExpired ? Orange : Primary);
+                    _lblPreviewStatus.Text = detail.IsLocked ? "ĐANG KHÓA" : (detail.IsExpired ? "HẾT HẠN" : "HOẠT ĐỘNG");
+                    _lblPreviewCode.Text = $"MÃ THẺ: {detail.CardCode}";
+                    _lblPreviewReader.Text = $"Chủ thẻ: {detail.ReaderFullName} ({detail.ReaderCode})";
+                    _lblPreviewDates.Text = $"Ngày cấp: {detail.IssuedAt:dd/MM/yyyy}   ·   Hạn thẻ: {detail.ExpiresAt:dd/MM/yyyy}";
 
-                    _pnlCardPreview.BackColor = isLocked ? Red : (isExpired ? Orange : Primary);
-                    _lblPreviewStatus.Text = isLocked ? "ĐANG KHÓA" : (isExpired ? "HẾT HẠN" : "HOẠT ĐỘNG");
-                    _lblPreviewCode.Text = $"MÃ THẺ: {card.CardCode}";
-                    _lblPreviewReader.Text = $"Chủ thẻ: {reader.FullName} ({reader.UserCode})";
-                    _lblPreviewDates.Text = $"Ngày cấp: {card.IssuedAt:dd/MM/yyyy}   ·   Hạn thẻ: {card.ExpiresAt:dd/MM/yyyy}";
-
-                    _txtCardCode.Text = card.CardCode;
+                    _txtCardCode.Text = detail.CardCode;
                     _txtCardCode.ReadOnly = true;
-                    _dtpIssuedAt.Value = card.IssuedAt;
-                    _dtpExpiresAt.Value = card.ExpiresAt;
-                    _txtNote.Text = card.Note ?? "";
+                    _dtpIssuedAt.Value = detail.IssuedAt;
+                    _dtpExpiresAt.Value = detail.ExpiresAt;
+                    _txtNote.Text = detail.Note;
 
                     _btnIssueOrSave.Text = "  Cập nhật thông tin thẻ";
                     _btnIssueOrSave.BackColor = Primary;
@@ -666,8 +558,8 @@ namespace LibraryManagement.Forms.LibraryCardManagement
                     _btnToggleLock.Enabled = true;
                     _btnPrintCard.Enabled = true;
 
-                    _btnToggleLock.Text = isLocked ? "  Mở khóa thẻ" : "  Khóa thẻ";
-                    _btnToggleLock.ForeColor = isLocked ? Green : Red;
+                    _btnToggleLock.Text = detail.IsLocked ? "  Mở khóa thẻ" : "  Khóa thẻ";
+                    _btnToggleLock.ForeColor = detail.IsLocked ? Green : Red;
                 }
             }
             catch (Exception ex)
@@ -676,74 +568,40 @@ namespace LibraryManagement.Forms.LibraryCardManagement
             }
         }
 
-        private void BtnIssueOrSave_Click(object? sender, EventArgs e)
+        private async void BtnIssueOrSave_Click(object? sender, EventArgs e)
         {
             if (_selectedReaderId == null) return;
-            string code = _txtCardCode.Text.Trim().ToUpper();
-
-            if (string.IsNullOrWhiteSpace(code))
-            {
-                MessageBox.Show("Mã thẻ thư viện không được để trống.", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-            if (_dtpExpiresAt.Value.Date <= _dtpIssuedAt.Value.Date)
-            {
-                MessageBox.Show("Ngày hết hạn thẻ phải lớn hơn ngày cấp thẻ.", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
 
             try
             {
-                using var db = new LibraryDbContext();
-                var today = DateTime.Today;
-
-                if (_selectedCardId == null)
+                var request = new LibraryCardSaveRequest
                 {
-                    // Cấp thẻ mới
-                    if (db.ReaderCards.Any(c => c.CardCode.ToUpper() == code))
-                    {
-                        MessageBox.Show($"Mã thẻ '{code}' đã tồn tại trên hệ thống. Vui lòng chọn mã khác.",
-                            "Trùng mã thẻ", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                        return;
-                    }
+                    ReaderId = _selectedReaderId.Value,
+                    CardId = _selectedCardId,
+                    CardCode = _txtCardCode.Text,
+                    IssuedAt = _dtpIssuedAt.Value,
+                    ExpiresAt = _dtpExpiresAt.Value,
+                    Note = _txtNote.Text
+                };
 
-                    var newCard = new ReaderCards
-                    {
-                        IdReader = _selectedReaderId.Value,
-                        CardCode = code,
-                        IssuedAt = _dtpIssuedAt.Value.Date,
-                        ExpiresAt = _dtpExpiresAt.Value.Date,
-                        Status = _dtpExpiresAt.Value.Date < today ? ReaderCardStatus.Expired : ReaderCardStatus.Active,
-                        Note = string.IsNullOrWhiteSpace(_txtNote.Text) ? null : _txtNote.Text.Trim()
-                    };
+                string savedCode = await _cardService.IssueOrUpdateCard(request);
 
-                    db.ReaderCards.Add(newCard);
-                    db.SaveChanges();
-                    MessageBox.Show($"Đã cấp thẻ thư viện '{code}' thành công!", "Hoàn tất",
-                        MessageBoxButtons.OK, MessageBoxIcon.Information);
-                }
-                else
-                {
-                    // Cập nhật thẻ hiện có
-                    var card = db.ReaderCards.FirstOrDefault(c => c.Id == _selectedCardId.Value);
-                    if (card == null) return;
+                string msg = _selectedCardId == null
+                    ? $"Đã cấp thẻ thư viện '{savedCode}' thành công!"
+                    : "Đã cập nhật thông tin thẻ thư viện!";
 
-                    card.IssuedAt = _dtpIssuedAt.Value.Date;
-                    card.ExpiresAt = _dtpExpiresAt.Value.Date;
-                    card.Note = string.IsNullOrWhiteSpace(_txtNote.Text) ? null : _txtNote.Text.Trim();
+                MessageBox.Show(msg, "Hoàn tất", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
-                    if (card.Status != ReaderCardStatus.Locked)
-                    {
-                        card.Status = card.ExpiresAt.Date < today ? ReaderCardStatus.Expired : ReaderCardStatus.Active;
-                    }
-
-                    db.SaveChanges();
-                    MessageBox.Show("Đã cập nhật thông tin thẻ thư viện!", "Hoàn tất",
-                        MessageBoxButtons.OK, MessageBoxIcon.Information);
-                }
-
-                LoadCards();
+                await LoadCardsAsync();
                 CardDataChanged?.Invoke();
+            }
+            catch (ArgumentException ex)
+            {
+                MessageBox.Show(ex.Message, "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            catch (InvalidOperationException ex)
+            {
+                MessageBox.Show(ex.Message, "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
             catch (Exception ex)
             {
@@ -752,7 +610,7 @@ namespace LibraryManagement.Forms.LibraryCardManagement
             }
         }
 
-        private void BtnExtend_Click(object? sender, EventArgs e)
+        private async void BtnExtend_Click(object? sender, EventArgs e)
         {
             if (_selectedCardId == null) return;
             int months = _cboExtendMonths.SelectedIndex switch
@@ -764,27 +622,17 @@ namespace LibraryManagement.Forms.LibraryCardManagement
 
             try
             {
-                using var db = new LibraryDbContext();
-                var card = db.ReaderCards.FirstOrDefault(c => c.Id == _selectedCardId.Value);
-                if (card == null) return;
+                var (cardCode, newExpiresAt) = await _cardService.ExtendCard(_selectedCardId.Value, months);
 
-                if (card.Status == ReaderCardStatus.Locked)
-                {
-                    MessageBox.Show("Thẻ đang bị KHÓA. Vui lòng mở khóa thẻ trước khi gia hạn.",
-                        "Thẻ đang khóa", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
-                }
-
-                DateTime baseDate = card.ExpiresAt.Date < DateTime.Today ? DateTime.Today : card.ExpiresAt.Date;
-                card.ExpiresAt = baseDate.AddMonths(months);
-                card.Status = ReaderCardStatus.Active;
-
-                db.SaveChanges();
-                MessageBox.Show($"Đã gia hạn thẻ '{card.CardCode}' thêm {months} tháng.\nHạn sử dụng mới: {card.ExpiresAt:dd/MM/yyyy}",
+                MessageBox.Show($"Đã gia hạn thẻ '{cardCode}' thêm {months} tháng.\nHạn sử dụng mới: {newExpiresAt:dd/MM/yyyy}",
                     "Gia hạn thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
-                LoadCards();
+                await LoadCardsAsync();
                 CardDataChanged?.Invoke();
+            }
+            catch (InvalidOperationException ex)
+            {
+                MessageBox.Show(ex.Message, "Thẻ đang khóa", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
             catch (Exception ex)
             {
@@ -792,41 +640,25 @@ namespace LibraryManagement.Forms.LibraryCardManagement
             }
         }
 
-        private void BtnToggleLock_Click(object? sender, EventArgs e)
+        private async void BtnToggleLock_Click(object? sender, EventArgs e)
         {
             if (_selectedCardId == null) return;
 
+            bool currentlyLocked = _btnToggleLock.Text.Contains("Mở khóa");
+            string action = currentlyLocked ? "MỞ KHÓA" : "KHÓA";
+
+            var confirm = MessageBox.Show(
+                $"Bạn có chắc muốn {action} thẻ thư viện '{_txtCardCode.Text}'?",
+                "Xác nhận trạng thái thẻ",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question);
+
+            if (confirm != DialogResult.Yes) return;
+
             try
             {
-                using var db = new LibraryDbContext();
-                var card = db.ReaderCards.FirstOrDefault(c => c.Id == _selectedCardId.Value);
-                if (card == null) return;
-
-                bool currentlyLocked = card.Status == ReaderCardStatus.Locked;
-                string action = currentlyLocked ? "MỞ KHÓA" : "KHÓA";
-
-                var confirm = MessageBox.Show(
-                    $"Bạn có chắc muốn {action} thẻ thư viện '{card.CardCode}'?",
-                    "Xác nhận trạng thái thẻ",
-                    MessageBoxButtons.YesNo,
-                    MessageBoxIcon.Question);
-
-                if (confirm != DialogResult.Yes) return;
-
-                if (currentlyLocked)
-                {
-                    card.Status = card.ExpiresAt.Date < DateTime.Today ? ReaderCardStatus.Expired : ReaderCardStatus.Active;
-                }
-                else
-                {
-                    card.Status = ReaderCardStatus.Locked;
-                }
-
-                if (!string.IsNullOrWhiteSpace(_txtNote.Text))
-                    card.Note = _txtNote.Text.Trim();
-
-                db.SaveChanges();
-                LoadCards();
+                await _cardService.ToggleLockCard(_selectedCardId.Value, _txtNote.Text);
+                await LoadCardsAsync();
                 CardDataChanged?.Invoke();
             }
             catch (Exception ex)
@@ -837,7 +669,6 @@ namespace LibraryManagement.Forms.LibraryCardManagement
 
         private void BtnQuickIssueDialog_Click(object? sender, EventArgs e)
         {
-            // Chuyển nhanh sang bộ lọc "Độc giả chưa có thẻ" để thủ thư cấp thẻ ngay
             _cboStatusFilter.SelectedIndex = 5;
             if (_dgvCards.Rows.Count == 0)
             {
@@ -911,20 +742,8 @@ namespace LibraryManagement.Forms.LibraryCardManagement
         }
 
         // ============================================================
-        //  HELPER
+        //  HELPER UI
         // ============================================================
-        private static string GenerateNextCardCode(LibraryDbContext db)
-        {
-            int nextId = (db.ReaderCards.Max(c => (int?)c.Id) ?? 0) + 1;
-            string code = $"RC{nextId:D5}";
-            while (db.ReaderCards.Any(c => c.CardCode == code))
-            {
-                nextId++;
-                code = $"RC{nextId:D5}";
-            }
-            return code;
-        }
-
         private void ClearActionPanel()
         {
             _selectedReaderId = null;

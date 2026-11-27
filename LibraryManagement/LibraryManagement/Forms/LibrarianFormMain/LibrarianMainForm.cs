@@ -950,7 +950,7 @@ namespace LibraryManagement.Forms.LibrarianFormMain
         private void OpenReaderCardsTab() =>
             OpenOrSelectTab(ref _tabReaderCards, "Thẻ thư viện", () =>
             {
-                var ctrl = new LibraryCardManagementControl();
+                var ctrl = AppServices.Provider.GetRequiredService<LibraryCardManagementControl>();
                 ctrl.CardDataChanged += LoadData;
                 return ctrl;
             });
