@@ -939,7 +939,7 @@ namespace LibraryManagement.Forms.LibrarianFormMain
         private void OpenReservationsTab() =>
             OpenOrSelectTab(ref _tabReservations, "Đặt trước sách", () =>
             {
-                var ctrl = new ReservationManagementControl();
+                var ctrl = AppServices.Provider.GetRequiredService<ReservationManagementControl>();
                 ctrl.ReservationDataChanged += LoadData;
                 return ctrl;
             });

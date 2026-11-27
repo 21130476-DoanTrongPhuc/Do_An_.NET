@@ -1,8 +1,8 @@
 ﻿using System.Drawing.Drawing2D;
-using LibraryManagement.Data;
-using LibraryManagement.Enums;
-using LibraryManagement.Models;
-using Microsoft.EntityFrameworkCore;
+using LibraryManagement.DTO.Request;
+using LibraryManagement.DTO.Response;
+using LibraryManagement.Filters;
+using LibraryManagement.Services;
 
 namespace LibraryManagement.Forms.ReservationManagement
 {
@@ -20,13 +20,13 @@ namespace LibraryManagement.Forms.ReservationManagement
         private const string IconFont = "Segoe MDL2 Assets";
 
         // Glyph
-        private const string GCalendar = "\uE787";
         private const string GRefresh  = "\uE72C";
         private const string GSearch   = "\uE721";
         private const string GCheck    = "\uE73E";
         private const string GMail     = "\uE715";
         private const string GClose    = "\uE711";
-        private const string GBook     = "\uE82D";
+
+        private readonly ReservationService _reservationService;
 
         public event Action? ReservationDataChanged;
 
@@ -37,7 +37,7 @@ namespace LibraryManagement.Forms.ReservationManagement
         private Label _lblSummary = null!;
 
         // ====== Controls xử lý duyệt bên phải ======
-        private int? _selectedReservationId;
+        private ReservationDetailResponse? _currentDetail;
         private Label _lblResCode = null!;
         private Label _lblReaderInfo = null!;
         private Label _lblBookInfo = null!;
@@ -49,16 +49,13 @@ namespace LibraryManagement.Forms.ReservationManagement
         private Button _btnResendNotify = null!;
         private Button _btnCancelRes = null!;
 
-        // Lấy động giá trị enum theo project của bạn để tránh lệch tên hằng số
-        private static readonly ReservationStatus StatusReadyToPick = ResolveReadyReservationStatus();
-        private static readonly CirculationStatus CopyReservedStatus = ResolveReservedCopyStatus();
-
-        public ReservationManagementControl()
+        public ReservationManagementControl(ReservationService reservationService)
         {
+            _reservationService = reservationService;
             BackColor = BgGray;
             Font = new Font("Segoe UI", 9F);
             BuildUi();
-            Load += (_, _) => LoadReservations();
+            Load += async (_, _) => await LoadReservationsAsync();
         }
 
         // ============================================================
@@ -68,12 +65,10 @@ namespace LibraryManagement.Forms.ReservationManagement
         {
             SuspendLayout();
 
-            // 1. Header & Thanh lọc (Top)
             var pnlTop = new Panel { Dock = DockStyle.Top, Height = 112, BackColor = BgGray };
             pnlTop.Controls.Add(BuildFilterBar());
             pnlTop.Controls.Add(BuildHeader());
 
-            // 2. Nội dung chính: Trái (Danh sách đặt trước) - Phải (Duyệt & Thông báo)
             var pnlMain = new Panel { Dock = DockStyle.Fill, Padding = new Padding(0, 8, 0, 0) };
 
             var pnlRightHost = new Panel { Dock = DockStyle.Right, Width = 400, Padding = new Padding(10, 0, 0, 0) };
@@ -124,7 +119,7 @@ namespace LibraryManagement.Forms.ReservationManagement
 
             var btnRefresh = CreateActionButton("Làm mới dữ liệu", GRefresh, Primary, Color.White, 185);
             btnRefresh.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            btnRefresh.Click += (_, _) => LoadReservations();
+            btnRefresh.Click += async (_, _) => await LoadReservationsAsync();
 
             pnl.Controls.Add(btnRefresh);
             pnl.Resize += (_, _) => btnRefresh.Location = new Point(pnl.Width - btnRefresh.Width - 12, 11);
@@ -151,7 +146,10 @@ namespace LibraryManagement.Forms.ReservationManagement
                 Width = 260,
                 PlaceholderText = "Mã đặt trước, tên độc giả hoặc tên sách..."
             };
-            _txtSearch.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) LoadReservations(); };
+            _txtSearch.KeyDown += async (_, e) =>
+            {
+                if (e.KeyCode == Keys.Enter) await LoadReservationsAsync();
+            };
 
             var lblStatus = new Label { Text = "Trạng thái:", AutoSize = true, Location = new Point(0, 16), ForeColor = TextGray };
 
@@ -169,13 +167,13 @@ namespace LibraryManagement.Forms.ReservationManagement
                 "Đã hoàn tất (Đã mượn)",
                 "Đã hủy / Hết hạn giữ"
             });
-            _cboStatusFilter.SelectedIndex = 1; // Mặc định lọc các phiếu đang chờ duyệt
-            _cboStatusFilter.SelectedIndexChanged += (_, _) => LoadReservations();
+            _cboStatusFilter.SelectedIndex = 1;
+            _cboStatusFilter.SelectedIndexChanged += async (_, _) => await LoadReservationsAsync();
 
             var btnSearch = CreateActionButton("  Lọc danh sách", GSearch, SoftBlue, Primary, 145);
             btnSearch.Location = new Point(0, 9);
             btnSearch.Height = 31;
-            btnSearch.Click += (_, _) => LoadReservations();
+            btnSearch.Click += async (_, _) => await LoadReservationsAsync();
 
             void LayoutFilterBar()
             {
@@ -204,7 +202,6 @@ namespace LibraryManagement.Forms.ReservationManagement
                 BackColor = Color.White
             };
 
-            // Khung thông tin phiếu đặt trước
             var pnlCard = new Panel
             {
                 Location = new Point(14, 26),
@@ -254,7 +251,6 @@ namespace LibraryManagement.Forms.ReservationManagement
 
             int y = 170;
 
-            // Chọn bản sách vật lý trên kệ
             grp.Controls.Add(new Label
             {
                 Text = "1. Chọn bản sách vật lý sẵn sàng gán cho độc giả:",
@@ -275,7 +271,6 @@ namespace LibraryManagement.Forms.ReservationManagement
             grp.Controls.Add(_cboAvailableCopies);
             y += 36;
 
-            // Số ngày giữ sách
             var lblHoldDays = new Label
             {
                 Text = "2. Thời hạn giữ sách tại quầy (ngày):",
@@ -297,7 +292,6 @@ namespace LibraryManagement.Forms.ReservationManagement
             grp.Controls.Add(_numHoldDays);
             y += 36;
 
-            // Nội dung thông báo gửi độc giả
             grp.Controls.Add(new Label
             {
                 Text = "3. Nội dung thông báo gửi đến độc giả (Email / SMS):",
@@ -319,7 +313,6 @@ namespace LibraryManagement.Forms.ReservationManagement
             grp.Controls.Add(_txtNotifyMessage);
             y += 108;
 
-            // Các nút hành động
             _btnApproveAndNotify = CreateActionButton("  Duyệt & Thông báo sách sẵn sàng", GCheck, Green, Color.White, 350);
             _btnApproveAndNotify.Height = 38;
             _btnApproveAndNotify.Location = new Point(14, y);
@@ -434,88 +427,37 @@ namespace LibraryManagement.Forms.ReservationManagement
         }
 
         // ============================================================
-        //  TẢI DỮ LIỆU & NGHIỆP VỤ DUYỆT ĐẶT TRƯỚC
+        //  TẢI DỮ LIỆU & GỌI SERVICE
         // ============================================================
-        public void LoadReservations()
+        public void LoadReservations() => _ = LoadReservationsAsync();
+
+        public async Task LoadReservationsAsync()
         {
             try
             {
-                using var context = new LibraryDbContext();
-                var today = DateTime.Today;
-                string keyword = _txtSearch.Text.Trim().ToLower();
-                int filterIndex = _cboStatusFilter.SelectedIndex;
-
-                var list = context.Reservations
-                    .Include(r => r.Reader)
-                    .Include(r => r.Book)
-                    .Include(r => r.BookCopy)
-                    .Select(r => new
-                    {
-                        r.Id,
-                        r.ReservationCode,
-                        ReaderCode = r.Reader.UserCode,
-                        ReaderName = r.Reader.FullName,
-                        BookCode = r.Book.BookCode,
-                        BookTitle = r.Book.Title,
-                        r.ReservedAt,
-                        r.ExpiresAt,
-                        r.FulfilledAt,
-                        r.CancelledAt,
-                        r.Status,
-                        AssignedCopyCode = r.BookCopy != null ? r.BookCopy.CopyCode : null,
-                        AvailableCount = context.BookCopies.Count(c =>
-                            c.IdBook == r.IdBook && c.CirculationStatus == CirculationStatus.Available)
-                    })
-                    .OrderBy(r => r.Status == ReservationStatus.Pending ? 0 : 1)
-                    .ThenBy(r => r.ReservedAt) // Ưu tiên người đặt trước
-                    .ToList();
-
-                int pendingCount = list.Count(x => x.Status == ReservationStatus.Pending);
-                int readyCount   = list.Count(x => x.Status == ReservationStatus.ReadyForPickup && x.FulfilledAt == null && x.CancelledAt == null);
-               
-                var filtered = list.Where(r =>
+                var filter = new ReservationFilter
                 {
-                    if (!string.IsNullOrEmpty(keyword))
-                    {
-                        bool match = r.ReservationCode.ToLower().Contains(keyword)
-                                  || r.ReaderName.ToLower().Contains(keyword)
-                                  || r.ReaderCode.ToLower().Contains(keyword)
-                                  || r.BookTitle.ToLower().Contains(keyword)
-                                  || r.BookCode.ToLower().Contains(keyword);
-                        if (!match) return false;
-                    }
+                    Keyword = _txtSearch.Text,
+                    StatusFilterIndex = _cboStatusFilter.SelectedIndex
+                };
 
-                    // Trong LoadReservations():
-                    int pendingCount = list.Count(x => x.Status == ReservationStatus.Pending);
-                    int readyCount   = list.Count(x => x.Status == ReservationStatus.ReadyForPickup && x.FulfilledAt == null && x.CancelledAt == null);
-                    
-                    return filterIndex switch
-                    {
-                        1 => r.Status == ReservationStatus.Pending,
-                        2 => r.Status == ReservationStatus.ReadyForPickup,
-                        3 => r.Status == ReservationStatus.Completed || r.FulfilledAt != null,
-                        4 => r.Status == ReservationStatus.Cancelled || r.Status == ReservationStatus.Expired || r.CancelledAt != null,
-                        _ => true
-                    };
-                }).ToList();
+                var summary = await _reservationService.GetReservations(filter);
 
-                _lblSummary.Text = $"Chờ duyệt: {pendingCount:N0} yêu cầu  ·  Đang giữ chờ độc giả lấy: {readyCount:N0} cuốn  ·  Hiển thị: {filtered.Count:N0} phiếu";
+                _lblSummary.Text =
+                    $"Chờ duyệt: {summary.PendingCount:N0} yêu cầu  ·  Đang giữ chờ độc giả lấy: {summary.ReadyCount:N0} cuốn  ·  Hiển thị: {summary.Items.Count:N0} phiếu";
 
                 _dgvReservations.Rows.Clear();
-                foreach (var r in filtered)
+                foreach (var r in summary.Items)
                 {
-                    string statusText = MapReservationStatusText(r.Status, r.ExpiresAt, r.FulfilledAt, r.CancelledAt, today);
-                    string availText = r.AvailableCount > 0 ? $"{r.AvailableCount} cuốn" : "Hết trên kệ";
-
                     _dgvReservations.Rows.Add(
                         r.Id,
                         r.ReservationCode,
-                        $"{r.ReaderName} ({r.ReaderCode})",
+                        r.ReaderDisplay,
                         r.BookTitle,
-                        r.ReservedAt.ToString("dd/MM/yyyy HH:mm"),
-                        availText,
-                        r.AssignedCopyCode ?? "Chưa gán",
-                        statusText
+                        r.ReservedAtText,
+                        r.AvailableText,
+                        r.AssignedCopyCode,
+                        r.StatusText
                     );
                 }
 
@@ -531,7 +473,7 @@ namespace LibraryManagement.Forms.ReservationManagement
             }
         }
 
-        private void DgvReservations_SelectionChanged(object? sender, EventArgs e)
+        private async void DgvReservations_SelectionChanged(object? sender, EventArgs e)
         {
             if (_dgvReservations.SelectedRows.Count == 0)
             {
@@ -540,81 +482,48 @@ namespace LibraryManagement.Forms.ReservationManagement
             }
 
             if (_dgvReservations.SelectedRows[0].Cells["colId"].Value is not int resId) return;
-            LoadReservationDetail(resId);
+            await LoadReservationDetailAsync(resId);
         }
 
-        private void LoadReservationDetail(int reservationId)
+        private async Task LoadReservationDetailAsync(int reservationId)
         {
             try
             {
-                using var context = new LibraryDbContext();
-                var res = context.Reservations
-                    .Include(r => r.Reader)
-                    .Include(r => r.Book)
-                    .Include(r => r.BookCopy)
-                    .FirstOrDefault(r => r.Id == reservationId);
+                var detail = await _reservationService.GetReservationDetail(reservationId);
+                if (detail == null) return;
 
-                if (res == null) return;
-
-                _selectedReservationId = res.Id;
-                _lblResCode.Text = $"Mã phiếu đặt: {res.ReservationCode}";
-                string contact = !string.IsNullOrWhiteSpace(res.Reader.Email) ? res.Reader.Email : (res.Reader.Phone ?? "Chưa có SĐT/Email");
-                _lblReaderInfo.Text = $"Độc giả: {res.Reader.FullName} ({res.Reader.UserCode}) · {contact}";
-                _lblBookInfo.Text = $"Sách đặt: [{res.Book.BookCode}] {res.Book.Title}";
-                _lblTimeInfo.Text = res.ExpiresAt != null
-                    ? $"Đặt lúc: {res.ReservedAt:dd/MM/yyyy HH:mm}  ·  Hạn giữ đến: {res.ExpiresAt:dd/MM/yyyy}"
-                    : $"Đặt lúc: {res.ReservedAt:dd/MM/yyyy HH:mm}";
-
-                // Tải danh sách bản sách vật lý đang Available của đầu sách này
-                var availableCopies = context.BookCopies
-                    .Where(c => c.IdBook == res.IdBook && c.CirculationStatus == CirculationStatus.Available)
-                    .OrderBy(c => c.CopyCode)
-                    .Select(c => new CopyOption
-                    {
-                        Id = c.Id,
-                        Display = $"{c.CopyCode} — Kệ: {c.ShelfLocation ?? "Chưa xếp kệ"} ({c.PhysicalCondition})"
-                    })
-                    .ToList();
+                _currentDetail = detail;
+                _lblResCode.Text = $"Mã phiếu đặt: {detail.ReservationCode}";
+                _lblReaderInfo.Text = $"Độc giả: {detail.ReaderFullName} ({detail.ReaderCode}) · {detail.ReaderContact}";
+                _lblBookInfo.Text = $"Sách đặt: [{detail.BookCode}] {detail.BookTitle}";
+                _lblTimeInfo.Text = detail.ExpiresAt != null
+                    ? $"Đặt lúc: {detail.ReservedAt:dd/MM/yyyy HH:mm}  ·  Hạn giữ đến: {detail.ExpiresAt:dd/MM/yyyy}"
+                    : $"Đặt lúc: {detail.ReservedAt:dd/MM/yyyy HH:mm}";
 
                 _cboAvailableCopies.DataSource = null;
-                if (res.BookCopy != null)
+                _cboAvailableCopies.Items.Clear();
+
+                if (detail.CopyOptions.Count > 0)
                 {
-                    // Trường hợp phiếu đã được duyệt gán bản sách trước đó
-                    _cboAvailableCopies.DataSource = new List<CopyOption>
-                    {
-                        new CopyOption
-                        {
-                            Id = res.BookCopy.Id,
-                            Display = $"{res.BookCopy.CopyCode} — Đã giữ cho độc giả (Kệ: {res.BookCopy.ShelfLocation ?? "N/A"})"
-                        }
-                    };
-                    _cboAvailableCopies.DisplayMember = nameof(CopyOption.Display);
-                    _cboAvailableCopies.ValueMember = nameof(CopyOption.Id);
-                }
-                else if (availableCopies.Count > 0)
-                {
-                    _cboAvailableCopies.DataSource = availableCopies;
-                    _cboAvailableCopies.DisplayMember = nameof(CopyOption.Display);
-                    _cboAvailableCopies.ValueMember = nameof(CopyOption.Id);
+                    _cboAvailableCopies.DataSource = detail.CopyOptions;
+                    _cboAvailableCopies.DisplayMember = nameof(ReservationCopyOptionResponse.Display);
+                    _cboAvailableCopies.ValueMember = nameof(ReservationCopyOptionResponse.Id);
                 }
                 else
                 {
-                    _cboAvailableCopies.Items.Clear();
                     _cboAvailableCopies.Items.Add("-- Hiện không còn bản sách nào sẵn sàng trên kệ --");
                     _cboAvailableCopies.SelectedIndex = 0;
                 }
 
-                bool isPending = res.Status == ReservationStatus.Pending;
-                bool isReady   = res.Status == ReservationStatus.ReadyForPickup;
+                bool hasAvailable = !detail.HasAssignedCopy && detail.CopyOptions.Count > 0;
+                _cboAvailableCopies.Enabled = detail.IsPending && hasAvailable;
+                _numHoldDays.Enabled         = detail.IsPending && hasAvailable;
+                _txtNotifyMessage.Enabled    = detail.IsPending || detail.IsReadyForPickup;
+                _btnApproveAndNotify.Enabled = detail.IsPending && hasAvailable;
+                _btnResendNotify.Enabled     = detail.IsReadyForPickup;
+                _btnCancelRes.Enabled        = detail.IsPending || detail.IsReadyForPickup;
 
-                _cboAvailableCopies.Enabled = isPending && availableCopies.Count > 0;
-                _numHoldDays.Enabled         = isPending && availableCopies.Count > 0;
-                _txtNotifyMessage.Enabled    = isPending || isReady;
-                _btnApproveAndNotify.Enabled = isPending && availableCopies.Count > 0;
-                _btnResendNotify.Enabled     = isReady;
-                _btnCancelRes.Enabled        = isPending || isReady;
-
-                UpdateNotificationTemplate(res);
+                UpdateNotificationTemplate(useSavedNote: true);
             }
             catch (Exception ex)
             {
@@ -622,32 +531,28 @@ namespace LibraryManagement.Forms.ReservationManagement
             }
         }
 
-        private void UpdateNotificationTemplate(Reservations? loadedRes = null)
+        private void UpdateNotificationTemplate(bool useSavedNote = false)
         {
-            if (_selectedReservationId == null) return;
+            if (_currentDetail == null) return;
 
-            string copyCode = (_cboAvailableCopies.SelectedItem as CopyOption)?.Display.Split('—')[0].Trim() ?? "bản sách đã giữ";
-            DateTime holdUntil = DateTime.Today.AddDays((int)_numHoldDays.Value);
-
-            if (loadedRes != null && !string.IsNullOrWhiteSpace(loadedRes.Note) && loadedRes.Status != ReservationStatus.Pending)
+            if (useSavedNote && !string.IsNullOrWhiteSpace(_currentDetail.Note) && !_currentDetail.IsPending)
             {
-                _txtNotifyMessage.Text = loadedRes.Note;
+                _txtNotifyMessage.Text = _currentDetail.Note;
                 return;
             }
 
-            string readerName = _lblReaderInfo.Text.Replace("Độc giả:", "").Split('(')[0].Trim();
-            string bookTitle  = _lblBookInfo.Text.Replace("Sách đặt:", "").Trim();
-
-            _txtNotifyMessage.Text =
-                $"Xin chào {readerName},\r\n" +
-                $"Cuốn sách \"{bookTitle}\" (Mã bản sách: {copyCode}) bạn đặt trước tại Thư viện LIBRA đã sẵn sàng.\r\n" +
-                $"Vui lòng đến quầy thủ thư nhận sách trước ngày {holdUntil:dd/MM/yyyy}. Sau thời hạn này, hệ thống sẽ tự động hủy giữ chỗ.";
+            string copyCode = (_cboAvailableCopies.SelectedItem as ReservationCopyOptionResponse)?.CopyCode ?? "bản sách đã giữ";
+            _txtNotifyMessage.Text = _reservationService.BuildNotificationTemplate(
+                _currentDetail.ReaderFullName,
+                $"[{_currentDetail.BookCode}] {_currentDetail.BookTitle}",
+                copyCode,
+                (int)_numHoldDays.Value);
         }
 
-        private void BtnApproveAndNotify_Click(object? sender, EventArgs e)
+        private async void BtnApproveAndNotify_Click(object? sender, EventArgs e)
         {
-            if (_selectedReservationId == null) return;
-            if (_cboAvailableCopies.SelectedItem is not CopyOption selectedCopy)
+            if (_currentDetail == null) return;
+            if (_cboAvailableCopies.SelectedItem is not ReservationCopyOptionResponse selectedCopy)
             {
                 MessageBox.Show("Không có bản sách sẵn sàng trên kệ để duyệt phiếu này.", "Không thể duyệt",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -656,71 +561,26 @@ namespace LibraryManagement.Forms.ReservationManagement
 
             try
             {
-                using var context = new LibraryDbContext();
-                var res = context.Reservations
-                    .Include(r => r.Reader)
-                    .Include(r => r.Book)
-                    .FirstOrDefault(r => r.Id == _selectedReservationId.Value);
-
-                var copy = context.BookCopies.FirstOrDefault(c => c.Id == selectedCopy.Id);
-
-                if (res == null || copy == null)
+                var request = new ReservationApproveRequest
                 {
-                    MessageBox.Show("Không tìm thấy phiếu đặt trước hoặc bản sách.", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    return;
-                }
+                    ReservationId = _currentDetail.Id,
+                    BookCopyId = selectedCopy.Id,
+                    HoldDays = (int)_numHoldDays.Value,
+                    NotifyMessage = _txtNotifyMessage.Text
+                };
 
-                if (copy.CirculationStatus != CirculationStatus.Available)
-                {
-                    MessageBox.Show("Bản sách này vừa được người khác mượn hoặc giữ chỗ. Vui lòng làm mới danh sách.",
-                        "Xung đột dữ liệu", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    LoadReservations();
-                    return;
-                }
-
-                var now = DateTime.Now;
-                var oldCopyStatus = copy.CirculationStatus;
-
-                // 1. Cập nhật phiếu đặt trước
-                res.IdBookCopy = copy.Id;
-                res.AssignedAt = now;
-                res.ExpiresAt  = DateTime.Today.AddDays((int)_numHoldDays.Value).AddHours(20);
-                res.Status     = ReservationStatus.ReadyForPickup;
-                res.Note       = _txtNotifyMessage.Text.Trim();
-
-                // 2. Cập nhật trạng thái bản sách vật lý sang giữ chỗ
-                copy.CirculationStatus = CirculationStatus.Reserved;
-                copy.UpdatedAt = now;
-
-                // 3. Ghi lịch sử biến động bản sách (BookCopyHistory)
-                context.BookCopyHistories.Add(new BookCopyHistory
-                {
-                    IdBookCopy   = copy.Id,
-                    ChangedAt    = now.ToString("yyyy-MM-dd HH:mm:ss"),
-                    ActionType   = $"Giữ đặt trước ({res.ReservationCode})",
-                    OldStatus    = oldCopyStatus,
-                    NewStatus    = CirculationStatus.Reserved,
-                    OldCondition = copy.PhysicalCondition,
-                    NewCondition = copy.PhysicalCondition,
-                    Note         = $"Độc giả: {res.Reader.FullName} ({res.Reader.UserCode})"
-                });
-
-                context.SaveChanges();
-
-                string targetContact = !string.IsNullOrWhiteSpace(res.Reader.Email)
-                    ? $"Email: {res.Reader.Email}"
-                    : (!string.IsNullOrWhiteSpace(res.Reader.Phone) ? $"SĐT: {res.Reader.Phone}" : "Hệ thống thông báo nội bộ");
+                var result = await _reservationService.ApproveAndNotify(request);
 
                 MessageBox.Show(
-                    $"Đã duyệt phiếu đặt trước {res.ReservationCode} thành công!\n\n" +
-                    $"• Bản sách gán: {copy.CopyCode}\n" +
-                    $"• Giữ đến hết ngày: {res.ExpiresAt:dd/MM/yyyy}\n" +
-                    $"• Đã gửi thông báo sách sẵn sàng tới độc giả ({targetContact}).",
+                    $"Đã duyệt phiếu đặt trước {result.ReservationCode} thành công!\n\n" +
+                    $"• Bản sách gán: {result.CopyCode}\n" +
+                    $"• Giữ đến hết ngày: {result.ExpiresAt:dd/MM/yyyy}\n" +
+                    $"• Đã gửi thông báo sách sẵn sàng tới độc giả ({result.TargetContact}).",
                     "Duyệt & Thông báo thành công",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Information);
 
-                LoadReservations();
+                await LoadReservationsAsync();
                 ReservationDataChanged?.Invoke();
             }
             catch (Exception ex)
@@ -731,23 +591,13 @@ namespace LibraryManagement.Forms.ReservationManagement
             }
         }
 
-        private void BtnResendNotify_Click(object? sender, EventArgs e)
+        private async void BtnResendNotify_Click(object? sender, EventArgs e)
         {
-            if (_selectedReservationId == null) return;
+            if (_currentDetail == null) return;
 
             try
             {
-                using var context = new LibraryDbContext();
-                var res = context.Reservations
-                    .Include(r => r.Reader)
-                    .FirstOrDefault(r => r.Id == _selectedReservationId.Value);
-
-                if (res == null) return;
-
-                res.Note = _txtNotifyMessage.Text.Trim();
-                context.SaveChanges();
-
-                string contact = res.Reader.Email ?? res.Reader.Phone ?? res.Reader.FullName;
+                string contact = await _reservationService.ResendNotification(_currentDetail.Id, _txtNotifyMessage.Text);
                 MessageBox.Show($"Đã gửi lại thông báo nhắc nhận sách đến độc giả: {contact}.",
                     "Đã gửi thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
@@ -757,9 +607,9 @@ namespace LibraryManagement.Forms.ReservationManagement
             }
         }
 
-        private void BtnCancelRes_Click(object? sender, EventArgs e)
+        private async void BtnCancelRes_Click(object? sender, EventArgs e)
         {
-            if (_selectedReservationId == null) return;
+            if (_currentDetail == null) return;
 
             var confirm = MessageBox.Show(
                 "Bạn có chắc muốn hủy phiếu đặt trước này?\nNếu đã gán bản sách vật lý, sách sẽ được trả về trạng thái sẵn sàng trên kệ.",
@@ -771,38 +621,9 @@ namespace LibraryManagement.Forms.ReservationManagement
 
             try
             {
-                using var context = new LibraryDbContext();
-                var res = context.Reservations
-                    .Include(r => r.BookCopy)
-                    .FirstOrDefault(r => r.Id == _selectedReservationId.Value);
-
-                if (res == null) return;
-
-                var now = DateTime.Now;
-                res.CancelledAt = now;
-                res.Status = ReservationStatus.Cancelled;
-
-                // Giải phóng bản sách vật lý nếu đã gán trước đó
-                if (res.BookCopy != null && res.BookCopy.CirculationStatus == CopyReservedStatus)
-                {
-                    var oldStatus = res.BookCopy.CirculationStatus;
-                    res.BookCopy.CirculationStatus = CirculationStatus.Available;
-                    res.BookCopy.UpdatedAt = now;
-
-                    context.BookCopyHistories.Add(new BookCopyHistory
-                    {
-                        IdBookCopy = res.BookCopy.Id,
-                        ChangedAt  = now.ToString("yyyy-MM-dd HH:mm:ss"),
-                        ActionType = "ReserveCancelled",
-                        OldStatus  = oldStatus,
-                        NewStatus  = CirculationStatus.Available,
-                        Note       = $"Hủy phiếu đặt trước {res.ReservationCode}, trả sách về kệ"
-                    });
-                }
-
-                context.SaveChanges();
+                await _reservationService.CancelReservation(_currentDetail.Id);
                 MessageBox.Show("Đã hủy phiếu đặt trước thành công.", "Hoàn tất", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                LoadReservations();
+                await LoadReservationsAsync();
                 ReservationDataChanged?.Invoke();
             }
             catch (Exception ex)
@@ -811,46 +632,9 @@ namespace LibraryManagement.Forms.ReservationManagement
             }
         }
 
-        // ============================================================
-        //  HELPER & XỬ LÝ ENUM AN TOÀN
-        // ============================================================
-        private static ReservationStatus ResolveReadyReservationStatus()
-        {
-            // Hỗ trợ linh hoạt dù enum của bạn đặt tên là Ready, Assigned, Approved hay Confirmed
-            string[] candidates = { "Ready", "ReadyForPickup", "Assigned", "Approved", "Confirmed", "Notified" };
-            foreach (var name in candidates)
-            {
-                if (Enum.TryParse<ReservationStatus>(name, true, out var val))
-                    return val;
-            }
-            var values = Enum.GetValues<ReservationStatus>();
-            return values.Length > 1 ? values[1] : ReservationStatus.Pending;
-        }
-
-        private static CirculationStatus ResolveReservedCopyStatus()
-        {
-            string[] candidates = { "Reserved", "OnHold", "Held" };
-            foreach (var name in candidates)
-            {
-                if (Enum.TryParse<CirculationStatus>(name, true, out var val))
-                    return val;
-            }
-            return CirculationStatus.Available;
-        }
-
-        private static string MapReservationStatusText(
-            ReservationStatus status, DateTime? expiresAt, DateTime? fulfilledAt, DateTime? cancelledAt, DateTime today)
-        {
-            if (status == ReservationStatus.Completed || fulfilledAt != null) return "Đã nhận sách";
-            if (status == ReservationStatus.Cancelled || cancelledAt != null) return "Đã hủy";
-            if (status == ReservationStatus.Expired || (expiresAt != null && expiresAt.Value.Date < today)) return "Hết hạn giữ";
-            if (status == ReservationStatus.ReadyForPickup) return "Sẵn sàng lấy";
-            return "Chờ duyệt";
-        }
-
         private void ClearApprovalPanel()
         {
-            _selectedReservationId = null;
+            _currentDetail = null;
             _lblResCode.Text = "Mã phiếu: --";
             _lblReaderInfo.Text = "Độc giả: Chưa chọn yêu cầu";
             _lblBookInfo.Text = "Sách đặt: --";
@@ -910,12 +694,6 @@ namespace LibraryManagement.Forms.ReservationManagement
             p.AddArc(r.X, r.Bottom - d, d, d, 90, 90);
             p.CloseFigure();
             return p;
-        }
-
-        private sealed class CopyOption
-        {
-            public int Id { get; set; }
-            public string Display { get; set; } = string.Empty;
         }
     }
 }
