@@ -1,3 +1,4 @@
+using LibraryManagement.Controls;
 using LibraryManagement.Data;
 using LibraryManagement.Forms;
 using LibraryManagement.Forms.BookFormReturn;
@@ -5,6 +6,7 @@ using LibraryManagement.Forms.HomePage;
 using LibraryManagement.Forms.LoginForm;
 using LibraryManagement.Forms.OverdueBooks;
 using LibraryManagement.Forms.OverdueBooks;
+using LibraryManagement.Forms.ReaderManagement;
 using LibraryManagement.Helpers;
 using LibraryManagement.Repositories;
 using LibraryManagement.Repositories.Interafaces;
@@ -43,10 +45,19 @@ internal static class Program
 
             services.AddTransient<FineRepository, FineRepositoryImpl>();
             services.AddTransient<FineService>();
+
+            services.AddTransient<StatisticalReportRepository, StatisticalReportRepositoryImpl>();
+            services.AddTransient<StatisticalReportService>();
+            
+            services.AddTransient<ReaderManagementRepository, ReaderManagementRepositoryImpl>();
+            services.AddTransient<ReaderManagementService>();
             
             services.AddTransient<LoginForm>();
             services.AddTransient<BookFormReturn>();
             services.AddTransient<OverdueBooks>();
+            services.AddTransient<StatisticalReportControl>();
+            services.AddTransient<ReaderManagementControl>();
+
             
             AppServices.Provider = services.BuildServiceProvider();
 

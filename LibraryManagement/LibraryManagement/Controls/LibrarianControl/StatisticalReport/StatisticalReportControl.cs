@@ -1,8 +1,7 @@
 ﻿using System.Drawing.Drawing2D;
-using System.Text;
-using LibraryManagement.Data;
-using LibraryManagement.Enums;
-using Microsoft.EntityFrameworkCore;
+using LibraryManagement.DTO;
+using LibraryManagement.DTO.Response;
+using LibraryManagement.Services;
 
 namespace LibraryManagement.Controls
 {
@@ -21,7 +20,6 @@ namespace LibraryManagement.Controls
         private const string IconFont = "Segoe MDL2 Assets";
 
         // Glyph
-        private const string GReport   = "\uE9F9";
         private const string GRefresh  = "\uE72C";
         private const string GExport   = "\uEDE1";
         private const string GBook     = "\uE82D";
@@ -29,6 +27,9 @@ namespace LibraryManagement.Controls
         private const string GWarn     = "\uE7BA";
         private const string GMoney    = "\uE8C7";
         private const string GFilter   = "\uE71C";
+
+        // ====== Dependencies ======
+        private readonly StatisticalReportService _reportService;
 
         // ====== Controls ======
         private ComboBox _cboPreset = null!;
@@ -44,11 +45,12 @@ namespace LibraryManagement.Controls
         private DataGridView _dgvFines = null!;
 
         // ====== Dữ liệu biểu đồ ======
-        private List<(string Label, int BorrowCount, int ReturnCount)> _monthlyStats = new();
+        private List<MonthlyStatDto> _monthlyStats = new();
         private List<(string CategoryName, int BookCount, Color SliceColor)> _categoryStats = new();
-
-        public StatisticalReportControl()
+        
+        public StatisticalReportControl(StatisticalReportService reportService)
         {
+            _reportService = reportService;
             BackColor = BgGray;
             Font = new Font("Segoe UI", 9F);
             BuildUi();
@@ -62,19 +64,16 @@ namespace LibraryManagement.Controls
         {
             SuspendLayout();
 
-            // 1. Header & Thanh lọc (Top)
             var pnlTopArea = new Panel { Dock = DockStyle.Top, Height = 114, BackColor = BgGray };
             pnlTopArea.Controls.Add(BuildFilterBar());
             pnlTopArea.Controls.Add(BuildHeader());
 
-            // 2. Hàng 4 thẻ KPI (Top)
             var pnlKpiHost = new Panel { Dock = DockStyle.Top, Height = 108, Padding = new Padding(0, 8, 0, 0) };
             _tblKpi = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 1 };
             for (int i = 0; i < 4; i++) _tblKpi.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25F));
             _tblKpi.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             pnlKpiHost.Controls.Add(_tblKpi);
 
-            // 3. Khu vực Biểu đồ (Top - chiếm 270px)
             var pnlChartsHost = new Panel { Dock = DockStyle.Top, Height = 275, Padding = new Padding(0, 8, 0, 0) };
             var tblCharts = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
             tblCharts.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 62F));
@@ -109,29 +108,24 @@ namespace LibraryManagement.Controls
             tblCharts.Controls.Add(grpPie, 1, 0);
             pnlChartsHost.Controls.Add(tblCharts);
 
-            // 4. Khu vực Bảng dữ liệu chi tiết (Fill phần còn lại)
             var pnlBottomHost = new Panel { Dock = DockStyle.Fill, Padding = new Padding(0, 8, 0, 0) };
             _tabDetails = new TabControl { Dock = DockStyle.Fill, Font = new Font("Segoe UI", 9F), Padding = new Point(12, 4) };
 
-            // Tab 1: Độc giả quá hạn
             var tabOverdue = new TabPage("1. Danh sách quá hạn trả") { BackColor = Color.White, Padding = new Padding(8) };
             _dgvOverdue = CreateBaseGrid();
             SetupOverdueColumns(_dgvOverdue);
             tabOverdue.Controls.Add(_dgvOverdue);
 
-            // Tab 2: Top sách mượn nhiều
             var tabTopBooks = new TabPage("2. Top sách mượn nhiều nhất") { BackColor = Color.White, Padding = new Padding(8) };
             _dgvTopBooks = CreateBaseGrid();
             SetupTopBooksColumns(_dgvTopBooks);
             tabTopBooks.Controls.Add(_dgvTopBooks);
 
-            // Tab 3: Sách sắp hết / tồn kho thấp
             var tabLowStock = new TabPage("3. Cảnh báo tồn kho thấp") { BackColor = Color.White, Padding = new Padding(8) };
             _dgvLowStock = CreateBaseGrid();
             SetupLowStockColumns(_dgvLowStock);
             tabLowStock.Controls.Add(_dgvLowStock);
 
-            // Tab 4: Thống kê tiền phạt
             var tabFines = new TabPage("4. Chi tiết khoản phạt") { BackColor = Color.White, Padding = new Padding(8) };
             _dgvFines = CreateBaseGrid();
             SetupFinesColumns(_dgvFines);
@@ -140,7 +134,6 @@ namespace LibraryManagement.Controls
             _tabDetails.TabPages.AddRange(new[] { tabOverdue, tabTopBooks, tabLowStock, tabFines });
             pnlBottomHost.Controls.Add(_tabDetails);
 
-            // Thứ tự Add Dock: Fill trước, Top sau (từ dưới lên trên)
             Controls.Add(pnlBottomHost);
             Controls.Add(pnlChartsHost);
             Controls.Add(pnlKpiHost);
@@ -211,14 +204,9 @@ namespace LibraryManagement.Controls
             };
             _cboPreset.Items.AddRange(new object[]
             {
-                "Hôm nay",
-                "7 ngày qua",
-                "Tháng này",
-                "Quý này",
-                "Năm nay",
-                "Tùy chọn"
+                "Hôm nay", "7 ngày qua", "Tháng này", "Quý này", "Năm nay", "Tùy chọn"
             });
-            _cboPreset.SelectedIndex = 2; // Mặc định: Tháng này
+            _cboPreset.SelectedIndex = 2;
             _cboPreset.SelectedIndexChanged += (_, _) =>
             {
                 if (_cboPreset.SelectedIndex != 5) ApplyPresetAndLoad();
@@ -268,230 +256,92 @@ namespace LibraryManagement.Controls
         }
 
         // ============================================================
-        //  TẢI & XỬ LÝ NGHIỆP VỤ THỐNG KÊ
+        //  HIỂN THỊ DỮ LIỆU TỪ SERVICE
         // ============================================================
         private void ApplyPresetAndLoad()
         {
-            var today = DateTime.Today;
-            switch (_cboPreset.SelectedIndex)
-            {
-                case 0: // Hôm nay
-                    _dtpFrom.Value = today;
-                    _dtpTo.Value = today;
-                    break;
-                case 1: // 7 ngày qua
-                    _dtpFrom.Value = today.AddDays(-6);
-                    _dtpTo.Value = today;
-                    break;
-                case 2: // Tháng này
-                    _dtpFrom.Value = new DateTime(today.Year, today.Month, 1);
-                    _dtpTo.Value = today;
-                    break;
-                case 3: // Quý này
-                    int qStartMonth = ((today.Month - 1) / 3) * 3 + 1;
-                    _dtpFrom.Value = new DateTime(today.Year, qStartMonth, 1);
-                    _dtpTo.Value = today;
-                    break;
-                case 4: // Năm nay
-                    _dtpFrom.Value = new DateTime(today.Year, 1, 1);
-                    _dtpTo.Value = today;
-                    break;
-            }
+            var (from, to) = _reportService.GetDateRangeByPreset(_cboPreset.SelectedIndex, DateTime.Today);
+            _dtpFrom.Value = from;
+            _dtpTo.Value = to;
             LoadReportData();
         }
 
-        public void LoadReportData()
+        public async Task LoadReportData()
         {
-            var fromDate = _dtpFrom.Value.Date;
-            var toDate = _dtpTo.Value.Date.AddDays(1).AddTicks(-1);
-            var today = DateTime.Today;
-
-            if (fromDate > toDate)
-            {
-                MessageBox.Show("Ngày bắt đầu không được lớn hơn ngày kết thúc.", "Cảnh báo bộ lọc",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
-
             try
             {
-                using var context = new LibraryDbContext();
+                var report = await _reportService.GetFullReport(_dtpFrom.Value, _dtpTo.Value);
 
-                // 1. Dữ liệu KPI Cards
-                int totalBooks = context.Books.Count();
-                int availableCopies = context.BookCopies.Count(c => c.CirculationStatus == CirculationStatus.Available);
-                int totalCopies = context.BookCopies.Count();
-
-                int borrowedInRange = context.LoanDetails
-                    .Count(ld => ld.Loan.BorrowedAt >= fromDate && ld.Loan.BorrowedAt <= toDate);
-                int returnedInRange = context.LoanDetails
-                    .Count(ld => ld.ReturnedAt != null && ld.ReturnedAt >= fromDate && ld.ReturnedAt <= toDate);
-
-                int currentOverdue = context.LoanDetails
-                    .Count(ld => ld.ReturnedAt == null && ld.DueAt.Date < today);
-
-                var finesList = context.Fines
-                    .Include(f => f.LoanDetail)
-                        .ThenInclude(ld => ld.Loan)
-                            .ThenInclude(l => l.Reader)
-                    .Include(f => f.LoanDetail)
-                        .ThenInclude(ld => ld.BookCopy)
-                            .ThenInclude(bc => bc.Book)
-                    .ToList();
-
-                decimal totalFineAmount = finesList.Sum(f => f.AmountVnd);
-
+                // 1. KPI Cards
+                var kpi = report.Kpi;
                 _tblKpi.Controls.Clear();
-                AddKpiCard(0, GBook,    "Tài nguyên kho sách",  $"{availableCopies:N0} / {totalCopies:N0}", $"Sẵn sàng trên {totalBooks:N0} đầu sách", Primary, SoftBlue);
-                AddKpiCard(1, GForward, "Lưu thông trong kỳ",   $"{borrowedInRange:N0} lượt",             $"Đã trả: {returnedInRange:N0} cuốn", Green, Color.FromArgb(232, 248, 239));
-                AddKpiCard(2, GWarn,    "Sách đang quá hạn",    $"{currentOverdue:N0} cuốn",              currentOverdue > 0 ? "Cần thu hồi khẩn cấp" : "Không có sách trễ hạn", currentOverdue > 0 ? Red : Green, currentOverdue > 0 ? Color.FromArgb(253, 234, 234) : Color.FromArgb(232, 248, 239));
-                AddKpiCard(3, GMoney,   "Tổng tiền phạt ghi nhận", $"{totalFineAmount:N0} đ",            $"Tổng cộng {finesList.Count:N0} phiếu phạt", Orange, Color.FromArgb(254, 245, 231));
+                AddKpiCard(0, GBook, "Tài nguyên kho sách", $"{kpi.AvailableCopies:N0} / {kpi.TotalCopies:N0}",
+                    $"Sẵn sàng trên {kpi.TotalBooks:N0} đầu sách", Primary, SoftBlue);
+                AddKpiCard(1, GForward, "Lưu thông trong kỳ", $"{kpi.BorrowedInRange:N0} lượt",
+                    $"Đã trả: {kpi.ReturnedInRange:N0} cuốn", Green, Color.FromArgb(232, 248, 239));
+                AddKpiCard(2, GWarn, "Sách đang quá hạn", $"{kpi.CurrentOverdue:N0} cuốn",
+                    kpi.CurrentOverdue > 0 ? "Cần thu hồi khẩn cấp" : "Không có sách trễ hạn",
+                    kpi.CurrentOverdue > 0 ? Red : Green,
+                    kpi.CurrentOverdue > 0 ? Color.FromArgb(253, 234, 234) : Color.FromArgb(232, 248, 239));
+                AddKpiCard(3, GMoney, "Tổng tiền phạt ghi nhận", $"{kpi.TotalFineAmount:N0} đ",
+                    $"Tổng cộng {kpi.TotalFineCount:N0} phiếu phạt", Orange, Color.FromArgb(254, 245, 231));
 
-                // 2. Dữ liệu Biểu đồ cột: Mượn / Trả 12 tháng trong năm của _dtpTo
-                int targetYear = _dtpTo.Value.Year;
-                var yearDetails = context.LoanDetails
-                    .Where(ld => ld.Loan.BorrowedAt.Year == targetYear || (ld.ReturnedAt != null && ld.ReturnedAt.Value.Year == targetYear))
-                    .Select(ld => new { ld.Loan.BorrowedAt, ld.ReturnedAt })
-                    .ToList();
-
-                _monthlyStats.Clear();
-                for (int m = 1; m <= 12; m++)
-                {
-                    int bCount = yearDetails.Count(x => x.BorrowedAt.Year == targetYear && x.BorrowedAt.Month == m);
-                    int rCount = yearDetails.Count(x => x.ReturnedAt != null && x.ReturnedAt.Value.Year == targetYear && x.ReturnedAt.Value.Month == m);
-                    _monthlyStats.Add(($"T{m}", bCount, rCount));
-                }
+                // 2. Biểu đồ cột
+                _monthlyStats = report.MonthlyStats;
                 _pnlBarChart.Invalidate();
 
-                // 3. Dữ liệu Biểu đồ tròn: Cơ cấu sách theo thể loại
+                // 3. Biểu đồ tròn (gắn màu hiển thị UI)
                 Color[] palette = { Primary, Green, Orange, Purple, Color.FromArgb(14, 165, 233), Color.FromArgb(236, 72, 153), TextGray };
-                var catGroups = context.Books
-                    .GroupBy(b => b.Category != null ? b.Category.CategoryName : "Chưa phân loại")
-                    .Select(g => new { Name = g.Key, Count = g.Count() })
-                    .OrderByDescending(x => x.Count)
+                _categoryStats = report.CategoryStats
+                    .Select((c, idx) => (c.CategoryName, c.BookCount, palette[Math.Min(idx, palette.Length - 1)]))
                     .ToList();
-
-                _categoryStats.Clear();
-                for (int i = 0; i < catGroups.Count; i++)
-                {
-                    if (i < 6)
-                    {
-                        _categoryStats.Add((catGroups[i].Name, catGroups[i].Count, palette[i]));
-                    }
-                    else
-                    {
-                        int otherSum = catGroups.Skip(6).Sum(x => x.Count);
-                        _categoryStats.Add(("Thể loại khác", otherSum, palette[6]));
-                        break;
-                    }
-                }
                 _pnlPieChart.Invalidate();
 
-                // 4. Bảng 1: Danh sách quá hạn trả
-                var overdueItems = context.LoanDetails
-                    .Where(ld => ld.ReturnedAt == null && ld.DueAt.Date < today)
-                    .OrderBy(ld => ld.DueAt)
-                    .Select(ld => new
-                    {
-                        ld.Loan.LoanCode,
-                        ReaderCode = ld.Loan.Reader.UserCode,
-                        ReaderName = ld.Loan.Reader.FullName,
-                        BookTitle = ld.BookCopy.Book.Title,
-                        CopyCode = ld.BookCopy.CopyCode,
-                        ld.Loan.BorrowedAt,
-                        ld.DueAt
-                    })
-                    .ToList();
-
+                // 4. Bảng 1: Quá hạn
                 _dgvOverdue.Rows.Clear();
-                foreach (var item in overdueItems)
+                foreach (var item in report.OverdueItems)
                 {
-                    int lateDays = (today - item.DueAt.Date).Days;
-                    decimal estFine = lateDays * 5000m; // Đơn giá phạt dự kiến 5.000đ/ngày
                     _dgvOverdue.Rows.Add(
                         item.LoanCode,
                         $"{item.ReaderName} ({item.ReaderCode})",
                         $"{item.BookTitle} [{item.CopyCode}]",
                         item.BorrowedAt.ToString("dd/MM/yyyy"),
                         item.DueAt.ToString("dd/MM/yyyy"),
-                        $"{lateDays} ngày",
-                        $"{estFine:N0} đ"
+                        $"{item.LateDays} ngày",
+                        $"{item.EstimatedFine:N0} đ"
                     );
                 }
 
-                // 5. Bảng 2: Top sách mượn nhiều nhất trong kỳ lọc
-                var topBooks = context.LoanDetails
-                    .Where(ld => ld.Loan.BorrowedAt >= fromDate && ld.Loan.BorrowedAt <= toDate)
-                    .GroupBy(ld => new
-                    {
-                        ld.BookCopy.Book.Id,
-                        ld.BookCopy.Book.Title,
-                        CategoryName = ld.BookCopy.Book.Category != null ? ld.BookCopy.Book.Category.CategoryName : "Khác"
-                    })
-                    .Select(g => new
-                    {
-                        g.Key.Id,
-                        g.Key.Title,
-                        g.Key.CategoryName,
-                        BorrowCount = g.Count()
-                    })
-                    .OrderByDescending(x => x.BorrowCount)
-                    .Take(20)
-                    .ToList();
-
+                // 5. Bảng 2: Top sách
                 _dgvTopBooks.Rows.Clear();
-                int rank = 1;
-                foreach (var b in topBooks)
+                foreach (var b in report.TopBooks)
                 {
-                    int avail = context.BookCopies.Count(c => c.IdBook == b.Id && c.CirculationStatus == CirculationStatus.Available);
-                    int total = context.BookCopies.Count(c => c.IdBook == b.Id);
                     _dgvTopBooks.Rows.Add(
-                        $"#{rank++}",
+                        $"#{b.Rank}",
                         b.Title,
                         b.CategoryName,
                         b.BorrowCount.ToString("N0"),
-                        $"{avail} / {total} cuốn"
+                        $"{b.AvailableCopies} / {b.TotalCopies} cuốn"
                     );
                 }
 
-                // 6. Bảng 3: Sách sắp hết bản sẵn sàng (< 2 cuốn)
-                var lowStockBooks = context.Books
-                    .Select(b => new
-                    {
-                        b.Title,
-                        CategoryName = b.Category != null ? b.Category.CategoryName : "Khác",
-                        TotalCopies = b.Copies.Count(),
-                        AvailableCopies = b.Copies.Count(c => c.CirculationStatus == CirculationStatus.Available),
-                        BorrowedCopies = b.Copies.Count(c => c.CirculationStatus == CirculationStatus.Borrowed)
-                    })
-                    .Where(x => x.AvailableCopies < 2)
-                    .OrderBy(x => x.AvailableCopies)
-                    .ToList();
-
+                // 6. Bảng 3: Tồn kho thấp
                 _dgvLowStock.Rows.Clear();
-                foreach (var s in lowStockBooks)
+                foreach (var s in report.LowStockBooks)
                 {
-                    string status = s.TotalCopies == 0 ? "Chưa nhập bản sách" :
-                                    s.AvailableCopies == 0 ? "Hết sách trên kệ" : "Sắp hết (còn 1)";
-                    _dgvLowStock.Rows.Add(s.Title, s.CategoryName, s.TotalCopies, s.BorrowedCopies, s.AvailableCopies, status);
+                    _dgvLowStock.Rows.Add(s.Title, s.CategoryName, s.TotalCopies, s.BorrowedCopies, s.AvailableCopies, s.StatusText);
                 }
 
-                // 7. Bảng 4: Chi tiết tiền phạt
+                // 7. Bảng 4: Tiền phạt
                 _dgvFines.Rows.Clear();
-                foreach (var f in finesList.OrderByDescending(x => x.Id).Take(50))
+                foreach (var f in report.FineDetails)
                 {
-                    string loanCode = f.LoanDetail?.Loan?.LoanCode ?? "N/A";
-                    string reader   = f.LoanDetail?.Loan?.Reader?.FullName ?? "N/A";
-                    string book     = f.LoanDetail?.BookCopy?.Book?.Title ?? "N/A";
-                    _dgvFines.Rows.Add(
-                        $"PT-{f.Id:D4}",
-                        loanCode,
-                        reader,
-                        book,
-                        f.ViolationType == ViolationType.Other /*?? "Vi phạm quy định mượn trả"*/,
-                        $"{f.AmountVnd:N0} đ"
-                    );
+                    _dgvFines.Rows.Add(f.FineCode, f.LoanCode, f.ReaderName, f.BookTitle, f.Reason, $"{f.AmountVnd:N0} đ");
                 }
+            }
+            catch (ArgumentException ex)
+            {
+                MessageBox.Show(ex.Message, "Cảnh báo bộ lọc", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
             catch (Exception ex)
             {
@@ -501,7 +351,7 @@ namespace LibraryManagement.Controls
         }
 
         // ============================================================
-        //  VẼ BIỂU ĐỒ GDI+ (KHÔNG CẦN THƯ VIỆN NGOÀI)
+        //  VẼ BIỂU ĐỒ GDI+
         // ============================================================
         private void PnlBarChart_Paint(object? sender, PaintEventArgs e)
         {
@@ -515,7 +365,6 @@ namespace LibraryManagement.Controls
             var plot = new Rectangle(padLeft, padTop, _pnlBarChart.Width - padLeft - padRight, _pnlBarChart.Height - padTop - padBottom);
             if (plot.Width <= 40 || plot.Height <= 40) return;
 
-            // Chú thích (Legend)
             using (var b1 = new SolidBrush(Primary))
             using (var b2 = new SolidBrush(Green))
             using (var fLegend = new Font("Segoe UI", 8F))
@@ -528,14 +377,12 @@ namespace LibraryManagement.Controls
             }
 
             int maxVal = Math.Max(5, _monthlyStats.Max(x => Math.Max(x.BorrowCount, x.ReturnCount)));
-            // Làm tròn lên bội số của 5
             maxVal = ((maxVal + 4) / 5) * 5;
 
             using var gridPen = new Pen(Color.FromArgb(232, 235, 240));
             using var axisFont = new Font("Segoe UI", 7.5F);
             using var grayBrush = new SolidBrush(TextGray);
 
-            // Đường lưới ngang & nhãn trục Y
             int steps = 5;
             for (int i = 0; i <= steps; i++)
             {
@@ -546,7 +393,6 @@ namespace LibraryManagement.Controls
                 g.DrawString(val.ToString(), axisFont, grayBrush, plot.Left - sz.Width - 6, y - sz.Height / 2);
             }
 
-            // Vẽ các cặp cột
             float groupWidth = (float)plot.Width / _monthlyStats.Count;
             float barWidth = Math.Min(14f, (groupWidth - 10f) / 2f);
 
@@ -599,7 +445,6 @@ namespace LibraryManagement.Controls
                 startAngle += sweepAngle;
             }
 
-            // Vẽ lỗ tròn ở giữa tạo kiểu Doughnut hiện đại
             int hole = (int)(diameter * 0.52);
             var holeRect = new Rectangle(pieRect.X + (diameter - hole) / 2, pieRect.Y + (diameter - hole) / 2, hole, hole);
             g.FillEllipse(Brushes.White, holeRect);
@@ -610,7 +455,6 @@ namespace LibraryManagement.Controls
                 g.DrawString($"{total}\nđầu sách", fTotal, Brushes.Black, holeRect, sf);
             }
 
-            // Vẽ chú thích bên phải
             int legendX = pieRect.Right + 16;
             int legendY = 16;
             using var fLegend = new Font("Segoe UI", 8.2F);
@@ -768,20 +612,11 @@ namespace LibraryManagement.Controls
 
             try
             {
-                var sb = new StringBuilder();
-                // Header
-                var headers = activeGrid.Columns.Cast<DataGridViewColumn>().Select(c => $"\"{c.HeaderText}\"");
-                sb.AppendLine(string.Join(",", headers));
+                var headers = activeGrid.Columns.Cast<DataGridViewColumn>().Select(c => c.HeaderText);
+                var rows = activeGrid.Rows.Cast<DataGridViewRow>()
+                    .Select(r => r.Cells.Cast<DataGridViewCell>().Select(c => c.Value?.ToString() ?? string.Empty));
 
-                // Rows
-                foreach (DataGridViewRow row in activeGrid.Rows)
-                {
-                    var cells = row.Cells.Cast<DataGridViewCell>().Select(c => $"\"{c.Value?.ToString()?.Replace("\"", "\"\"")}\"");
-                    sb.AppendLine(string.Join(",", cells));
-                }
-
-                // UTF-8 BOM để Excel hiển thị chuẩn tiếng Việt có dấu
-                File.WriteAllText(sfd.FileName, sb.ToString(), new UTF8Encoding(true));
+                _reportService.ExportToCsv(sfd.FileName, headers, rows);
                 MessageBox.Show("Xuất báo cáo thành công!", "Hoàn tất", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)

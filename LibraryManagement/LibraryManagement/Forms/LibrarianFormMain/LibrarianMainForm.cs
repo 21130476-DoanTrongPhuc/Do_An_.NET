@@ -8,6 +8,7 @@ using LibraryManagement.Forms.LibraryCardManagement;
 using LibraryManagement.Forms.ReaderManagement;
 using LibraryManagement.Forms.ReservationManagement;
 using LibraryManagement.Helpers;
+using LibraryManagement.Services;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace LibraryManagement.Forms.LibrarianFormMain
@@ -163,7 +164,8 @@ namespace LibraryManagement.Forms.LibrarianFormMain
                     .Select(u => new { u.FullName, u.UserType, u.UserCode })
                     .FirstOrDefault();
 
-                _lblUserName.Text = currentUser?.FullName ?? "Thủ thư";
+                if (_lblUserName != null)
+                    _lblUserName.Text = currentUser?.FullName ?? "Thủ thư";
                 if (_lblStatusRole != null)
                 {
                     _lblStatusRole.Text = currentUser != null
@@ -247,7 +249,7 @@ namespace LibraryManagement.Forms.LibrarianFormMain
 
                 int lowStock = context.Books.Count(b => b.Copies.Count(c => c.CirculationStatus == CirculationStatus.Available) < 2);
                 if (lowStock > 0)
-                    AddNotice(GBook, Orange, $"{lowStock} đầu sách sắp hết bản sẵn sàng",
+                    AddNotice(GBook ,Orange, $"{lowStock} đầu sách sắp hết bản sẵn sàng",
                         "Số lượng bản có thể mượn dưới 2 cuốn", "Xem bản sách", OpenBookCopiesTab);
 
                 int unpaidFines = context.Fines.Count();
@@ -351,18 +353,18 @@ namespace LibraryManagement.Forms.LibrarianFormMain
 
             // Khu người dùng bên phải
             var user = new Panel { Dock = DockStyle.Right, Width = 340 };
-            user.Controls.Add(new Label
-            {
-                Text = "Người dùng:", AutoSize = true, ForeColor = TextGray,
-                Font = new Font("Segoe UI", 9F), Location = new Point(8, 22)
-            });
-            _lblUserName = new Label
-            {
-                AutoSize = false, AutoEllipsis = true, Size = new Size(140, 20),
-                Font = new Font("Segoe UI", 9F, FontStyle.Bold),
-                Location = new Point(84, 22)
-            };
-            user.Controls.Add(_lblUserName);
+            // user.Controls.Add(new Label
+            // {
+            //     Text = "Người dùng:", AutoSize = true, ForeColor = TextGray,
+            //     Font = new Font("Segoe UI", 9F), Location = new Point(8, 22)
+            // });
+            // _lblUserName = new Label
+            // {
+            //     AutoSize = false, AutoEllipsis = true, Size = new Size(140, 20),
+            //     Font = new Font("Segoe UI", 9F, FontStyle.Bold),
+            //     Location = new Point(84, 22)
+            // };
+            // user.Controls.Add(_lblUserName);
 
             var btnLogout = new Button
             {
@@ -885,7 +887,7 @@ namespace LibraryManagement.Forms.LibrarianFormMain
         private void OpenReadersTab() =>
             OpenOrSelectTab(ref _tabReaders, "Quản lý độc giả", () =>
             {
-                var ctrl = new ReaderManagementControl();
+                var ctrl = AppServices.Provider.GetRequiredService<ReaderManagementControl>();
                 ctrl.ReaderDataChanged += LoadData;
                 return ctrl;
             });
@@ -899,7 +901,7 @@ namespace LibraryManagement.Forms.LibrarianFormMain
             });
 
         private void OpenReportTab() =>
-            OpenOrSelectTab(ref _tabReport, "Báo cáo & Thống kê", () => new Controls.StatisticalReportControl());
+            OpenOrSelectTab(ref _tabReport, "Báo cáo & Thống kê", () => AppServices.Provider.GetRequiredService<StatisticalReportControl>());
 
         private void OpenBookCatalogTab() =>
             OpenOrSelectTab(ref _tabBookCatalog, "Quản lý đầu sách", () =>

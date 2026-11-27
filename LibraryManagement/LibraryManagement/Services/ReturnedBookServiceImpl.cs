@@ -13,13 +13,11 @@ public class ReturnedBookServiceImpl
     
     private readonly IDbContextFactory<LibraryDbContext> _contextFactory;
     private readonly ReturnedBookRepository _bookRepository;
-    private readonly FineRepository _fineRepository;
 
-    public ReturnedBookServiceImpl(IDbContextFactory<LibraryDbContext> contextFactory, ReturnedBookRepository bookRepository, FineRepository fineRepository)
+    public ReturnedBookServiceImpl(IDbContextFactory<LibraryDbContext> contextFactory, ReturnedBookRepository bookRepository)
     {
         _contextFactory = contextFactory;
         _bookRepository = bookRepository;
-        _fineRepository = fineRepository;
     }
 
 

@@ -35,7 +35,7 @@ public class ReturnedBookRepositoryImpl : ReturnedBookRepository
                          .FirstOrDefaultAsync(d => d.Id == id)
                      ?? throw new InvalidOperationException("Không tìm thấy chi tiết mượn.");
 
-        // if(detail.ReturnedAt != null) throw new InvalidOperationException("Sách này đã trả rồi.");
+        if(detail.ReturnedAt != null) throw new InvalidOperationException("Sách này đã trả rồi.");
         var returnedAt = DateTime.Now;
 
         detail.ReturnedAt = returnedAt;

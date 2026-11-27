@@ -1,6 +1,7 @@
 ﻿using System.Drawing.Drawing2D;
-using LibraryManagement.Data;
-using LibraryManagement.Enums;
+using LibraryManagement.DTO.Request;
+using LibraryManagement.Filters;
+using LibraryManagement.Services;
 
 namespace LibraryManagement.Forms.ReaderManagement
 {
@@ -18,14 +19,14 @@ namespace LibraryManagement.Forms.ReaderManagement
         private const string IconFont = "Segoe MDL2 Assets";
 
         // Glyph
-        private const string GPeople   = "\uE716";
         private const string GAddUser  = "\uE8FA";
         private const string GRefresh  = "\uE72C";
         private const string GSearch   = "\uE721";
         private const string GSave     = "\uE74E";
         private const string GLock     = "\uE72E";
-        private const string GUnlock   = "\uE785";
         private const string GCalendar = "\uE787";
+
+        private readonly ReaderManagementService _readerService;
 
         public event Action? ReaderDataChanged;
 
@@ -48,12 +49,13 @@ namespace LibraryManagement.Forms.ReaderManagement
         private Button _btnExtendCard = null!;
         private Button _btnToggleLock = null!;
 
-        public ReaderManagementControl()
+        public ReaderManagementControl(ReaderManagementService readerService)
         {
+            _readerService = readerService;
             BackColor = BgGray;
             Font = new Font("Segoe UI", 9F);
             BuildUi();
-            Load += (_, _) => LoadReaders();
+            Load += async (_, _) => await LoadReadersAsync();
         }
 
         // ============================================================
@@ -63,19 +65,15 @@ namespace LibraryManagement.Forms.ReaderManagement
         {
             SuspendLayout();
 
-            // 1. Header & Thanh tìm kiếm (Top)
             var pnlTop = new Panel { Dock = DockStyle.Top, Height = 112, BackColor = BgGray };
             pnlTop.Controls.Add(BuildFilterBar());
             pnlTop.Controls.Add(BuildHeader());
 
-            // 2. Khu vực chính: Trái (Danh sách) - Phải (Chi tiết & Nghiệp vụ thẻ)
             var pnlMain = new Panel { Dock = DockStyle.Fill, Padding = new Padding(0, 8, 0, 0) };
 
-            // Panel phải: Thông tin chi tiết & Gia hạn thẻ
             var pnlRightHost = new Panel { Dock = DockStyle.Right, Width = 370, Padding = new Padding(10, 0, 0, 0) };
             pnlRightHost.Controls.Add(BuildDetailGroup());
 
-            // Panel trái: DataGridView danh sách độc giả
             var grpList = new GroupBox
             {
                 Text = "Danh sách độc giả thư viện",
@@ -125,7 +123,7 @@ namespace LibraryManagement.Forms.ReaderManagement
 
             var btnRefresh = CreateActionButton("  Làm mới", GRefresh, Color.White, Color.Black, 110);
             btnRefresh.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            btnRefresh.Click += (_, _) => LoadReaders();
+            btnRefresh.Click += async (_, _) => await LoadReadersAsync();
 
             pnl.Controls.Add(btnAdd);
             pnl.Controls.Add(btnRefresh);
@@ -157,7 +155,10 @@ namespace LibraryManagement.Forms.ReaderManagement
                 Width = 260,
                 PlaceholderText = "Mã độc giả, họ tên, email hoặc SĐT..."
             };
-            _txtSearch.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) LoadReaders(); };
+            _txtSearch.KeyDown += async (_, e) =>
+            {
+                if (e.KeyCode == Keys.Enter) await LoadReadersAsync();
+            };
 
             var lblStatus = new Label { Text = "Lọc trạng thái:", AutoSize = true, Location = new Point(0, 16), ForeColor = TextGray };
 
@@ -176,12 +177,12 @@ namespace LibraryManagement.Forms.ReaderManagement
                 "Tài khoản bị khóa"
             });
             _cboFilterStatus.SelectedIndex = 0;
-            _cboFilterStatus.SelectedIndexChanged += (_, _) => LoadReaders();
+            _cboFilterStatus.SelectedIndexChanged += async (_, _) => await LoadReadersAsync();
 
             var btnSearch = CreateActionButton("  Tìm kiếm", GSearch, SoftBlue, Primary, 120);
             btnSearch.Location = new Point(0, 9);
             btnSearch.Height = 31;
-            btnSearch.Click += (_, _) => LoadReaders();
+            btnSearch.Click += async (_, _) => await LoadReadersAsync();
 
             void LayoutFilterBar()
             {
@@ -237,7 +238,6 @@ namespace LibraryManagement.Forms.ReaderManagement
             grp.Controls.Add(_btnSaveInfo);
             y += 48;
 
-            // Khung trạng thái thẻ & lưu thông
             var pnlCardBox = new Panel
             {
                 Location = new Point(14, y),
@@ -270,7 +270,6 @@ namespace LibraryManagement.Forms.ReaderManagement
             grp.Controls.Add(pnlCardBox);
             y += 104;
 
-            // Gia hạn thẻ thư viện
             grp.Controls.Add(new Label { Text = "Gia hạn / Cấp thẻ thư viện:", AutoSize = true, ForeColor = TextGray, Location = new Point(14, y) });
             y += 22;
 
@@ -292,7 +291,6 @@ namespace LibraryManagement.Forms.ReaderManagement
             grp.Controls.Add(_btnExtendCard);
             y += 46;
 
-            // Khóa / Mở khóa tài khoản
             _btnToggleLock = CreateActionButton("  Khóa tài khoản độc giả", GLock, Color.White, Red, 320);
             _btnToggleLock.Location = new Point(14, y);
             _btnToggleLock.Click += BtnToggleLock_Click;
@@ -333,13 +331,13 @@ namespace LibraryManagement.Forms.ReaderManagement
             g.DefaultCellStyle.SelectionBackColor = Color.FromArgb(225, 236, 248);
             g.DefaultCellStyle.SelectionForeColor = Color.Black;
 
-            g.Columns.Add("colId",     "ID");
-            g.Columns.Add("colCode",   "Mã độc giả");
-            g.Columns.Add("colName",   "Họ và tên");
-            g.Columns.Add("colContact","Email / SĐT");
-            g.Columns.Add("colExpire", "Hạn thẻ");
-            g.Columns.Add("colBorrow", "Đang mượn");
-            g.Columns.Add("colStatus", "Trạng thái");
+            g.Columns.Add("colId",      "ID");
+            g.Columns.Add("colCode",    "Mã độc giả");
+            g.Columns.Add("colName",    "Họ và tên");
+            g.Columns.Add("colContact", "Email / SĐT");
+            g.Columns.Add("colExpire",  "Hạn thẻ");
+            g.Columns.Add("colBorrow",  "Đang mượn");
+            g.Columns.Add("colStatus",  "Trạng thái");
 
             g.Columns["colId"]!.Visible = false;
             g.Columns["colCode"]!.DefaultCellStyle.ForeColor = Primary;
@@ -391,90 +389,36 @@ namespace LibraryManagement.Forms.ReaderManagement
         }
 
         // ============================================================
-        //  TẢI DỮ LIỆU & XỬ LÝ NGHIỆP VỤ
+        //  TẢI DỮ LIỆU & GỌI SERVICE
         // ============================================================
-        public void LoadReaders()
+        public void LoadReaders() => _ = LoadReadersAsync();
+
+        public async Task LoadReadersAsync()
         {
             try
             {
-                using var context = new LibraryDbContext();
-                var today = DateTime.Today;
-                string keyword = _txtSearch.Text.Trim().ToLower();
-                int filterMode = _cboFilterStatus.SelectedIndex;
-
-                var rawReaders = context.Users
-                    .Where(u => u.UserType == UserType.Reader)
-                    .Select(u => new
-                    {
-                        u.Id,
-                        u.UserCode,
-                        u.FullName,
-                        u.Email,
-                        u.Phone,
-                        u.Status,
-                        LatestCard = context.ReaderCards
-                            .Where(rc => rc.IdReader == u.Id)
-                            .OrderByDescending(rc => rc.ExpiresAt)
-                            .Select(rc => new { rc.CardCode, rc.ExpiresAt, rc.Status })
-                            .FirstOrDefault(),
-                        ActiveLoans = context.LoanDetails
-                            .Count(ld => ld.Loan.IdReader == u.Id && ld.ReturnedAt == null),
-                        OverdueLoans = context.LoanDetails
-                            .Count(ld => ld.Loan.IdReader == u.Id && ld.ReturnedAt == null && ld.DueAt.Date < today)
-                    })
-                    .OrderByDescending(x => x.Id)
-                    .ToList();
-
-                int totalReaders = rawReaders.Count;
-                int activeCount = rawReaders.Count(r => r.Status == UserStatus.Active);
-
-                var filtered = rawReaders.Where(r =>
+                var filter = new ReaderFilter
                 {
-                    if (!string.IsNullOrEmpty(keyword))
-                    {
-                        bool match = (r.UserCode?.ToLower().Contains(keyword) ?? false)
-                                  || (r.FullName?.ToLower().Contains(keyword) ?? false)
-                                  || (r.Email?.ToLower().Contains(keyword) ?? false)
-                                  || (r.Phone?.ToLower().Contains(keyword) ?? false);
-                        if (!match) return false;
-                    }
+                    Keyword = _txtSearch.Text,
+                    StatusFilterMode = _cboFilterStatus.SelectedIndex
+                };
 
-                    DateTime? exp = r.LatestCard?.ExpiresAt.Date;
-                    return filterMode switch
-                    {
-                        1 => r.Status == UserStatus.Active,
-                        2 => r.Status == UserStatus.Active && exp != null && exp >= today && exp <= today.AddDays(30),
-                        3 => exp == null || exp < today,
-                        4 => r.Status != UserStatus.Active,
-                        _ => true
-                    };
-                }).ToList();
+                var summary = await _readerService.GetReaders(filter);
 
-                _lblSummary.Text = $"Tổng số: {totalReaders:N0} độc giả  ·  Đang hoạt động: {activeCount:N0}  ·  Hiển thị: {filtered.Count:N0} kết quả";
+                _lblSummary.Text =
+                    $"Tổng số: {summary.TotalReaders:N0} độc giả  ·  Đang hoạt động: {summary.ActiveReaders:N0}  ·  Hiển thị: {summary.Items.Count:N0} kết quả";
 
                 _dgvReaders.Rows.Clear();
-                foreach (var r in filtered)
+                foreach (var r in summary.Items)
                 {
-                    DateTime? exp = r.LatestCard?.ExpiresAt.Date;
-                    string statusText =
-                        r.Status != UserStatus.Active          ? "Bị khóa" :
-                        exp == null || exp < today             ? "Hết hạn thẻ" :
-                        (exp.Value - today).Days <= 30         ? "Sắp hết hạn" :
-                                                                 "Hoạt động";
-
-                    string contact = !string.IsNullOrWhiteSpace(r.Phone) ? r.Phone : (r.Email ?? "--");
-                    string borrowText = r.OverdueLoans > 0
-                        ? $"{r.ActiveLoans} ({r.OverdueLoans} trễ)"
-                        : $"{r.ActiveLoans} cuốn";
-
                     _dgvReaders.Rows.Add(
                         r.Id,
                         r.UserCode,
                         r.FullName,
-                        contact,
-                        exp?.ToString("dd/MM/yyyy") ?? "Chưa cấp",
-                        borrowText,
-                        statusText
+                        r.Contact,
+                        r.ExpireDateText,
+                        r.BorrowText,
+                        r.StatusText
                     );
                 }
 
@@ -490,7 +434,7 @@ namespace LibraryManagement.Forms.ReaderManagement
             }
         }
 
-        private void DgvReaders_SelectionChanged(object? sender, EventArgs e)
+        private async void DgvReaders_SelectionChanged(object? sender, EventArgs e)
         {
             if (_dgvReaders.SelectedRows.Count == 0)
             {
@@ -499,33 +443,25 @@ namespace LibraryManagement.Forms.ReaderManagement
             }
 
             if (_dgvReaders.SelectedRows[0].Cells["colId"].Value is not int readerId) return;
-            LoadReaderDetail(readerId);
+            await LoadReaderDetailAsync(readerId);
         }
 
-        private void LoadReaderDetail(int readerId)
+        private async Task LoadReaderDetailAsync(int readerId)
         {
             try
             {
-                using var context = new LibraryDbContext();
-                var today = DateTime.Today;
+                var detail = await _readerService.GetReaderDetail(readerId);
+                if (detail == null) return;
 
-                var user = context.Users.FirstOrDefault(u => u.Id == readerId);
-                if (user == null) return;
-
-                _selectedReaderId = user.Id;
+                _selectedReaderId = detail.Id;
                 SetDetailEnabled(true);
 
-                _txtCode.Text = user.UserCode;
-                _txtFullName.Text = user.FullName;
-                _txtEmail.Text = user.Email ?? "";
-                _txtPhone.Text = user.Phone ?? "";
+                _txtCode.Text = detail.UserCode;
+                _txtFullName.Text = detail.FullName;
+                _txtEmail.Text = detail.Email;
+                _txtPhone.Text = detail.Phone;
 
-                var card = context.ReaderCards
-                    .Where(rc => rc.IdReader == readerId)
-                    .OrderByDescending(rc => rc.ExpiresAt)
-                    .FirstOrDefault();
-
-                if (card == null)
+                if (!detail.HasCard)
                 {
                     _lblCardInfo.ForeColor = Red;
                     _lblCardInfo.Text = "Thẻ thư viện: Chưa được cấp thẻ";
@@ -533,22 +469,18 @@ namespace LibraryManagement.Forms.ReaderManagement
                 }
                 else
                 {
-                    bool expired = card.ExpiresAt.Date < today;
-                    _lblCardInfo.ForeColor = expired ? Red : Primary;
-                    _lblCardInfo.Text = $"Mã thẻ: {card.CardCode}\nHạn sử dụng: {card.ExpiresAt:dd/MM/yyyy} {(expired ? "(Đã hết hạn)" : "")}";
+                    _lblCardInfo.ForeColor = detail.IsCardExpired ? Red : Primary;
+                    _lblCardInfo.Text =
+                        $"Mã thẻ: {detail.CardCode}\nHạn sử dụng: {detail.CardExpiresAt:dd/MM/yyyy} {(detail.IsCardExpired ? "(Đã hết hạn)" : "")}";
                     _btnExtendCard.Text = "  Gia hạn thẻ";
                 }
 
-                int borrowing = context.LoanDetails.Count(ld => ld.Loan.IdReader == readerId && ld.ReturnedAt == null);
-                int overdue = context.LoanDetails.Count(ld => ld.Loan.IdReader == readerId && ld.ReturnedAt == null && ld.DueAt.Date < today);
-                int totalHistory = context.LoanDetails.Count(ld => ld.Loan.IdReader == readerId);
+                _lblBorrowStats.ForeColor = detail.OverdueCount > 0 ? Red : Color.FromArgb(60, 60, 60);
+                _lblBorrowStats.Text =
+                    $"Đang mượn: {detail.BorrowingCount} cuốn (Quá hạn: {detail.OverdueCount}) · Tổng lịch sử: {detail.TotalHistoryCount} lượt";
 
-                _lblBorrowStats.ForeColor = overdue > 0 ? Red : Color.FromArgb(60, 60, 60);
-                _lblBorrowStats.Text = $"Đang mượn: {borrowing} cuốn (Quá hạn: {overdue}) · Tổng lịch sử: {totalHistory} lượt";
-
-                bool isActive = user.Status == UserStatus.Active;
-                _btnToggleLock.Text = isActive ? "  Khóa tài khoản độc giả" : "  Mở khóa tài khoản";
-                _btnToggleLock.ForeColor = isActive ? Red : Green;
+                _btnToggleLock.Text = detail.IsActive ? "  Khóa tài khoản độc giả" : "  Mở khóa tài khoản";
+                _btnToggleLock.ForeColor = detail.IsActive ? Red : Green;
             }
             catch (Exception ex)
             {
@@ -556,39 +488,39 @@ namespace LibraryManagement.Forms.ReaderManagement
             }
         }
 
-        private void BtnAddReader_Click(object? sender, EventArgs e)
+        private async void BtnAddReader_Click(object? sender, EventArgs e)
         {
             using var form = new LibraryManagement.Forms.RegisterForm.RegisterForm(librarianMode: true);
             if (form.ShowDialog(this) == DialogResult.OK)
             {
-                LoadReaders();
+                await LoadReadersAsync();
                 ReaderDataChanged?.Invoke();
             }
         }
 
-        private void BtnSaveInfo_Click(object? sender, EventArgs e)
+        private async void BtnSaveInfo_Click(object? sender, EventArgs e)
         {
             if (_selectedReaderId == null) return;
-            if (string.IsNullOrWhiteSpace(_txtFullName.Text))
-            {
-                MessageBox.Show("Họ tên độc giả không được để trống.", "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
-            }
 
             try
             {
-                using var context = new LibraryDbContext();
-                var user = context.Users.FirstOrDefault(u => u.Id == _selectedReaderId.Value);
-                if (user == null) return;
+                var request = new ReaderUpdateRequest
+                {
+                    Id = _selectedReaderId.Value,
+                    FullName = _txtFullName.Text,
+                    Email = _txtEmail.Text,
+                    Phone = _txtPhone.Text
+                };
 
-                user.FullName = _txtFullName.Text.Trim();
-                user.Email = _txtEmail.Text.Trim();
-                user.Phone = _txtPhone.Text.Trim();
-
-                context.SaveChanges();
+                await _readerService.UpdateReaderInfo(request);
                 MessageBox.Show("Đã cập nhật thông tin độc giả thành công!", "Thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                LoadReaders();
+
+                await LoadReadersAsync();
                 ReaderDataChanged?.Invoke();
+            }
+            catch (ArgumentException ex)
+            {
+                MessageBox.Show(ex.Message, "Cảnh báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
             catch (Exception ex)
             {
@@ -596,7 +528,7 @@ namespace LibraryManagement.Forms.ReaderManagement
             }
         }
 
-        private void BtnExtendCard_Click(object? sender, EventArgs e)
+        private async void BtnExtendCard_Click(object? sender, EventArgs e)
         {
             if (_selectedReaderId == null) return;
             int months = _cboExtendMonths.SelectedIndex switch
@@ -608,36 +540,11 @@ namespace LibraryManagement.Forms.ReaderManagement
 
             try
             {
-                using var context = new LibraryDbContext();
-                var card = context.ReaderCards
-                    .Where(rc => rc.IdReader == _selectedReaderId.Value)
-                    .OrderByDescending(rc => rc.ExpiresAt)
-                    .FirstOrDefault();
-
-                if (card == null)
-                {
-                    card = new LibraryManagement.Models.ReaderCards
-                    {
-                        IdReader = _selectedReaderId.Value,
-                        CardCode = $"CARD-{DateTime.Now:yyMMdd}-{_selectedReaderId.Value:D4}",
-                        IssuedAt = DateTime.Now,
-                        ExpiresAt = DateTime.Today.AddMonths(months),
-                        Status = ReaderCardStatus.Active
-                    };
-                    context.ReaderCards.Add(card);
-                }
-                else
-                {
-                    var baseDate = card.ExpiresAt.Date < DateTime.Today ? DateTime.Today : card.ExpiresAt.Date;
-                    card.ExpiresAt = baseDate.AddMonths(months);
-                    card.Status = ReaderCardStatus.Active;
-                }
-
-                context.SaveChanges();
-                MessageBox.Show($"Đã gia hạn thẻ thêm {months} tháng (Hạn mới: {card.ExpiresAt:dd/MM/yyyy}).",
+                var newExpireDate = await _readerService.ExtendOrIssueCard(_selectedReaderId.Value, months);
+                MessageBox.Show($"Đã gia hạn thẻ thêm {months} tháng (Hạn mới: {newExpireDate:dd/MM/yyyy}).",
                     "Gia hạn thành công", MessageBoxButtons.OK, MessageBoxIcon.Information);
 
-                LoadReaders();
+                await LoadReadersAsync();
                 ReaderDataChanged?.Invoke();
             }
             catch (Exception ex)
@@ -646,27 +553,19 @@ namespace LibraryManagement.Forms.ReaderManagement
             }
         }
 
-        private void BtnToggleLock_Click(object? sender, EventArgs e)
+        private async void BtnToggleLock_Click(object? sender, EventArgs e)
         {
             if (_selectedReaderId == null) return;
 
+            string actionName = _btnToggleLock.Text.Contains("Mở khóa") ? "mở khóa" : "khóa";
+            var confirm = MessageBox.Show($"Bạn có chắc muốn {actionName} tài khoản của độc giả \"{_txtFullName.Text}\"?",
+                "Xác nhận", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            if (confirm != DialogResult.Yes) return;
+
             try
             {
-                using var context = new LibraryDbContext();
-                var user = context.Users.FirstOrDefault(u => u.Id == _selectedReaderId.Value);
-                if (user == null) return;
-
-                bool currentlyActive = user.Status == UserStatus.Active;
-                string actionName = currentlyActive ? "khóa" : "mở khóa";
-
-                var confirm = MessageBox.Show($"Bạn có chắc muốn {actionName} tài khoản của độc giả \"{user.FullName}\"?",
-                    "Xác nhận", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-                if (confirm != DialogResult.Yes) return;
-
-                user.Status = currentlyActive ? UserStatus.Inactive : UserStatus.Active;
-                context.SaveChanges();
-
-                LoadReaders();
+                await _readerService.ToggleLockAccountAsync(_selectedReaderId.Value);
+                await LoadReadersAsync();
                 ReaderDataChanged?.Invoke();
             }
             catch (Exception ex)

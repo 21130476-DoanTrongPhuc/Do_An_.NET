@@ -13,7 +13,6 @@
       <Folder Include="Controls\LibrarianControl\OverdueBooks\" />
       <Folder Include="Controls\ReaderControl\" />
       <Folder Include="Helpers\" />
-      <Folder Include="Repositories\Interafaces\" />
       <Folder Include="Tests\" />
     </ItemGroup>
 
