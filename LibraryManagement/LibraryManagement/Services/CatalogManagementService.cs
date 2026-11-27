@@ -211,7 +211,7 @@ public class CatalogManagementService
             if (hasBorrowed)
                 throw new InvalidOperationException("Đầu sách vẫn còn bản sách đang được mượn, không thể ngừng lưu hành.");
 
-            book.Status = "Discontinued";
+            book.Status = "Inactive";
         }
         else
         {

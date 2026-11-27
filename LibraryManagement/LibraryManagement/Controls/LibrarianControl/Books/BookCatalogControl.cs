@@ -16,7 +16,7 @@ public class BookCatalogControl : UserControl
     private Label _lblCount = null!;
 
     public event Action<Book>? ViewCopiesRequested;
-
+    public event Action? CatalogDataChanged;
     public BookCatalogControl()
     {
         BuildUi();
@@ -180,7 +180,8 @@ public class BookCatalogControl : UserControl
         using var dlg = new BookEditDialog(book);
         if (dlg.ShowDialog() == DialogResult.OK)
             LoadData();
-    }
+        CatalogDataChanged?.Invoke();
+}
 
     private void BtnToggleStatus_Click(object? sender, EventArgs e)
     {
@@ -191,6 +192,7 @@ public class BookCatalogControl : UserControl
         {
             _service.ToggleBookDiscontinued(book.Id);
             LoadData();
+            CatalogDataChanged?.Invoke(); 
         }
         catch (Exception ex)
         {
@@ -325,8 +327,7 @@ public class BookEditDialog : Form
         _txtAuthor.Text = _book.Author;
         if (_book.IdCategory > 0) _cboCategory.SelectedValue = _book.IdCategory;
         _txtPublisher.Text = _book.Publisher;
-        _txtYear.Text = _book.PublishedYear.ToString();
-        _txtLanguage.Text = _book.Language ?? "Tiếng Việt";
+        _txtYear.Text = _book.PublishedYear > 0 ? _book.PublishedYear.ToString() : "";        _txtLanguage.Text = _book.Language ?? "Tiếng Việt";
         // _numPages.Value = _book.PageCount ?? 0;
         _txtDesc.Text = _book.Description;
         _txtCoverPath.Text = _book.CoverImagePath;
@@ -345,7 +346,9 @@ public class BookEditDialog : Form
             _book.IdCategory = _cboCategory.SelectedValue is int id ? id : 0;
             _book.Publisher = _txtPublisher.Text;
             _book.PublishedYear = Convert.ToInt32(_txtYear.Text);
-            _book.Language = _txtLanguage.Text;
+            if (!int.TryParse(_txtYear.Text, out int year) || year < 1000 || year > 9999) 
+                throw new InvalidOperationException("Năm xuất bản phải là số 4 chữ số (1000–9999).");
+            _book.PublishedYear = year;
             // _book.PageCount = _numPages.Value > 0 ? (int)_numPages.Value : null;
             _book.CoverImagePath = string.IsNullOrWhiteSpace(_txtCoverPath.Text) ? null : _txtCoverPath.Text;
             _book.Description = _txtDesc.Text;

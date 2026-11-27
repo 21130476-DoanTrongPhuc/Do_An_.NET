@@ -92,7 +92,7 @@ public class CategoryManagementControl : UserControl
         _numMaxDays = new NumericUpDown { Minimum = 1, Maximum = 90, Value = 14, Width = 120 };
         _numMaxRenewals = new NumericUpDown { Minimum = 0, Maximum = 10, Value = 1, Width = 120 };
         _cboStatus = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Width = 160 };
-        _cboStatus.Items.AddRange(["Active", "Inactive"]);
+        _cboStatus.Items.AddRange([BookCategoryStatus.Active, BookCategoryStatus.Inactive]);
         _cboStatus.SelectedIndex = 0;
 
         _lblBookStats = new Label

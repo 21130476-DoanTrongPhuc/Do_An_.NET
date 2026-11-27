@@ -195,7 +195,7 @@ namespace LibraryManagement.Forms.LibrarianFormMain
                 AddStat(0, GBook,   "Tổng đầu sách",       totalBooks.ToString("N0"),    $"{totalCopies:N0} bản sách vật lý", false);
                 AddStat(1, GPeople, "Độc giả hoạt động",   activeReaders.ToString("N0"), $"+{newReadersThisMonth} độc giả mới tháng này", false);
                 AddStat(2, GForward,"Sách đang mượn",      borrowingCount.ToString("N0"),$"{borrowedToday} lượt mượn hôm nay", false);
-                AddStat(3, GWarn,   "Phiếu quá hạn",       overdueCount.ToString("N0"),  overdueCount > 0 ? "Cần xử lý ngay" : "Không có quá hạn", overdueCount > 0);
+                AddStat(3, GWarn,   "Sách quá hạn",       overdueCount.ToString("N0"),  overdueCount > 0 ? "Cần xử lý ngay" : "Không có quá hạn", overdueCount > 0);
 
                 // 3. Giao dịch gần đây
                 var recentDetails = context.LoanDetails
@@ -250,8 +250,7 @@ namespace LibraryManagement.Forms.LibrarianFormMain
                     AddNotice(GBook, Orange, $"{lowStock} đầu sách sắp hết bản sẵn sàng",
                         "Số lượng bản có thể mượn dưới 2 cuốn", "Xem bản sách", OpenBookCopiesTab);
 
-                int unpaidFines = context.Fines.Count();
-                if (unpaidFines > 0)
+                int unpaidFines = context.Fines.Count(f => f.Status == FineStatus.Unpaid || f.Status == FineStatus.Partial);                if (unpaidFines > 0)
                     AddNotice(GMoney, Orange, $"{unpaidFines} khoản phạt chưa thanh toán",
                         "Độc giả còn nợ phí phạt quá hạn / hư hỏng", "Thu phạt", OpenFinesTab);
 
@@ -905,6 +904,7 @@ namespace LibraryManagement.Forms.LibrarianFormMain
             OpenOrSelectTab(ref _tabBookCatalog, "Quản lý đầu sách", () =>
             {
                 var control = new BookCatalogControl();
+                control.CatalogDataChanged += LoadData; 
                 control.ViewCopiesRequested += book =>
                 {
                     OpenBookCopiesTab();
