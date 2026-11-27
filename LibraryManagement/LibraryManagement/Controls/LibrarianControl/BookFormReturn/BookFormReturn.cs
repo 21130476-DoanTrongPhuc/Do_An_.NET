@@ -115,6 +115,7 @@ public partial class BookFormReturn : UserControl
         {
             Text = "NHẬN TRẢ SÁCH",
             AutoSize = true,
+            BackColor = Color.Transparent,
             Font = new Font("Segoe UI", 11F, FontStyle.Bold),
             Location = new Point(14, 8)
         });
@@ -122,6 +123,7 @@ public partial class BookFormReturn : UserControl
         lblDate = new Label
         {
             AutoSize = true,
+            BackColor = Color.Transparent,
             ForeColor = TextGray,
             Font = new Font("Segoe UI", 8.5F),
             Location = new Point(16, 36)
@@ -131,20 +133,12 @@ public partial class BookFormReturn : UserControl
         lblDate.Text = $"{days[(int)d.DayOfWeek]}, ngày {d:dd} tháng {d:MM} năm {d:yyyy}";
         pnl.Controls.Add(lblDate);
 
-        var btnClose = new Button
-        {
-            Text = "✕  Đóng",
-            FlatStyle = FlatStyle.Flat,
-            BackColor = Color.White,
-            Size = new Size(96, 32),
-            Font = new Font("Segoe UI", 8.5F),
-            Anchor = AnchorStyles.Top | AnchorStyles.Right
-        };
-        btnClose.FlatAppearance.BorderColor = BorderGray;
+        var btnClose = CreateButton("Đóng", Color.White, Color.Black, null, "\uE711");
+        btnClose.Anchor = AnchorStyles.Top | AnchorStyles.Right;
         btnClose.Click += (_, _) => CloseRequested?.Invoke(this, EventArgs.Empty);
         pnl.Controls.Add(btnClose);
-        pnl.Resize += (_, _) => btnClose.Location = new Point(pnl.Width - btnClose.Width - 12, 14);
-        btnClose.Location = new Point(pnl.Width - btnClose.Width - 12, 14);
+        pnl.Resize += (_, _) => btnClose.Location = new Point(pnl.Width - btnClose.Width - 12, (pnl.Height - btnClose.Height) / 2);
+        btnClose.Location = new Point(pnl.Width - btnClose.Width - 12, (pnl.Height - btnClose.Height) / 2);
 
         return pnl;
     }
@@ -232,96 +226,65 @@ public partial class BookFormReturn : UserControl
         var host = new Panel
         {
             Dock = DockStyle.Top,
-            Height = 54,
+            Height = 52,
             Padding = new Padding(12, 8, 12, 4),
             BackColor = BgPage
         };
 
-        var tbl = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 5,
-            RowCount = 1
-        };
-        tbl.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 42F)); // search
-        tbl.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));     // label
-        tbl.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 18F)); // status
-        tbl.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F)); // filler
-        tbl.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F)); // filler
-        tbl.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-
         txtSearch = new TextBox
         {
-            Dock = DockStyle.Fill,
             Font = Font,
-            PlaceholderText = "Tìm mã độc giả, mã phiếu mượn hoặc quét mã vạch...",
-            Margin = new Padding(0, 8, 6, 8)
+            PlaceholderText = "Tìm mã độc giả, mã phiếu mượn hoặc quét mã vạch..."
         };
         txtSearch.KeyDown += (_, e) =>
         {
             if (e.KeyCode == Keys.Enter) { DoSearch(); e.SuppressKeyPress = true; }
         };
 
+        var btnSearch = CreateButton("Tra cứu", Primary, Color.White, null, GSearch);
+        btnSearch.MinimumSize = new Size(0, 32);
+        btnSearch.MaximumSize = new Size(0, 32);
+        btnSearch.Click += (_, _) => DoSearch();
+
+        var lblFilter = new Label
+        {
+            Text = "Lọc:",
+            AutoSize = true,
+            ForeColor = TextGray,
+            Font = new Font("Segoe UI", 9F)
+        };
+
         cboStatusFilter = new ComboBox
         {
-            Dock = DockStyle.Fill,
             DropDownStyle = ComboBoxStyle.DropDownList,
             Font = Font,
-            Margin = new Padding(3, 8, 3, 8)
+            Width = 175
         };
         cboStatusFilter.Items.AddRange(new object[] { "Tất cả", "Có phạt trễ", "Không phạt", "Sách hư hỏng" });
         cboStatusFilter.SelectedIndex = 0;
         cboStatusFilter.SelectedIndexChanged += (_, _) => ApplyStatusFilter();
 
-        var btnSearch = new Button
+        void LayoutFilterBar()
         {
-            Text = "  Tra cứu",
-            Width = 110,
-            Height = 32,
-            FlatStyle = FlatStyle.Flat,
-            BackColor = Primary,
-            ForeColor = Color.White,
-            Font = new Font("Segoe UI", 9F, FontStyle.Bold),
-            Image = GlyphImage(GSearch, 14, Color.White),
-            ImageAlign = ContentAlignment.MiddleLeft,
-            TextImageRelation = TextImageRelation.ImageBeforeText,
-            Margin = new Padding(4, 8, 0, 8),
-            Cursor = Cursors.Hand
-        };
-        btnSearch.FlatAppearance.BorderSize = 0;
-        btnSearch.Click += (_, _) => DoSearch();
+            int right = host.ClientSize.Width - 12;
+            int centerY = host.ClientSize.Height / 2;
 
-        tbl.Controls.Add(txtSearch, 0, 0);
-        tbl.Controls.Add(btnSearch, 1, 0);
-        tbl.Controls.Add(new Label
-        {
-            Text = "Lọc:",
-            AutoSize = true,
-            ForeColor = TextGray,
-            Margin = new Padding(8, 10, 2, 0)
-        }, 2, 0);
-        // cboStatusFilter đè lên label "Lọc:" — dùng flow riêng
-        tbl.Controls.RemoveAt(tbl.Controls.Count - 1);
+            cboStatusFilter.Location = new Point(right - cboStatusFilter.Width, centerY - cboStatusFilter.Height / 2);
+            lblFilter.Location = new Point(cboStatusFilter.Left - lblFilter.Width - 8, centerY - lblFilter.Height / 2);
+            btnSearch.Location = new Point(lblFilter.Left - btnSearch.Width - 16, centerY - btnSearch.Height / 2);
 
-        var filterFlow = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            FlowDirection = FlowDirection.LeftToRight,
-            WrapContents = false,
-            Margin = new Padding(0)
-        };
-        filterFlow.Controls.Add(new Label
-        {
-            Text = "Lọc:",
-            AutoSize = true,
-            ForeColor = TextGray,
-            Margin = new Padding(8, 10, 2, 0)
-        });
-        filterFlow.Controls.Add(cboStatusFilter);
-        tbl.Controls.Add(filterFlow, 2, 0);
-        tbl.SetColumnSpan(filterFlow, 3);
+            txtSearch.SetBounds(
+                12,
+                centerY - txtSearch.Height / 2,
+                Math.Max(180, btnSearch.Left - 20),
+                txtSearch.Height
+            );
+        }
 
-        host.Controls.Add(tbl);
+        host.Controls.AddRange(new Control[] { txtSearch, btnSearch, lblFilter, cboStatusFilter });
+        host.Resize += (_, _) => LayoutFilterBar();
+        LayoutFilterBar();
+
         return host;
     }
 
@@ -333,63 +296,58 @@ public partial class BookFormReturn : UserControl
         var host = new Panel
         {
             Dock = DockStyle.Top,
-            Height = 72,
-            Padding = new Padding(12, 4, 12, 8),
+            Height = 58,
+            Padding = new Padding(12, 4, 12, 6),
             BackColor = BgPage
         };
         host.Paint += (_, e) =>
             e.Graphics.DrawLine(new Pen(BorderGray), 0, host.Height - 1, host.Width, host.Height - 1);
 
-        var tbl = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 4,
-            RowCount = 1
-        };
-        tbl.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));      // icon + label "Độc giả:"
-        tbl.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F)); // info flow
-        tbl.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));      // reset
-        tbl.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));      // reload
-        tbl.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-
-        // Cột 0: label cố định
         var lblReader = new Label
         {
             Text = "Độc giả:",
             AutoSize = true,
             ForeColor = TextGray,
-            Font = new Font("Segoe UI", 9F, FontStyle.Bold),
-            Margin = new Padding(0, 22, 8, 0)
+            Font = new Font("Segoe UI", 9F, FontStyle.Bold)
         };
-        tbl.Controls.Add(lblReader, 0, 0);
 
-        // Cột 1: flow badge thông tin độc giả
         flowReaderInfo = new FlowLayoutPanel
         {
-            Dock = DockStyle.Fill,
             FlowDirection = FlowDirection.LeftToRight,
             WrapContents = false,
             AutoScroll = true,
-            Margin = new Padding(0, 8, 8, 8)
+            BackColor = Color.Transparent,
+            Margin = new Padding(0),
+            Padding = new Padding(0)
         };
-        tbl.Controls.Add(flowReaderInfo, 1, 0);
 
-        // Cột 2: nút Làm mới
-        var btnReset = CreateButton("  Làm mới", Color.White, Color.Black, 100, GRefresh);
-        btnReset.Margin = new Padding(0, 8, 0, 8);
+        var btnReset = CreateButton("Làm mới", Color.White, Color.Black, null, GRefresh);
         btnReset.Click += (_, _) => ResetForm();
-        tbl.Controls.Add(btnReset, 2, 0);
 
-        var btnReload = CreateButton("  Tải lại", Color.White, Color.Black, 90, GRefresh);
-        btnReload.Margin = new Padding(4, 8, 0, 8);
+        var btnReload = CreateButton("Tải lại", Color.White, Color.Black, null, GRefresh);
         btnReload.Click += (_, _) =>
         {
             if (_currentReader != null) { txtSearch.Text = _currentReader.UserCode; DoSearch(); }
             else ResetForm();
         };
-        tbl.Controls.Add(btnReload, 3, 0);
 
-        host.Controls.Add(tbl);
+        void LayoutToolbar()
+        {
+            int centerY = (host.ClientSize.Height - 4) / 2;
+
+            btnReload.Location = new Point(host.ClientSize.Width - btnReload.Width - 12, centerY - btnReload.Height / 2);
+            btnReset.Location = new Point(btnReload.Left - btnReset.Width - 8, centerY - btnReset.Height / 2);
+            lblReader.Location = new Point(12, centerY - lblReader.Height / 2);
+
+            int flowX = lblReader.Right + 10;
+            int flowW = Math.Max(120, btnReset.Left - flowX - 12);
+            flowReaderInfo.SetBounds(flowX, centerY - 18, flowW, 36);
+        }
+
+        host.Controls.AddRange(new Control[] { lblReader, flowReaderInfo, btnReset, btnReload });
+        host.Resize += (_, _) => LayoutToolbar();
+        LayoutToolbar();
+
         return host;
     }
 
@@ -426,45 +384,82 @@ public partial class BookFormReturn : UserControl
             SelectionMode = DataGridViewSelectionMode.CellSelect,
             MultiSelect = false,
             EnableHeadersVisualStyles = false,
-            RowTemplate = { Height = 40 },
-            ColumnHeadersHeight = 38,
+            RowTemplate = { Height = 42 },
+            ColumnHeadersHeight = 40,
             ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing,
-            AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+            AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None,
+            ScrollBars = ScrollBars.Both,
             Font = new Font("Segoe UI", 9F)
         };
         dgvBooks.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(241, 243, 246);
         dgvBooks.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-        dgvBooks.ColumnHeadersDefaultCellStyle.Padding = new Padding(6, 0, 0, 0);
+        dgvBooks.ColumnHeadersDefaultCellStyle.Padding = new Padding(8, 0, 8, 0);
+        dgvBooks.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.False;
         dgvBooks.ColumnHeadersDefaultCellStyle.SelectionBackColor = Color.FromArgb(241, 243, 246);
-        dgvBooks.DefaultCellStyle.Padding = new Padding(6, 0, 0, 0);
+        dgvBooks.DefaultCellStyle.Padding = new Padding(8, 0, 8, 0);
         dgvBooks.DefaultCellStyle.SelectionBackColor = Color.FromArgb(225, 236, 248);
         dgvBooks.DefaultCellStyle.SelectionForeColor = Color.Black;
 
-        // === GIỮ NGUYÊN CÁC CỘT NGHIỆP VỤ ===
+        // Khai báo chiều rộng cố định đủ lớn cho từng tiêu đề cột
         dgvBooks.Columns.Add(new DataGridViewCheckBoxColumn
         {
-            Name = "colCheck", HeaderText = "", FillWeight = 28, FlatStyle = FlatStyle.Standard
+            Name = "colCheck",
+            HeaderText = "",
+            Width = 44,
+            MinimumWidth = 44,
+            Resizable = DataGridViewTriState.False,
+            FlatStyle = FlatStyle.Standard
         });
         dgvBooks.Columns.Add(new DataGridViewTextBoxColumn { Name = "colLoanDetailId", Visible = false });
 
-        AddTextCol(dgvBooks, "colTicket", "Mã phiếu", 55);
-        AddTextCol(dgvBooks, "colCopyCode", "Mã vạch", 65);
-        AddTextCol(dgvBooks, "colTitle", "Tên sách", 150);
-        AddTextCol(dgvBooks, "colCondBorrow", "Tình trạng lúc mượn", 100);
-        AddTextCol(dgvBooks, "colDue", "Hạn trả", 65);
-        AddTextCol(dgvBooks, "colReturn", "Ngày trả", 65);
-        AddTextCol(dgvBooks, "colLate", "Số ngày trễ", 55);
+        AddTextCol(dgvBooks, "colTicket",     "Mã phiếu",            105);
+        AddTextCol(dgvBooks, "colCopyCode",   "Mã vạch",             115);
+        AddTextCol(dgvBooks, "colTitle",      "Tên sách",            150);
+        AddTextCol(dgvBooks, "colCondBorrow", "Tình trạng lúc mượn", 175);
+        AddTextCol(dgvBooks, "colDue",        "Hạn trả",             115);
+        AddTextCol(dgvBooks, "colReturn",     "Ngày trả",            115);
+        AddTextCol(dgvBooks, "colLate",       "Số ngày trễ",         115);
+
         dgvBooks.Columns.Add(new DataGridViewComboBoxColumn
         {
             Name = "colCondReturn",
             HeaderText = "Tình trạng khi trả",
-            FillWeight = 100,
+            Width = 175,
+            MinimumWidth = 175,
             FlatStyle = FlatStyle.Flat,
             DataSource = new[] { "Bình thường", "Hư hỏng", "Hư hỏng nặng", "Mất sách" }
         });
-        AddTextCol(dgvBooks, "colLateFee", "Phạt trễ hạn", 75);
-        AddTextCol(dgvBooks, "colDamageFee", "Phạt hư hỏng/mất", 85);
-        AddTextCol(dgvBooks, "colNote", "Ghi chú", 100);
+
+        AddTextCol(dgvBooks, "colLateFee",   "Phạt trễ hạn",     130);
+        AddTextCol(dgvBooks, "colDamageFee", "Phạt hư hỏng/mất", 160);
+        AddTextCol(dgvBooks, "colNote",      "Ghi chú",          180);
+
+        // Khóa chỉ đọc cho các cột chỉ hiển thị, giữ mở cho cột checkbox, tình trạng trả, tiền phạt hư hỏng và ghi chú
+        foreach (DataGridViewColumn col in dgvBooks.Columns)
+        {
+            col.ReadOnly = col.Name is not ("colCheck" or "colCondReturn" or "colDamageFee" or "colNote");
+        }
+
+        // Tự động giãn thêm cột "Tên sách" và "Ghi chú" nếu màn hình rộng hơn tổng chiều rộng mặc định
+        void StretchColumnsIfWide()
+        {
+            int fixedTotal = dgvBooks.Columns.Cast<DataGridViewColumn>()
+                .Where(c => c.Visible && c.Name is not ("colTitle" or "colNote"))
+                .Sum(c => c.MinimumWidth);
+
+            int remaining = dgvBooks.ClientSize.Width - fixedTotal - 4;
+            if (remaining > 430)
+            {
+                dgvBooks.Columns["colTitle"]!.Width = (int)(remaining * 0.6);
+                dgvBooks.Columns["colNote"]!.Width = remaining - dgvBooks.Columns["colTitle"]!.Width;
+            }
+            else
+            {
+                dgvBooks.Columns["colTitle"]!.Width = 250;
+                dgvBooks.Columns["colNote"]!.Width = 180;
+            }
+        }
+        dgvBooks.Resize += (_, _) => StretchColumnsIfWide();
 
         dgvBooks.Columns["colTicket"]!.DefaultCellStyle.ForeColor = Primary;
         dgvBooks.Columns["colTicket"]!.DefaultCellStyle.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
@@ -493,11 +488,14 @@ public partial class BookFormReturn : UserControl
         return host;
     }
 
-    private static void AddTextCol(DataGridView g, string name, string header, float weight)
+    private static void AddTextCol(DataGridView g, string name, string header, int width)
     {
         g.Columns.Add(new DataGridViewTextBoxColumn
         {
-            Name = name, HeaderText = header, FillWeight = weight
+            Name = name,
+            HeaderText = header,
+            Width = width,
+            MinimumWidth = width
         });
     }
 
@@ -509,7 +507,7 @@ public partial class BookFormReturn : UserControl
         var host = new Panel
         {
             Dock = DockStyle.Bottom,
-            Height = 200,
+            Height = 205,
             Padding = new Padding(12, 4, 12, 12)
         };
 
@@ -517,7 +515,7 @@ public partial class BookFormReturn : UserControl
         {
             Text = "Tổng kết",
             Dock = DockStyle.Fill,
-            Padding = new Padding(14, 8, 14, 10)
+            Padding = new Padding(14, 10, 14, 10)
         };
 
         var tbl = new TableLayoutPanel
@@ -527,10 +525,10 @@ public partial class BookFormReturn : UserControl
             RowCount = 1
         };
         tbl.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));   // summary
-        tbl.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 400F));  // actions
+        tbl.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 360F));  // actions
         tbl.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
-        // LEFT: Tổng kết dạng TableLayout 2 cột
+        // LEFT: Tổng kết dạng TableLayout 2 cột, 5 hàng
         var leftTbl = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
@@ -538,47 +536,60 @@ public partial class BookFormReturn : UserControl
             RowCount = 5,
             Margin = new Padding(0)
         };
-        leftTbl.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 200F));
+        leftTbl.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 210F));
         leftTbl.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        for (int i = 0; i < 4; i++)
-            leftTbl.RowStyles.Add(new RowStyle(SizeType.Absolute, 26F));
-        leftTbl.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+
+        leftTbl.RowStyles.Add(new RowStyle(SizeType.Absolute, 26F)); // Row 0: Tổng số sách trả
+        leftTbl.RowStyles.Add(new RowStyle(SizeType.Absolute, 26F)); // Row 1: Tổng phạt trễ hạn
+        leftTbl.RowStyles.Add(new RowStyle(SizeType.Absolute, 26F)); // Row 2: Tổng phạt hư hỏng/mất
+        leftTbl.RowStyles.Add(new RowStyle(SizeType.Absolute, 38F)); // Row 3: Tổng thanh toán (cao 38px để không cắt chữ 13pt)
+        leftTbl.RowStyles.Add(new RowStyle(SizeType.Percent, 100F)); // Row 4: RadioButton hình thức thu phạt
 
         lblTotalBooks     = AddSummaryRow(leftTbl, "Tổng số sách trả:", "0", 0);
         lblTotalLateFee   = AddSummaryRow(leftTbl, "Tổng phạt trễ hạn:", "0 đ", 1);
         lblTotalDamageFee = AddSummaryRow(leftTbl, "Tổng phạt hư hỏng/mất:", "0 đ", 2);
 
-        var pnlGrand = new FlowLayoutPanel
+        // Row 3: Hiển thị trọn vẹn dòng "Tổng thanh toán"
+        lblGrandTotal = new Label
+        {
+            Text = "Tổng thanh toán:  0 đ",
+            AutoSize = false,
+            Dock = DockStyle.Fill,
+            TextAlign = ContentAlignment.MiddleLeft,
+            Font = new Font("Segoe UI", 13F, FontStyle.Bold),
+            ForeColor = Red,
+            Margin = new Padding(0, 2, 0, 0)
+        };
+        leftTbl.Controls.Add(lblGrandTotal, 0, 3);
+        leftTbl.SetColumnSpan(lblGrandTotal, 2);
+
+        // Row 4: Đưa 2 lựa chọn thu tiền xuống dưới để không chèn ép chiều ngang của "Tổng thanh toán"
+        var pnlPayMode = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
             FlowDirection = FlowDirection.LeftToRight,
             WrapContents = false,
-            Margin = new Padding(0, 4, 0, 0)
+            Margin = new Padding(0, 2, 0, 0)
         };
-        lblGrandTotal = new Label
-        {
-            Text = "Tổng thanh toán:  0 đ",
-            AutoSize = true,
-            Font = new Font("Segoe UI", 13F, FontStyle.Bold),
-            ForeColor = Red,
-            Margin = new Padding(0, 4, 24, 0)
-        };
-        pnlGrand.Controls.Add(lblGrandTotal);
 
         rdoPaid = new RadioButton
         {
-            Text = "Đã thu tiền", AutoSize = true, Checked = true,
-            Margin = new Padding(0, 8, 8, 0)
+            Text = "Đã thu tiền",
+            AutoSize = true,
+            Checked = true,
+            Margin = new Padding(0, 4, 20, 0)
         };
         rdoDebt = new RadioButton
         {
-            Text = "Ghi nợ phạt", AutoSize = true, Margin = new Padding(0, 8, 0, 0)
+            Text = "Ghi nợ phạt",
+            AutoSize = true,
+            Margin = new Padding(0, 4, 0, 0)
         };
-        pnlGrand.Controls.Add(rdoPaid);
-        pnlGrand.Controls.Add(rdoDebt);
+        pnlPayMode.Controls.Add(rdoPaid);
+        pnlPayMode.Controls.Add(rdoDebt);
 
-        leftTbl.Controls.Add(pnlGrand, 0, 3);
-        leftTbl.SetColumnSpan(pnlGrand, 2);
+        leftTbl.Controls.Add(pnlPayMode, 0, 4);
+        leftTbl.SetColumnSpan(pnlPayMode, 2);
 
         // RIGHT: 3 nút xếp dọc
         var rightTbl = new TableLayoutPanel
@@ -1127,28 +1138,42 @@ public partial class BookFormReturn : UserControl
     // =========================================================
     // HELPERS
     // =========================================================
-    private Button CreateButton(string text, Color backColor, Color foreColor, int width, string? glyph = null)
+    private Button CreateButton(string text, Color backColor, Color foreColor, int? width, string? glyph = null)
     {
         var b = new Button
         {
-            Text = text,
-            Width = width,
-            Height = 32,
+            Text = glyph != null ? " " + text.Trim() : text.Trim(),
             BackColor = backColor,
             ForeColor = foreColor,
             FlatStyle = FlatStyle.Flat,
             Font = new Font("Segoe UI", 9F, backColor != Color.White ? FontStyle.Bold : FontStyle.Regular),
-            Margin = new Padding(4, 8, 0, 4),
-            Padding = new Padding(10, 0, 10, 0),
-            TextAlign = ContentAlignment.MiddleLeft,
+            Margin = new Padding(4, 4, 0, 4),
+            Padding = new Padding(10, 0, 12, 0),
+            TextAlign = ContentAlignment.MiddleCenter,
+            UseCompatibleTextRendering = false,
             Cursor = Cursors.Hand
         };
+
+        if (width.HasValue && width.Value > 0)
+        {
+            b.AutoSize = false;
+            b.Size = new Size(width.Value, 34);
+        }
+        else if (width == null)
+        {
+            b.AutoSize = true;
+            b.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            b.MinimumSize = new Size(0, 34);
+            b.MaximumSize = new Size(0, 34);
+        }
+
         if (glyph != null)
         {
-            b.Image = GlyphImage(glyph, 14, foreColor);
+            b.Image = GlyphImage(glyph, 13, foreColor);
             b.ImageAlign = ContentAlignment.MiddleLeft;
             b.TextImageRelation = TextImageRelation.ImageBeforeText;
         }
+
         b.FlatAppearance.BorderColor = backColor == Color.White ? BorderGray : backColor;
         if (backColor != Color.White) b.FlatAppearance.BorderSize = 0;
         return b;
@@ -1156,11 +1181,18 @@ public partial class BookFormReturn : UserControl
 
     private static Bitmap GlyphImage(string glyph, int size, Color color)
     {
-        var bmp = new Bitmap(size + 6, size + 6);
+        var bmp = new Bitmap(16, 16);
         using var g = Graphics.FromImage(bmp);
         using var f = new Font(IconFont, size, GraphicsUnit.Pixel);
-        TextRenderer.DrawText(g, glyph, f, new Rectangle(0, -1, bmp.Width, bmp.Height), color,
-            TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
+        g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
+        TextRenderer.DrawText(
+            g,
+            glyph,
+            f,
+            new Rectangle(0, 0, 16, 16),
+            color,
+            TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix
+        );
         return bmp;
     }
 

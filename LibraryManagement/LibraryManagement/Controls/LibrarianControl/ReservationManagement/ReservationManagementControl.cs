@@ -94,17 +94,18 @@ namespace LibraryManagement.Forms.ReservationManagement
 
         private Panel BuildHeader()
         {
-            var pnl = new Panel { Dock = DockStyle.Top, Height = 56, BackColor = SoftBlue };
+            var pnl = new Panel { Dock = DockStyle.Top, Height = 58, BackColor = SoftBlue };
             pnl.Paint += (_, e) => e.Graphics.DrawRectangle(new Pen(BorderGray), 0, 0, pnl.Width - 1, pnl.Height - 1);
 
-            pnl.Controls.Add(new Label
+            var lblTitle = new Label
             {
-                Text = "QUẢN LÝ ĐẶT TRƯỚC SÁCH & THÔNG BÁO NHẬN SÁCH",
+                Text = "QUẢN LÝ ĐẶT TRƯỚC SÁCH && THÔNG BÁO NHẬN SÁCH",
                 AutoSize = true,
                 BackColor = Color.Transparent,
                 Font = new Font("Segoe UI", 11F, FontStyle.Bold),
-                Location = new Point(14, 7)
-            });
+                Location = new Point(14, 8)
+            };
+            pnl.Controls.Add(lblTitle);
 
             _lblSummary = new Label
             {
@@ -113,16 +114,26 @@ namespace LibraryManagement.Forms.ReservationManagement
                 BackColor = Color.Transparent,
                 ForeColor = TextGray,
                 Font = new Font("Segoe UI", 8.5F),
-                Location = new Point(16, 31)
+                Location = new Point(16, 32)
             };
             pnl.Controls.Add(_lblSummary);
 
-            var btnRefresh = CreateActionButton("Làm mới dữ liệu", GRefresh, Primary, Color.White, 185);
+            var btnRefresh = CreateActionButton("Làm mới dữ liệu", GRefresh, Primary, Color.White);
             btnRefresh.Anchor = AnchorStyles.Top | AnchorStyles.Right;
             btnRefresh.Click += async (_, _) => await LoadReservationsAsync();
 
             pnl.Controls.Add(btnRefresh);
-            pnl.Resize += (_, _) => btnRefresh.Location = new Point(pnl.Width - btnRefresh.Width - 12, 11);
+
+            void LayoutHeader()
+            {
+                btnRefresh.Location = new Point(
+                    Math.Max(lblTitle.Right + 16, pnl.ClientSize.Width - btnRefresh.Width - 12),
+                    (pnl.ClientSize.Height - btnRefresh.Height) / 2
+                );
+            }
+
+            pnl.Resize += (_, _) => LayoutHeader();
+            LayoutHeader();
 
             return pnl;
         }
@@ -138,11 +149,10 @@ namespace LibraryManagement.Forms.ReservationManagement
             };
             pnl.Paint += (_, e) => e.Graphics.DrawRectangle(new Pen(BorderGray), 0, 0, pnl.Width - 1, pnl.Height - 1);
 
-            var lblSearch = new Label { Text = "Tìm kiếm:", AutoSize = true, Location = new Point(14, 16), ForeColor = TextGray };
+            var lblSearch = new Label { Text = "Tìm kiếm:", AutoSize = true, ForeColor = TextGray };
 
             _txtSearch = new TextBox
             {
-                Location = new Point(0, 12),
                 Width = 260,
                 PlaceholderText = "Mã đặt trước, tên độc giả hoặc tên sách..."
             };
@@ -151,13 +161,12 @@ namespace LibraryManagement.Forms.ReservationManagement
                 if (e.KeyCode == Keys.Enter) await LoadReservationsAsync();
             };
 
-            var lblStatus = new Label { Text = "Trạng thái:", AutoSize = true, Location = new Point(0, 16), ForeColor = TextGray };
+            var lblStatus = new Label { Text = "Trạng thái:", AutoSize = true, ForeColor = TextGray };
 
             _cboStatusFilter = new ComboBox
             {
                 DropDownStyle = ComboBoxStyle.DropDownList,
-                Location = new Point(0, 12),
-                Width = 185
+                Width = 195
             };
             _cboStatusFilter.Items.AddRange(new object[]
             {
@@ -170,20 +179,26 @@ namespace LibraryManagement.Forms.ReservationManagement
             _cboStatusFilter.SelectedIndex = 1;
             _cboStatusFilter.SelectedIndexChanged += async (_, _) => await LoadReservationsAsync();
 
-            var btnSearch = CreateActionButton("  Lọc danh sách", GSearch, SoftBlue, Primary, 145);
-            btnSearch.Location = new Point(0, 9);
-            btnSearch.Height = 31;
+            var btnSearch = CreateActionButton("Lọc danh sách", GSearch, SoftBlue, Primary);
+            btnSearch.MinimumSize = new Size(0, 31);
+            btnSearch.MaximumSize = new Size(0, 31);
             btnSearch.Click += async (_, _) => await LoadReservationsAsync();
 
             void LayoutFilterBar()
             {
-                btnSearch.Left = pnl.ClientSize.Width - btnSearch.Width - 12;
-                _cboStatusFilter.Left = btnSearch.Left - _cboStatusFilter.Width - 10;
-                lblStatus.Left = _cboStatusFilter.Left - lblStatus.Width - 8;
-                _txtSearch.Left = lblSearch.Right + 10;
-                _txtSearch.Width = Math.Max(150, lblStatus.Left - _txtSearch.Left - 12);
-                lblSearch.Top = (pnl.ClientSize.Height - lblSearch.Height) / 2;
-                lblStatus.Top = (pnl.ClientSize.Height - lblStatus.Height) / 2;
+                int cy = pnl.ClientSize.Height / 2;
+
+                btnSearch.Location = new Point(pnl.ClientSize.Width - btnSearch.Width - 12, cy - btnSearch.Height / 2);
+                _cboStatusFilter.Location = new Point(btnSearch.Left - _cboStatusFilter.Width - 12, cy - _cboStatusFilter.Height / 2);
+                lblStatus.Location = new Point(_cboStatusFilter.Left - lblStatus.Width - 8, cy - lblStatus.Height / 2);
+
+                lblSearch.Location = new Point(14, cy - lblSearch.Height / 2);
+                _txtSearch.SetBounds(
+                    lblSearch.Right + 10,
+                    cy - _txtSearch.Height / 2,
+                    Math.Max(150, lblStatus.Left - (lblSearch.Right + 10) - 16),
+                    _txtSearch.Height
+                );
             }
 
             pnl.Controls.AddRange(new Control[] { lblSearch, _txtSearch, lblStatus, _cboStatusFilter, btnSearch });
@@ -196,7 +211,7 @@ namespace LibraryManagement.Forms.ReservationManagement
         {
             var grp = new GroupBox
             {
-                Text = "Duyệt phiếu & Gửi thông báo cho độc giả",
+                Text = "Duyệt phiếu && Gửi thông báo cho độc giả",
                 Dock = DockStyle.Fill,
                 Padding = new Padding(12, 10, 12, 12),
                 BackColor = Color.White
@@ -205,7 +220,7 @@ namespace LibraryManagement.Forms.ReservationManagement
             var pnlCard = new Panel
             {
                 Location = new Point(14, 26),
-                Size = new Size(350, 132),
+                Size = new Size(364, 132),
                 BackColor = SoftBlue,
                 Padding = new Padding(10)
             };
@@ -225,7 +240,7 @@ namespace LibraryManagement.Forms.ReservationManagement
                 Font = new Font("Segoe UI", 8.5F),
                 ForeColor = Color.Black,
                 AutoSize = false,
-                Size = new Size(330, 34),
+                Size = new Size(344, 34),
                 Location = new Point(10, 30)
             };
             _lblBookInfo = new Label
@@ -234,7 +249,7 @@ namespace LibraryManagement.Forms.ReservationManagement
                 Font = new Font("Segoe UI", 8.5F, FontStyle.Bold),
                 ForeColor = Color.FromArgb(40, 40, 40),
                 AutoSize = false,
-                Size = new Size(330, 34),
+                Size = new Size(344, 34),
                 Location = new Point(10, 66)
             };
             _lblTimeInfo = new Label
@@ -242,7 +257,8 @@ namespace LibraryManagement.Forms.ReservationManagement
                 Text = "Thời gian đặt: --",
                 Font = new Font("Segoe UI", 8F),
                 ForeColor = TextGray,
-                AutoSize = true,
+                AutoSize = false,
+                Size = new Size(344, 20),
                 Location = new Point(10, 104)
             };
 
@@ -265,7 +281,7 @@ namespace LibraryManagement.Forms.ReservationManagement
             {
                 DropDownStyle = ComboBoxStyle.DropDownList,
                 Location = new Point(14, y),
-                Width = 350
+                Width = 364
             };
             _cboAvailableCopies.SelectedIndexChanged += (_, _) => UpdateNotificationTemplate();
             grp.Controls.Add(_cboAvailableCopies);
@@ -285,8 +301,8 @@ namespace LibraryManagement.Forms.ReservationManagement
                 Minimum = 1,
                 Maximum = 14,
                 Value = 3,
-                Location = new Point(lblHoldDays.Right + 12, y),
-                Width = 109
+                Location = new Point(250, y),
+                Width = 128
             };
             _numHoldDays.ValueChanged += (_, _) => UpdateNotificationTemplate();
             grp.Controls.Add(_numHoldDays);
@@ -305,7 +321,7 @@ namespace LibraryManagement.Forms.ReservationManagement
             _txtNotifyMessage = new TextBox
             {
                 Location = new Point(14, y),
-                Size = new Size(350, 96),
+                Size = new Size(364, 96),
                 Multiline = true,
                 ScrollBars = ScrollBars.Vertical,
                 Font = new Font("Segoe UI", 8.8F)
@@ -313,23 +329,44 @@ namespace LibraryManagement.Forms.ReservationManagement
             grp.Controls.Add(_txtNotifyMessage);
             y += 108;
 
-            _btnApproveAndNotify = CreateActionButton("  Duyệt & Thông báo sách sẵn sàng", GCheck, Green, Color.White, 350);
+            _btnApproveAndNotify = CreateActionButton("Duyệt & Thông báo sách sẵn sàng", GCheck, Green, Color.White, 364);
             _btnApproveAndNotify.Height = 38;
             _btnApproveAndNotify.Location = new Point(14, y);
             _btnApproveAndNotify.Click += BtnApproveAndNotify_Click;
             grp.Controls.Add(_btnApproveAndNotify);
             y += 46;
 
-            _btnResendNotify = CreateActionButton("  Gửi lại thông báo", GMail, SoftBlue, Primary, 170);
+            _btnResendNotify = CreateActionButton("Gửi lại thông báo", GMail, SoftBlue, Primary, 186);
             _btnResendNotify.Location = new Point(14, y);
             _btnResendNotify.Click += BtnResendNotify_Click;
 
-            _btnCancelRes = CreateActionButton("  Hủy yêu cầu", GClose, Color.White, Red, 170);
-            _btnCancelRes.Location = new Point(194, y);
+            _btnCancelRes = CreateActionButton("Hủy yêu cầu", GClose, Color.White, Red, 168);
+            _btnCancelRes.Location = new Point(210, y);
             _btnCancelRes.Click += BtnCancelRes_Click;
 
             grp.Controls.Add(_btnResendNotify);
             grp.Controls.Add(_btnCancelRes);
+
+            // Tự giãn đều chiều ngang các thành phần khi resize
+            grp.Resize += (_, _) =>
+            {
+                int contentW = Math.Max(260, grp.ClientSize.Width - 28);
+                pnlCard.Width = contentW;
+                _lblReaderInfo.Width = contentW - 20;
+                _lblBookInfo.Width = contentW - 20;
+                _lblTimeInfo.Width = contentW - 20;
+
+                _cboAvailableCopies.Width = contentW;
+                _numHoldDays.Left = 14 + contentW - _numHoldDays.Width;
+                _txtNotifyMessage.Width = contentW;
+                _btnApproveAndNotify.Width = contentW;
+
+                int gap = 10;
+                int resendW = (int)((contentW - gap) * 0.54);
+                int cancelW = contentW - gap - resendW;
+                _btnResendNotify.SetBounds(14, _btnResendNotify.Top, resendW, 34);
+                _btnCancelRes.SetBounds(14 + resendW + gap, _btnCancelRes.Top, cancelW, 34);
+            };
 
             SetApprovalPanelEnabled(false);
             return grp;
@@ -497,8 +534,8 @@ namespace LibraryManagement.Forms.ReservationManagement
                 _lblReaderInfo.Text = $"Độc giả: {detail.ReaderFullName} ({detail.ReaderCode}) · {detail.ReaderContact}";
                 _lblBookInfo.Text = $"Sách đặt: [{detail.BookCode}] {detail.BookTitle}";
                 _lblTimeInfo.Text = detail.ExpiresAt != null
-                    ? $"Đặt lúc: {detail.ReservedAt:dd/MM/yyyy HH:mm}  ·  Hạn giữ đến: {detail.ExpiresAt:dd/MM/yyyy}"
-                    : $"Đặt lúc: {detail.ReservedAt:dd/MM/yyyy HH:mm}";
+                    ? $"Đặt: {detail.ReservedAt:dd/MM/yyyy HH:mm}  ·  Hạn giữ: {detail.ExpiresAt:dd/MM/yyyy}"
+                    : $"Đặt: {detail.ReservedAt:dd/MM/yyyy HH:mm}";
 
                 _cboAvailableCopies.DataSource = null;
                 _cboAvailableCopies.Items.Clear();
@@ -655,32 +692,56 @@ namespace LibraryManagement.Forms.ReservationManagement
             _btnCancelRes.Enabled        = enabled;
         }
 
-        private static Button CreateActionButton(string text, string glyph, Color back, Color fore, int width)
+        private static Button CreateActionButton(string text, string glyph, Color back, Color fore, int? fixedWidth = null)
         {
-            var bmp = new Bitmap(18, 18);
+            var bmp = new Bitmap(16, 16);
             using (var g = Graphics.FromImage(bmp))
-            using (var f = new Font(IconFont, 13, GraphicsUnit.Pixel))
+            using (var f = new Font(IconFont, 13F, GraphicsUnit.Pixel))
             {
-                TextRenderer.DrawText(g, glyph, f, new Rectangle(0, -1, 18, 18), fore,
-                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
+                g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
+                TextRenderer.DrawText(
+                    g,
+                    glyph,
+                    f,
+                    new Rectangle(0, 0, 16, 16),
+                    fore,
+                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix
+                );
             }
 
             var btn = new Button
             {
-                Text = text,
+                Text = " " + text.Trim().Replace("&", "&&"),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = back,
                 ForeColor = fore,
-                Size = new Size(width, 34),
                 Image = bmp,
                 ImageAlign = ContentAlignment.MiddleLeft,
                 TextImageRelation = TextImageRelation.ImageBeforeText,
-                TextAlign = ContentAlignment.MiddleLeft,
-                Padding = new Padding(8, 0, 8, 0),
+                TextAlign = ContentAlignment.MiddleCenter,
+                Padding = new Padding(8, 0, 10, 0),
                 Font = new Font("Segoe UI", 8.5F, FontStyle.Bold),
+                UseCompatibleTextRendering = false,
                 Cursor = Cursors.Hand
             };
+
+            if (fixedWidth.HasValue)
+            {
+                btn.AutoSize = false;
+                btn.Size = new Size(fixedWidth.Value, 34);
+            }
+            else
+            {
+                btn.AutoSize = true;
+                btn.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+                btn.MinimumSize = new Size(0, 34);
+                btn.MaximumSize = new Size(0, 34);
+            }
+
             btn.FlatAppearance.BorderColor = BorderGray;
+            if (back != Color.White && back != SoftBlue)
+                btn.FlatAppearance.BorderSize = 0;
+
             return btn;
         }
 

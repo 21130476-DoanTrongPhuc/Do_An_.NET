@@ -1,4 +1,5 @@
-﻿using LibraryManagement.Enums;
+﻿using System.Drawing.Drawing2D;
+using LibraryManagement.Enums;
 using LibraryManagement.Models;
 using LibraryManagement.Services;
 
@@ -6,129 +7,294 @@ namespace LibraryManagement.Forms.Books;
 
 public class BookCatalogControl : UserControl
 {
+    // ====== Bảng màu đồng bộ hệ thống ======
+    private static readonly Color Primary    = Color.FromArgb(19, 98, 160);
+    private static readonly Color BgGray     = Color.FromArgb(240, 242, 245);
+    private static readonly Color BorderGray = Color.FromArgb(205, 210, 218);
+    private static readonly Color TextGray   = Color.FromArgb(110, 117, 128);
+    private static readonly Color SoftBlue   = Color.FromArgb(232, 240, 250);
+    private static readonly Color Orange     = Color.FromArgb(214, 140, 10);
+    private static readonly Color Green      = Color.FromArgb(34, 160, 90);
+    private static readonly Color Red        = Color.FromArgb(200, 40, 40);
+    private const string IconFont = "Segoe MDL2 Assets";
+
+    // Glyph icons
+    private const string GAdd      = "\uE710";
+    private const string GEdit     = "\uE70F";
+    private const string GToggle   = "\uE8AB";
+    private const string GCopies   = "\uE8F1";
+    private const string GRefresh  = "\uE72C";
+
     private readonly CatalogManagementService _service = new();
     private List<Book> _books = new();
 
+    private Label _lblSummary = null!;
     private TextBox _txtSearch = null!;
     private ComboBox _cboCategoryFilter = null!;
     private CheckBox _chkShowDiscontinued = null!;
     private DataGridView _dgvBooks = null!;
-    private Label _lblCount = null!;
 
     public event Action<Book>? ViewCopiesRequested;
     public event Action? CatalogDataChanged;
+
     public BookCatalogControl()
     {
+        BackColor = BgGray;
+        Font = new Font("Segoe UI", 9F);
         BuildUi();
         LoadFilters();
         LoadData();
     }
 
+    // ============================================================
+    //  DỰNG GIAO DIỆN ĐỒNG BỘ
+    // ============================================================
     private void BuildUi()
     {
-        BackColor = Color.FromArgb(245, 247, 250);
-        Padding = new Padding(10);
+        SuspendLayout();
 
-        // Thanh công cụ nghiệp vụ 1.1
-        var pnlTop = new FlowLayoutPanel
+        // 1. Header + FilterBar (Top)
+        var pnlTop = new Panel { Dock = DockStyle.Top, Height = 112, BackColor = BgGray };
+        pnlTop.Controls.Add(BuildFilterBar());
+        pnlTop.Controls.Add(BuildHeader());
+
+        // 2. Main GroupBox chứa DataGridView
+        var pnlMain = new Panel { Dock = DockStyle.Fill, Padding = new Padding(0, 8, 0, 0) };
+        var grpList = new GroupBox
         {
-            Dock = DockStyle.Top,
-            Height = 46,
-            BackColor = Color.White,
-            Padding = new Padding(8, 6, 8, 6)
+            Text = "Danh mục đầu sách trong thư viện (Nhấp đúp vào dòng để chỉnh sửa)",
+            Dock = DockStyle.Fill,
+            Padding = new Padding(10, 8, 10, 10)
         };
 
-        var btnAdd = MakeBtn("Thêm đầu sách", Color.FromArgb(19, 98, 160), Color.White);
-        var btnEdit = MakeBtn("Chỉnh sửa", Color.FromArgb(245, 247, 250), Color.Black);
-        var btnToggleStatus = MakeBtn("Ngừng / Mở lưu hành", Color.FromArgb(255, 244, 229), Color.FromArgb(180, 100, 0));
-        var btnViewCopies = MakeBtn("Xem danh sách bản sách", Color.FromArgb(232, 240, 250), Color.FromArgb(19, 98, 160));
+        _dgvBooks = BuildGrid();
+        grpList.Controls.Add(_dgvBooks);
+        pnlMain.Controls.Add(grpList);
 
-        btnAdd.Click += (_, _) => OpenBookDialog(null);
-        btnEdit.Click += (_, _) =>
+        Controls.Add(pnlMain);
+        Controls.Add(pnlTop);
+
+        ResumeLayout(true);
+    }
+
+    private Panel BuildHeader()
+    {
+        var pnl = new Panel { Dock = DockStyle.Top, Height = 58, BackColor = SoftBlue };
+        pnl.Paint += (_, e) => e.Graphics.DrawRectangle(new Pen(BorderGray), 0, 0, pnl.Width - 1, pnl.Height - 1);
+
+        var lblTitle = new Label
         {
-            if (GetSelectedBook() is { } b) OpenBookDialog(b);
+            Text = "QUẢN LÝ DANH MỤC ĐẦU SÁCH",
+            AutoSize = true,
+            BackColor = Color.Transparent,
+            Font = new Font("Segoe UI", 11F, FontStyle.Bold),
+            Location = new Point(14, 8)
         };
+        pnl.Controls.Add(lblTitle);
+
+        _lblSummary = new Label
+        {
+            Text = "Đang tải danh mục đầu sách...",
+            AutoSize = true,
+            BackColor = Color.Transparent,
+            ForeColor = TextGray,
+            Font = new Font("Segoe UI", 8.5F),
+            Location = new Point(16, 32)
+        };
+        pnl.Controls.Add(_lblSummary);
+
+        // Dùng FlowLayoutPanel neo bên phải để các nút tự căn hàng thẳng tắp, không bao giờ chồng chéo hay mất chữ
+        var flowActions = new FlowLayoutPanel
+        {
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            FlowDirection = FlowDirection.RightToLeft,
+            WrapContents = false,
+            BackColor = Color.Transparent,
+            Margin = new Padding(0),
+            Padding = new Padding(0)
+        };
+
+        var btnRefresh = CreateActionButton("Làm mới", GRefresh, Color.White, Color.Black);
+        btnRefresh.Click += (_, _) => LoadData();
+
+        var btnViewCopies = CreateActionButton("Xem bản sách", GCopies, Color.White, Primary);
+        btnViewCopies.Click += (_, _) => { if (GetSelectedBook() is { } b) ViewCopiesRequested?.Invoke(b); };
+
+        var btnToggleStatus = CreateActionButton("Ngừng / Mở lưu hành", GToggle, Color.FromArgb(255, 244, 229), Orange);
         btnToggleStatus.Click += BtnToggleStatus_Click;
-        btnViewCopies.Click += (_, _) =>
+
+        var btnEdit = CreateActionButton("Chỉnh sửa", GEdit, Color.White, Color.Black);
+        btnEdit.Click += (_, _) => { if (GetSelectedBook() is { } b) OpenBookDialog(b); };
+
+        var btnAdd = CreateActionButton("Thêm đầu sách", GAdd, Primary, Color.White);
+        btnAdd.Click += (_, _) => OpenBookDialog(null);
+
+        // Add theo thứ tự từ phải sang trái vì FlowDirection = RightToLeft
+        flowActions.Controls.AddRange(new Control[] { btnRefresh, btnViewCopies, btnToggleStatus, btnEdit, btnAdd });
+        pnl.Controls.Add(flowActions);
+
+        void LayoutHeader()
         {
-            if (GetSelectedBook() is { } b) ViewCopiesRequested?.Invoke(b);
-        };
+            flowActions.Location = new Point(
+                Math.Max(lblTitle.Right + 16, pnl.ClientSize.Width - flowActions.Width - 12),
+                (pnl.ClientSize.Height - flowActions.Height) / 2
+            );
+        }
 
-        pnlTop.Controls.AddRange([btnAdd, btnEdit, btnToggleStatus, btnViewCopies]);
+        pnl.Resize += (_, _) => LayoutHeader();
+        LayoutHeader();
 
-        // Thanh tìm kiếm theo tên, tác giả, ISBN, thể loại
-        var pnlFilter = new FlowLayoutPanel
+        return pnl;
+    }
+
+    private Panel BuildFilterBar()
+    {
+        var pnl = new Panel
         {
-            Dock = DockStyle.Top,
-            Height = 46,
-            Padding = new Padding(0, 8, 0, 4)
+            Dock = DockStyle.Bottom,
+            Height = 50,
+            BackColor = Color.White,
+            Padding = new Padding(12, 8, 12, 8)
         };
+        pnl.Paint += (_, e) => e.Graphics.DrawRectangle(new Pen(BorderGray), 0, 0, pnl.Width - 1, pnl.Height - 1);
 
-        _txtSearch = new TextBox { Width = 320, PlaceholderText = "Tìm theo tên sách, tác giả, ISBN, mã sách..." };
+        var lblSearch = new Label { Text = "Tìm kiếm:", AutoSize = true, ForeColor = TextGray, Location = new Point(14, 16) };
+
+        _txtSearch = new TextBox
+        {
+            Location = new Point(0, 12),
+            Width = 300,
+            PlaceholderText = "Tên đầu sách, tác giả, mã ISBN hoặc mã sách..."
+        };
         _txtSearch.TextChanged += (_, _) => LoadData();
 
-        _cboCategoryFilter = new ComboBox { Width = 220, DropDownStyle = ComboBoxStyle.DropDownList };
+        var lblCat = new Label { Text = "Thể loại:", AutoSize = true, ForeColor = TextGray, Location = new Point(0, 16) };
+
+        _cboCategoryFilter = new ComboBox
+        {
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            Location = new Point(0, 12),
+            Width = 215
+        };
         _cboCategoryFilter.SelectedIndexChanged += (_, _) => LoadData();
 
-        _chkShowDiscontinued = new CheckBox { Text = "Hiển thị cả sách ngừng lưu hành", Checked = true, AutoSize = true, Padding = new Padding(10, 4, 0, 0) };
+        _chkShowDiscontinued = new CheckBox
+        {
+            Text = "Hiển thị cả sách ngừng lưu hành",
+            Checked = true,
+            AutoSize = true,
+            ForeColor = Color.FromArgb(60, 65, 75)
+        };
         _chkShowDiscontinued.CheckedChanged += (_, _) => LoadData();
 
-        pnlFilter.Controls.Add(new Label { Text = "Từ khóa:", AutoSize = true, Padding = new Padding(0, 6, 4, 0) });
-        pnlFilter.Controls.Add(_txtSearch);
-        pnlFilter.Controls.Add(new Label { Text = "Thể loại:", AutoSize = true, Padding = new Padding(12, 6, 4, 0) });
-        pnlFilter.Controls.Add(_cboCategoryFilter);
-        pnlFilter.Controls.Add(_chkShowDiscontinued);
+        void LayoutFilterBar()
+        {
+            _chkShowDiscontinued.Left = pnl.ClientSize.Width - _chkShowDiscontinued.Width - 14;
+            _chkShowDiscontinued.Top = (pnl.ClientSize.Height - _chkShowDiscontinued.Height) / 2;
 
-        _dgvBooks = new DataGridView
+            _cboCategoryFilter.Left = _chkShowDiscontinued.Left - _cboCategoryFilter.Width - 14;
+            lblCat.Left = _cboCategoryFilter.Left - lblCat.Width - 8;
+
+            _txtSearch.Left = lblSearch.Right + 10;
+            _txtSearch.Width = Math.Max(160, lblCat.Left - _txtSearch.Left - 14);
+
+            lblSearch.Top = (pnl.ClientSize.Height - lblSearch.Height) / 2;
+            lblCat.Top = (pnl.ClientSize.Height - lblCat.Height) / 2;
+        }
+
+        pnl.Controls.AddRange(new Control[] { lblSearch, _txtSearch, lblCat, _cboCategoryFilter, _chkShowDiscontinued });
+        pnl.Resize += (_, _) => LayoutFilterBar();
+        LayoutFilterBar();
+        return pnl;
+    }
+
+    private DataGridView BuildGrid()
+    {
+        var g = new DataGridView
         {
             Dock = DockStyle.Fill,
             ReadOnly = true,
             AllowUserToAddRows = false,
+            AllowUserToDeleteRows = false,
+            AllowUserToResizeRows = false,
             RowHeadersVisible = false,
+            BackgroundColor = Color.White,
+            BorderStyle = BorderStyle.FixedSingle,
+            CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal,
+            GridColor = Color.FromArgb(225, 228, 233),
             SelectionMode = DataGridViewSelectionMode.FullRowSelect,
             MultiSelect = false,
+            EnableHeadersVisualStyles = false,
+            RowTemplate = { Height = 40 },
+            ColumnHeadersHeight = 46,
+            ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing,
             AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
-            BackgroundColor = Color.White,
-            RowTemplate = { Height = 32 }
+            Font = new Font("Segoe UI", 9F)
         };
-        _dgvBooks.Columns.Add("colCode", "Mã sách");
-        _dgvBooks.Columns.Add("colIsbn", "ISBN");
-        _dgvBooks.Columns.Add("colTitle", "Tên đầu sách");
-        _dgvBooks.Columns.Add("colAuthor", "Tác giả");
-        _dgvBooks.Columns.Add("colCategory", "Thể loại");
-        _dgvBooks.Columns.Add("colPub", "NXB / Năm");
-        _dgvBooks.Columns.Add("colCopies", "Bản sách (Sẵn/Tổng)");
-        _dgvBooks.Columns.Add("colStatus", "Trạng thái");
-        _dgvBooks.CellDoubleClick += (_, _) =>
-        {
-            if (GetSelectedBook() is { } b) OpenBookDialog(b);
-        };
+        g.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(241, 243, 246);
+        g.ColumnHeadersDefaultCellStyle.ForeColor = Color.Black;
+        g.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+        g.ColumnHeadersDefaultCellStyle.Padding = new Padding(6, 0, 0, 0);
+        g.DefaultCellStyle.Padding = new Padding(6, 0, 0, 0);
+        g.DefaultCellStyle.SelectionBackColor = Color.FromArgb(225, 236, 248);
+        g.DefaultCellStyle.SelectionForeColor = Color.Black;
 
-        _lblCount = new Label { Dock = DockStyle.Bottom, Height = 24, TextAlign = ContentAlignment.MiddleRight };
+        g.Columns.Add("colCode",     "Mã sách");
+        g.Columns.Add("colIsbn",     "ISBN");
+        g.Columns.Add("colTitle",    "Tên đầu sách");
+        g.Columns.Add("colAuthor",   "Tác giả");
+        g.Columns.Add("colCategory", "Thể loại");
+        g.Columns.Add("colPub",      "NXB / Năm");
+        g.Columns.Add("colCopies",   "Bản sách (Sẵn/Tổng)");
+        g.Columns.Add("colStatus",   "Trạng thái");
 
-        Controls.Add(_dgvBooks);
-        Controls.Add(_lblCount);
-        Controls.Add(pnlFilter);
-        Controls.Add(pnlTop);
+        g.Columns["colCode"]!.DefaultCellStyle.ForeColor = Primary;
+        g.Columns["colCode"]!.DefaultCellStyle.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
+
+        g.Columns["colCode"]!.FillWeight     = 75;
+        g.Columns["colIsbn"]!.FillWeight     = 85;
+        g.Columns["colTitle"]!.FillWeight    = 155;
+        g.Columns["colAuthor"]!.FillWeight   = 110;
+        g.Columns["colCategory"]!.FillWeight = 95;
+        g.Columns["colPub"]!.FillWeight      = 95;
+        g.Columns["colCopies"]!.FillWeight   = 95;
+        g.Columns["colStatus"]!.FillWeight   = 105;
+
+        g.CellPainting += DgvBooks_CellPainting;
+        g.CellDoubleClick += (_, _) => { if (GetSelectedBook() is { } b) OpenBookDialog(b); };
+        return g;
     }
 
-    private static Button MakeBtn(string text, Color back, Color fore)
+    private void DgvBooks_CellPainting(object? sender, DataGridViewCellPaintingEventArgs e)
     {
-        var btn = new Button
+        if (e.RowIndex < 0 || e.ColumnIndex != 7 || e.Graphics == null) return;
+
+        e.Paint(e.CellBounds, DataGridViewPaintParts.Background | DataGridViewPaintParts.Border | DataGridViewPaintParts.SelectionBackground);
+        string text = e.Value?.ToString() ?? "";
+        Color c = text == "Đang lưu hành" ? Green : Red;
+
+        var font = new Font("Segoe UI", 8.5F);
+        string label = "●  " + text;
+        var size = TextRenderer.MeasureText(label, font);
+        var rect = new Rectangle(e.CellBounds.X + 8, e.CellBounds.Y + (e.CellBounds.Height - 25) / 2, size.Width + 8, 25);
+
+        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        using (var path = RoundedRect(rect, 12))
+        using (var fill = new SolidBrush(Color.FromArgb(22, c)))
+        using (var pen  = new Pen(Color.FromArgb(150, c)))
         {
-            Text = text,
-            BackColor = back,
-            ForeColor = fore,
-            FlatStyle = FlatStyle.Flat,
-            Height = 32,
-            AutoSize = true,
-            Padding = new Padding(8, 0, 8, 0),
-            Margin = new Padding(0, 0, 8, 0),
-            Cursor = Cursors.Hand
-        };
-        return btn;
+            e.Graphics.FillPath(fill, path);
+            e.Graphics.DrawPath(pen, path);
+        }
+        TextRenderer.DrawText(e.Graphics, label, font, rect, c,
+            TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
+        e.Handled = true;
     }
 
+    // ============================================================
+    //  LOAD DATA & NGHIỆP VỤ
+    // ============================================================
     public void LoadFilters()
     {
         var cats = _service.GetAllCategories();
@@ -144,6 +310,13 @@ public class BookCatalogControl : UserControl
         int catId = _cboCategoryFilter.SelectedValue is int id ? id : 0;
         _books = _service.SearchBooks(_txtSearch.Text, catId, _chkShowDiscontinued.Checked);
 
+        int activeCount = _books.Count(b => b.Status == "Active");
+        int totalCopies = _books.Sum(b => b.Copies.Count);
+        int availCopies = _books.Sum(b => b.Copies.Count(c => c.CirculationStatus == CirculationStatus.Available));
+
+        _lblSummary.Text =
+            $"Tổng đầu sách: {_books.Count:N0}  ·  Đang lưu hành: {activeCount:N0}  ·  Bản sách sẵn sàng: {availCopies:N0}/{totalCopies:N0} cuốn";
+
         _dgvBooks.Rows.Clear();
         foreach (var b in _books)
         {
@@ -157,21 +330,21 @@ public class BookCatalogControl : UserControl
                 b.Title,
                 b.Author,
                 b.Category?.CategoryName ?? "-",
-                $"{b.Publisher ?? "-"} ({b.PublishedYear.ToString() ?? "-"})",
+                $"{b.Publisher ?? "-"} ({(b.PublishedYear > 0 ? b.PublishedYear.ToString() : "-")})",
                 $"{avail} / {total}",
                 statusText
             );
             _dgvBooks.Rows[idx].Tag = b;
             if (b.Status != "Active")
-                _dgvBooks.Rows[idx].DefaultCellStyle.ForeColor = Color.Gray;
+                _dgvBooks.Rows[idx].DefaultCellStyle.ForeColor = TextGray;
         }
-        _lblCount.Text = $"Tổng số đầu sách: {_books.Count}";
     }
 
     private Book? GetSelectedBook()
     {
         if (_dgvBooks.CurrentRow?.Tag is Book b) return b;
-        MessageBox.Show("Vui lòng chọn một đầu sách trong danh sách.", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        MessageBox.Show("Vui lòng chọn một đầu sách trong danh sách.", "Thông báo",
+            MessageBoxButtons.OK, MessageBoxIcon.Information);
         return null;
     }
 
@@ -179,9 +352,11 @@ public class BookCatalogControl : UserControl
     {
         using var dlg = new BookEditDialog(book);
         if (dlg.ShowDialog() == DialogResult.OK)
+        {
             LoadData();
-        CatalogDataChanged?.Invoke();
-}
+            CatalogDataChanged?.Invoke();
+        }
+    }
 
     private void BtnToggleStatus_Click(object? sender, EventArgs e)
     {
@@ -192,12 +367,66 @@ public class BookCatalogControl : UserControl
         {
             _service.ToggleBookDiscontinued(book.Id);
             LoadData();
-            CatalogDataChanged?.Invoke(); 
+            CatalogDataChanged?.Invoke();
         }
         catch (Exception ex)
         {
             MessageBox.Show(ex.Message, "Không thể đổi trạng thái", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
+    }
+
+    private static Button CreateActionButton(string text, string glyph, Color back, Color fore)
+    {
+        // Vẽ glyph vào khung 16x16 với NoGlyphOverhang để căn chính giữa tâm dọc, không bị tụt xuống đáy
+        var bmp = new Bitmap(16, 16);
+        using (var g = Graphics.FromImage(bmp))
+        using (var f = new Font(IconFont, 13F, GraphicsUnit.Pixel))
+        {
+            g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
+            TextRenderer.DrawText(
+                g,
+                glyph,
+                f,
+                new Rectangle(0, 0, 16, 16),
+                fore,
+                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix
+            );
+        }
+
+        var btn = new Button
+        {
+            Text = " " + text,
+            FlatStyle = FlatStyle.Flat,
+            BackColor = back,
+            ForeColor = fore,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            MinimumSize = new Size(0, 34),
+            MaximumSize = new Size(0, 34),
+            Image = bmp,
+            ImageAlign = ContentAlignment.MiddleLeft,
+            TextImageRelation = TextImageRelation.ImageBeforeText,
+            TextAlign = ContentAlignment.MiddleCenter,
+            Padding = new Padding(8, 0, 10, 0),
+            Margin = new Padding(6, 0, 0, 0),
+            Font = new Font("Segoe UI", 8.5F, FontStyle.Bold),
+            UseCompatibleTextRendering = false,
+            Cursor = Cursors.Hand
+        };
+        btn.FlatAppearance.BorderColor = BorderGray;
+        return btn;
+    }
+
+    private static GraphicsPath RoundedRect(Rectangle r, int radius)
+    {
+        int d = radius * 2;
+        var p = new GraphicsPath();
+        p.AddArc(r.X, r.Y, d, d, 180, 90);
+        p.AddArc(r.Right - d, r.Y, d, d, 270, 90);
+        p.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90);
+        p.AddArc(r.X, r.Bottom - d, d, d, 90, 90);
+        p.CloseFigure();
+        return p;
     }
 }
 
@@ -223,11 +452,13 @@ public class BookEditDialog : Form
     {
         _book = book ?? new Book { BookCode = _service.GenerateNextBookCode(), Language = "Tiếng Việt" };
         Text = book == null ? "Thêm mới đầu sách" : $"Cập nhật đầu sách - {book.BookCode}";
-        Size = new Size(760, 560);
+        Size = new Size(760, 585);
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = false;
+        BackColor = Color.White;
+        Font = new Font("Segoe UI", 9F);
 
         BuildUi();
         BindData();
@@ -235,6 +466,16 @@ public class BookEditDialog : Form
 
     private void BuildUi()
     {
+        var pnlHeader = new Panel { Dock = DockStyle.Top, Height = 46, BackColor = Color.FromArgb(232, 240, 250) };
+        pnlHeader.Controls.Add(new Label
+        {
+            Text = Text.ToUpper(),
+            Font = new Font("Segoe UI", 10F, FontStyle.Bold),
+            ForeColor = Color.FromArgb(19, 98, 160),
+            AutoSize = true,
+            Location = new Point(16, 13)
+        });
+
         var main = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, Padding = new Padding(14) };
         main.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 68));
         main.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 32));
@@ -265,7 +506,6 @@ public class BookEditDialog : Form
         AddRow(fields, 8, "Số trang:", _numPages);
         AddRow(fields, 9, "Mô tả tóm tắt:", _txtDesc, 92);
 
-        // Cột phải: Ảnh bìa
         var pnlRight = new Panel { Dock = DockStyle.Fill, Padding = new Padding(10, 0, 0, 0) };
         _picCover = new PictureBox
         {
@@ -273,10 +513,20 @@ public class BookEditDialog : Form
             Height = 250,
             BorderStyle = BorderStyle.FixedSingle,
             SizeMode = PictureBoxSizeMode.Zoom,
-            BackColor = Color.WhiteSmoke
+            BackColor = Color.FromArgb(245, 247, 250)
         };
         _txtCoverPath = new TextBox { Dock = DockStyle.Top, ReadOnly = true };
-        var btnBrowse = new Button { Text = "Chọn ảnh bìa...", Dock = DockStyle.Top, Height = 32 };
+        var btnBrowse = new Button
+        {
+            Text = "Chọn ảnh bìa...",
+            Dock = DockStyle.Top,
+            Height = 32,
+            FlatStyle = FlatStyle.Flat,
+            BackColor = Color.FromArgb(232, 240, 250),
+            ForeColor = Color.FromArgb(19, 98, 160),
+            Font = new Font("Segoe UI", 8.5F, FontStyle.Bold),
+            Cursor = Cursors.Hand
+        };
         btnBrowse.Click += (_, _) =>
         {
             using var ofd = new OpenFileDialog { Filter = "Image Files|*.jpg;*.jpeg;*.png;*.bmp" };
@@ -294,9 +544,25 @@ public class BookEditDialog : Form
         main.Controls.Add(fields, 0, 0);
         main.Controls.Add(pnlRight, 1, 0);
 
-        var pnlFooter = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 48, FlowDirection = FlowDirection.RightToLeft, Padding = new Padding(14, 6, 14, 6) };
-        var btnCancel = new Button { Text = "Hủy", Width = 90, Height = 32 };
-        var btnSave = new Button { Text = "Lưu thông tin", Width = 120, Height = 32, BackColor = Color.FromArgb(19, 98, 160), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+        var pnlFooter = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Bottom,
+            Height = 48,
+            BackColor = Color.FromArgb(245, 247, 250),
+            FlowDirection = FlowDirection.RightToLeft,
+            Padding = new Padding(14, 7, 14, 7)
+        };
+        var btnCancel = new Button { Text = "Hủy", Width = 90, Height = 32, FlatStyle = FlatStyle.Flat, BackColor = Color.White };
+        var btnSave = new Button
+        {
+            Text = "Lưu thông tin",
+            Width = 120,
+            Height = 32,
+            BackColor = Color.FromArgb(19, 98, 160),
+            ForeColor = Color.White,
+            FlatStyle = FlatStyle.Flat,
+            Font = new Font("Segoe UI", 9F, FontStyle.Bold)
+        };
         btnCancel.Click += (_, _) => DialogResult = DialogResult.Cancel;
         btnSave.Click += BtnSave_Click;
 
@@ -305,12 +571,19 @@ public class BookEditDialog : Form
 
         Controls.Add(main);
         Controls.Add(pnlFooter);
+        Controls.Add(pnlHeader);
     }
 
     private static void AddRow(TableLayoutPanel tbl, int row, string label, Control c, int height = 34)
     {
         tbl.RowStyles.Add(new RowStyle(SizeType.Absolute, height));
-        tbl.Controls.Add(new Label { Text = label, TextAlign = ContentAlignment.MiddleLeft, Dock = DockStyle.Fill }, 0, row);
+        tbl.Controls.Add(new Label
+        {
+            Text = label,
+            ForeColor = Color.FromArgb(80, 90, 105),
+            TextAlign = ContentAlignment.MiddleLeft,
+            Dock = DockStyle.Fill
+        }, 0, row);
         tbl.Controls.Add(c, 1, row);
     }
 
@@ -327,8 +600,8 @@ public class BookEditDialog : Form
         _txtAuthor.Text = _book.Author;
         if (_book.IdCategory > 0) _cboCategory.SelectedValue = _book.IdCategory;
         _txtPublisher.Text = _book.Publisher;
-        _txtYear.Text = _book.PublishedYear > 0 ? _book.PublishedYear.ToString() : "";        _txtLanguage.Text = _book.Language ?? "Tiếng Việt";
-        // _numPages.Value = _book.PageCount ?? 0;
+        _txtYear.Text = _book.PublishedYear > 0 ? _book.PublishedYear.ToString() : "";
+        _txtLanguage.Text = _book.Language ?? "Tiếng Việt";
         _txtDesc.Text = _book.Description;
         _txtCoverPath.Text = _book.CoverImagePath;
         if (!string.IsNullOrWhiteSpace(_book.CoverImagePath) && File.Exists(_book.CoverImagePath))
@@ -345,11 +618,10 @@ public class BookEditDialog : Form
             _book.Author = _txtAuthor.Text;
             _book.IdCategory = _cboCategory.SelectedValue is int id ? id : 0;
             _book.Publisher = _txtPublisher.Text;
-            _book.PublishedYear = Convert.ToInt32(_txtYear.Text);
-            if (!int.TryParse(_txtYear.Text, out int year) || year < 1000 || year > 9999) 
+            if (!int.TryParse(_txtYear.Text, out int year) || year < 1000 || year > 9999)
                 throw new InvalidOperationException("Năm xuất bản phải là số 4 chữ số (1000–9999).");
             _book.PublishedYear = year;
-            // _book.PageCount = _numPages.Value > 0 ? (int)_numPages.Value : null;
+            _book.Language = _txtLanguage.Text;
             _book.CoverImagePath = string.IsNullOrWhiteSpace(_txtCoverPath.Text) ? null : _txtCoverPath.Text;
             _book.Description = _txtDesc.Text;
 

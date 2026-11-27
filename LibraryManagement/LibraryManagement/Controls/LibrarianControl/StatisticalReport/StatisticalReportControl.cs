@@ -144,17 +144,19 @@ namespace LibraryManagement.Controls
 
         private Panel BuildHeader()
         {
-            var pnl = new Panel { Dock = DockStyle.Top, Height = 56, BackColor = SoftBlue };
+            var pnl = new Panel { Dock = DockStyle.Top, Height = 58, BackColor = SoftBlue };
             pnl.Paint += (_, e) => e.Graphics.DrawRectangle(new Pen(BorderGray), 0, 0, pnl.Width - 1, pnl.Height - 1);
 
-            pnl.Controls.Add(new Label
+            var lblTitle = new Label
             {
                 Text = "BÁO CÁO & THỐNG KÊ HOẠT ĐỘNG THƯ VIỆN",
                 AutoSize = true,
                 BackColor = Color.Transparent,
                 Font = new Font("Segoe UI", 11F, FontStyle.Bold),
-                Location = new Point(14, 7)
-            });
+                Location = new Point(14, 8)
+            };
+            pnl.Controls.Add(lblTitle);
+
             pnl.Controls.Add(new Label
             {
                 Text = "Phân tích lưu thông mượn/trả, tình trạng kho sách, cảnh báo quá hạn và doanh thu tiền phạt",
@@ -162,24 +164,39 @@ namespace LibraryManagement.Controls
                 BackColor = Color.Transparent,
                 ForeColor = TextGray,
                 Font = new Font("Segoe UI", 8.5F),
-                Location = new Point(16, 31)
+                Location = new Point(16, 32)
             });
 
-            var btnExport = CreateActionButton("  Xuất Excel (CSV)", GExport, Color.White, Color.Black, 185);
-            btnExport.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            var flowActions = new FlowLayoutPanel
+            {
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                FlowDirection = FlowDirection.RightToLeft,
+                WrapContents = false,
+                BackColor = Color.Transparent,
+                Margin = new Padding(0),
+                Padding = new Padding(0)
+            };
+
+            var btnRefresh = CreateActionButton("Làm mới", GRefresh, Primary, Color.White);
+            btnRefresh.Click += async (_, _) => await LoadReportData();
+
+            var btnExport = CreateActionButton("Xuất Excel (CSV)", GExport, Color.White, Color.Black);
             btnExport.Click += BtnExport_Click;
 
-            var btnRefresh = CreateActionButton("  Làm mới", GRefresh, Primary, Color.White, 115);
-            btnRefresh.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            btnRefresh.Click += (_, _) => LoadReportData();
+            flowActions.Controls.AddRange(new Control[] { btnRefresh, btnExport });
+            pnl.Controls.Add(flowActions);
 
-            pnl.Controls.Add(btnExport);
-            pnl.Controls.Add(btnRefresh);
-            pnl.Resize += (_, _) =>
+            void LayoutHeader()
             {
-                btnRefresh.Location = new Point(pnl.Width - btnRefresh.Width - 12, 11);
-                btnExport.Location  = new Point(btnRefresh.Left - btnExport.Width - 8, 11);
-            };
+                flowActions.Location = new Point(
+                    Math.Max(lblTitle.Right + 16, pnl.ClientSize.Width - flowActions.Width - 12),
+                    (pnl.ClientSize.Height - flowActions.Height) / 2
+                );
+            }
+
+            pnl.Resize += (_, _) => LayoutHeader();
+            LayoutHeader();
 
             return pnl;
         }
@@ -195,11 +212,10 @@ namespace LibraryManagement.Controls
             };
             pnl.Paint += (_, e) => e.Graphics.DrawRectangle(new Pen(BorderGray), 0, 0, pnl.Width - 1, pnl.Height - 1);
 
-            var lblPreset = new Label { Text = "Kỳ báo cáo:", AutoSize = true, Location = new Point(14, 16), ForeColor = TextGray };
+            var lblPreset = new Label { Text = "Kỳ báo cáo:", AutoSize = true, ForeColor = TextGray };
             _cboPreset = new ComboBox
             {
                 DropDownStyle = ComboBoxStyle.DropDownList,
-                Location = new Point(0, 12),
                 Width = 145
             };
             _cboPreset.Items.AddRange(new object[]
@@ -212,41 +228,40 @@ namespace LibraryManagement.Controls
                 if (_cboPreset.SelectedIndex != 5) ApplyPresetAndLoad();
             };
 
-            var lblFrom = new Label { Text = "Từ ngày:", AutoSize = true, Location = new Point(0, 16), ForeColor = TextGray };
+            var lblFrom = new Label { Text = "Từ ngày:", AutoSize = true, ForeColor = TextGray };
             _dtpFrom = new DateTimePicker
             {
                 Format = DateTimePickerFormat.Custom,
                 CustomFormat = "dd/MM/yyyy",
-                Location = new Point(0, 12),
                 Width = 115
             };
             _dtpFrom.ValueChanged += (_, _) => { if (_dtpFrom.Focused) _cboPreset.SelectedIndex = 5; };
 
-            var lblTo = new Label { Text = "Đến ngày:", AutoSize = true, Location = new Point(0, 16), ForeColor = TextGray };
+            var lblTo = new Label { Text = "Đến ngày:", AutoSize = true, ForeColor = TextGray };
             _dtpTo = new DateTimePicker
             {
                 Format = DateTimePickerFormat.Custom,
                 CustomFormat = "dd/MM/yyyy",
-                Location = new Point(0, 12),
                 Width = 115
             };
             _dtpTo.ValueChanged += (_, _) => { if (_dtpTo.Focused) _cboPreset.SelectedIndex = 5; };
 
-            var btnFilter = CreateActionButton("  Lọc dữ liệu", GFilter, SoftBlue, Primary, 150);
-            btnFilter.Location = new Point(0, 9);
-            btnFilter.Height = 31;
-            btnFilter.Click += (_, _) => LoadReportData();
+            var btnFilter = CreateActionButton("Lọc dữ liệu", GFilter, SoftBlue, Primary);
+            btnFilter.MinimumSize = new Size(0, 31);
+            btnFilter.MaximumSize = new Size(0, 31);
+            btnFilter.Click += async (_, _) => await LoadReportData();
 
             void LayoutFilterBar()
             {
-                lblPreset.Left = 14;
-                _cboPreset.Left = lblPreset.Right + 8;
-                lblFrom.Left = _cboPreset.Right + 16;
-                _dtpFrom.Left = lblFrom.Right + 8;
-                lblTo.Left = _dtpFrom.Right + 16;
-                _dtpTo.Left = lblTo.Right + 8;
-                btnFilter.Left = pnl.ClientSize.Width - btnFilter.Width - 12;
-                lblPreset.Top = lblFrom.Top = lblTo.Top = (pnl.ClientSize.Height - lblPreset.Height) / 2;
+                int cy = pnl.ClientSize.Height / 2;
+
+                lblPreset.Location = new Point(14, cy - lblPreset.Height / 2);
+                _cboPreset.Location = new Point(lblPreset.Right + 8, cy - _cboPreset.Height / 2);
+                lblFrom.Location = new Point(_cboPreset.Right + 16, cy - lblFrom.Height / 2);
+                _dtpFrom.Location = new Point(lblFrom.Right + 8, cy - _dtpFrom.Height / 2);
+                lblTo.Location = new Point(_dtpFrom.Right + 16, cy - lblTo.Height / 2);
+                _dtpTo.Location = new Point(lblTo.Right + 8, cy - _dtpTo.Height / 2);
+                btnFilter.Location = new Point(pnl.ClientSize.Width - btnFilter.Width - 12, cy - btnFilter.Height / 2);
             }
 
             pnl.Controls.AddRange(new Control[] { lblPreset, _cboPreset, lblFrom, _dtpFrom, lblTo, _dtpTo, btnFilter });
@@ -655,29 +670,41 @@ namespace LibraryManagement.Controls
             _tblKpi.Controls.Add(card, col, 0);
         }
 
-        private static Button CreateActionButton(string text, string glyph, Color back, Color fore, int width)
+        private static Button CreateActionButton(string text, string glyph, Color back, Color fore)
         {
-            var bmp = new Bitmap(18, 18);
+            var bmp = new Bitmap(16, 16);
             using (var g = Graphics.FromImage(bmp))
-            using (var f = new Font(IconFont, 13, GraphicsUnit.Pixel))
+            using (var f = new Font(IconFont, 13F, GraphicsUnit.Pixel))
             {
-                TextRenderer.DrawText(g, glyph, f, new Rectangle(0, -1, 18, 18), fore,
-                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
+                g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
+                TextRenderer.DrawText(
+                    g,
+                    glyph,
+                    f,
+                    new Rectangle(0, 0, 16, 16),
+                    fore,
+                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix
+                );
             }
 
             var btn = new Button
             {
-                Text = text,
+                Text = " " + text.Trim(),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = back,
                 ForeColor = fore,
-                Size = new Size(width, 34),
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                MinimumSize = new Size(0, 34),
+                MaximumSize = new Size(0, 34),
                 Image = bmp,
                 ImageAlign = ContentAlignment.MiddleLeft,
                 TextImageRelation = TextImageRelation.ImageBeforeText,
-                TextAlign = ContentAlignment.MiddleLeft,
-                Padding = new Padding(8, 0, 8, 0),
+                TextAlign = ContentAlignment.MiddleCenter,
+                Padding = new Padding(8, 0, 10, 0),
+                Margin = new Padding(6, 0, 0, 0),
                 Font = new Font("Segoe UI", 8.5F, FontStyle.Bold),
+                UseCompatibleTextRendering = false,
                 Cursor = Cursors.Hand
             };
             btn.FlatAppearance.BorderColor = BorderGray;

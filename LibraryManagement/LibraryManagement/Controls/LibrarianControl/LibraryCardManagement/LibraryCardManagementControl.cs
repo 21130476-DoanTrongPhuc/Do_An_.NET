@@ -103,17 +103,18 @@ namespace LibraryManagement.Forms.LibraryCardManagement
 
         private Panel BuildHeader()
         {
-            var pnl = new Panel { Dock = DockStyle.Top, Height = 56, BackColor = SoftBlue };
+            var pnl = new Panel { Dock = DockStyle.Top, Height = 58, BackColor = SoftBlue };
             pnl.Paint += (_, e) => e.Graphics.DrawRectangle(new Pen(BorderGray), 0, 0, pnl.Width - 1, pnl.Height - 1);
 
-            pnl.Controls.Add(new Label
+            var lblTitle = new Label
             {
                 Text = "QUẢN LÝ THẺ THƯ VIỆN ĐỘC GIẢ",
                 AutoSize = true,
                 BackColor = Color.Transparent,
                 Font = new Font("Segoe UI", 11F, FontStyle.Bold),
-                Location = new Point(14, 7)
-            });
+                Location = new Point(14, 8)
+            };
+            pnl.Controls.Add(lblTitle);
 
             _lblSummary = new Label
             {
@@ -122,25 +123,40 @@ namespace LibraryManagement.Forms.LibraryCardManagement
                 BackColor = Color.Transparent,
                 ForeColor = TextGray,
                 Font = new Font("Segoe UI", 8.5F),
-                Location = new Point(16, 31)
+                Location = new Point(16, 32)
             };
             pnl.Controls.Add(_lblSummary);
 
-            var btnIssueNew = CreateActionButton("  Cấp thẻ độc giả mới", GAdd, Primary, Color.White, 175);
-            btnIssueNew.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            btnIssueNew.Click += BtnQuickIssueDialog_Click;
+            var flowActions = new FlowLayoutPanel
+            {
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                FlowDirection = FlowDirection.RightToLeft,
+                WrapContents = false,
+                BackColor = Color.Transparent,
+                Margin = new Padding(0),
+                Padding = new Padding(0)
+            };
 
-            var btnRefresh = CreateActionButton("  Làm mới", GRefresh, Color.White, Color.Black, 110);
-            btnRefresh.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            var btnRefresh = CreateActionButton("Làm mới", GRefresh, Color.White, Color.Black);
             btnRefresh.Click += async (_, _) => await LoadCardsAsync();
 
-            pnl.Controls.Add(btnIssueNew);
-            pnl.Controls.Add(btnRefresh);
-            pnl.Resize += (_, _) =>
+            var btnIssueNew = CreateActionButton("Cấp thẻ độc giả mới", GAdd, Primary, Color.White);
+            btnIssueNew.Click += BtnQuickIssueDialog_Click;
+
+            flowActions.Controls.AddRange(new Control[] { btnRefresh, btnIssueNew });
+            pnl.Controls.Add(flowActions);
+
+            void LayoutHeader()
             {
-                btnRefresh.Location  = new Point(pnl.Width - btnRefresh.Width - 12, 11);
-                btnIssueNew.Location = new Point(btnRefresh.Left - btnIssueNew.Width - 8, 11);
-            };
+                flowActions.Location = new Point(
+                    Math.Max(lblTitle.Right + 16, pnl.ClientSize.Width - flowActions.Width - 12),
+                    (pnl.ClientSize.Height - flowActions.Height) / 2
+                );
+            }
+
+            pnl.Resize += (_, _) => LayoutHeader();
+            LayoutHeader();
 
             return pnl;
         }
@@ -189,9 +205,10 @@ namespace LibraryManagement.Forms.LibraryCardManagement
             _cboStatusFilter.SelectedIndex = 0;
             _cboStatusFilter.SelectedIndexChanged += async (_, _) => await LoadCardsAsync();
 
-            var btnSearch = CreateActionButton("  Tra cứu", GSearch, SoftBlue, Primary, 120);
+            var btnSearch = CreateActionButton("Tra cứu", GSearch, SoftBlue, Primary);
+            btnSearch.MinimumSize = new Size(0, 31);
+            btnSearch.MaximumSize = new Size(0, 31);
             btnSearch.Location = new Point(0, 9);
-            btnSearch.Height = 31;
             btnSearch.Click += async (_, _) => await LoadCardsAsync();
 
             void LayoutFilterBar()
@@ -771,31 +788,53 @@ namespace LibraryManagement.Forms.LibraryCardManagement
             _btnPrintCard.Enabled = enabled;
         }
 
-        private static Button CreateActionButton(string text, string glyph, Color back, Color fore, int width)
+        private static Button CreateActionButton(string text, string glyph, Color back, Color fore, int? fixedWidth = null)
         {
-            var bmp = new Bitmap(18, 18);
+            var bmp = new Bitmap(16, 16);
             using (var g = Graphics.FromImage(bmp))
-            using (var f = new Font(IconFont, 13, GraphicsUnit.Pixel))
+            using (var f = new Font(IconFont, 13F, GraphicsUnit.Pixel))
             {
-                TextRenderer.DrawText(g, glyph, f, new Rectangle(0, -1, 18, 18), fore,
-                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
+                g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
+                TextRenderer.DrawText(
+                    g,
+                    glyph,
+                    f,
+                    new Rectangle(0, 0, 16, 16),
+                    fore,
+                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix
+                );
             }
 
             var btn = new Button
             {
-                Text = text,
+                Text = " " + text.Trim(),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = back,
                 ForeColor = fore,
-                Size = new Size(width, 34),
                 Image = bmp,
                 ImageAlign = ContentAlignment.MiddleLeft,
                 TextImageRelation = TextImageRelation.ImageBeforeText,
-                TextAlign = ContentAlignment.MiddleLeft,
-                Padding = new Padding(8, 0, 8, 0),
+                TextAlign = ContentAlignment.MiddleCenter,
+                Padding = new Padding(8, 0, 10, 0),
+                Margin = new Padding(6, 0, 0, 0),
                 Font = new Font("Segoe UI", 8.5F, FontStyle.Bold),
+                UseCompatibleTextRendering = false,
                 Cursor = Cursors.Hand
             };
+
+            if (fixedWidth.HasValue)
+            {
+                btn.AutoSize = false;
+                btn.Size = new Size(fixedWidth.Value, 34);
+            }
+            else
+            {
+                btn.AutoSize = true;
+                btn.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+                btn.MinimumSize = new Size(0, 34);
+                btn.MaximumSize = new Size(0, 34);
+            }
+
             btn.FlatAppearance.BorderColor = BorderGray;
             return btn;
         }

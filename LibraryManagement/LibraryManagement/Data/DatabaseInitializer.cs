@@ -26,9 +26,7 @@ public class DatabaseInitializer
     private static void InitializeCore()
     {
         using var connection = DatabaseConnection.CreateConnection();
-
-        /* WAL giúp đọc/ghi đồng thời tốt hơn với Cache=Shared.
-           journal_mode là persistent (chỉ cần set 1 lần), busy_timeout là per-connection. */
+        
         using (var pragma = connection.CreateCommand())
         {
             pragma.CommandText = @"
@@ -72,8 +70,6 @@ public class DatabaseInitializer
                 ApplyMigration(connection, migration.Path, migration.FileName, migration.Version);
             }
         }
-
-        // EnsureAdminAccount(connection);
     }
 
     private static void CreateMigrationHistoryTable(SqliteConnection connection)
@@ -140,9 +136,6 @@ public class DatabaseInitializer
 
             try
             {
-                // Microsoft.Data.Sqlite hỗ trợ thực thi nhiều câu SQL
-                // trong cùng một CommandText.
-                // Không cần tự tách bằng SplitSqlStatements().
                 using (var command = connection.CreateCommand())
                 {
                     command.Transaction = transaction;
@@ -167,8 +160,7 @@ public class DatabaseInitializer
 
                 if (disableForeignKeys)
                     EnsureForeignKeysAreValid(connection, transaction);
-
-                // Lưu lịch sử migration
+                
                 using (var historyCommand = connection.CreateCommand())
                 {
                     historyCommand.Transaction = transaction;
@@ -224,28 +216,4 @@ public class DatabaseInitializer
                 $"Migration tạo vi phạm khóa ngoại tại bảng '{reader.GetString(0)}'.");
         }
     }
-
-    /*private static void EnsureAdminAccount(SqliteConnection connection)
-    {
-        // Câu lệnh 1: Chèn nếu chưa có
-        using (var insertCommand = connection.CreateCommand())
-        {
-            insertCommand.CommandText = @"
-            INSERT OR IGNORE INTO ""Users""
-                (""UserCode"", ""Username"", ""PasswordHash"", ""FullName"", ""UserType"", ""MaxActiveCopies"", ""Status"")
-            VALUES
-                ('NV000', 'admin', '123456', 'Quản trị viên', 'Librarian', NULL, 'Active');";
-            insertCommand.ExecuteNonQuery();
-        }
-
-        // Câu lệnh 2: Cập nhật thông tin (nếu cần)
-        using (var updateCommand = connection.CreateCommand())
-        {
-            updateCommand.CommandText = @"
-            UPDATE ""Users"" 
-            SET ""PasswordHash"" = '123456', ""Status"" = 'Active' 
-            WHERE ""Username"" = 'admin';";
-            updateCommand.ExecuteNonQuery();
-        }
-    }*/
 }
